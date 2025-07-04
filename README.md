@@ -26,7 +26,7 @@ pip install codeql-wrapper
 ### From Source
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/ModusCreate-Perdigao-GHAS-Playground/codeql-wrapper.git
 cd codeql-wrapper
 poetry install
 ```
@@ -176,13 +176,6 @@ poetry publish -r testpypi
 - **`lint.yml`**: Code quality checks (black, flake8, mypy)
 - **`build.yml`**: Package building and installation testing
 - **`release.yml`**: Automated releases to PyPI when tags are pushed
-
-#### Setting up PyPI publishing:
-
-1. Get a PyPI API token from https://pypi.org/manage/account/token/
-2. Add it as a GitHub secret named `PYPI_API_TOKEN`
-3. Create a git tag: `git tag v0.1.0 && git push origin v0.1.0`
-4. The release workflow will automatically publish to PyPI
 
 ## License
 
