@@ -1,0 +1,47 @@
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry]
+name = "codeql-wrapper"
+version = "0.1.0"
+description = "A universal Python CLI wrapper for running CodeQL analysis on any type of project (monorepo or single repository) across different CI/CD platforms including Jenkins, GitHub Actions, Harness, and any environment where Python scripts can be executed."
+authors = ["Your Name <your.email@example.com>"]
+license = "MIT"
+readme = "README.md"
+homepage = "https://github.com/yourusername/codeql-wrapper"
+repository = "https://github.com/yourusername/codeql-wrapper"
+documentation = "https://github.com/yourusername/codeql-wrapper"
+keywords = ["codeql","monorepo"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3.13",
+]
+packages = [{include = "codeql_wrapper", from = "src"}]
+
+[tool.poetry.dependencies]
+python = "^3.8.1"
+click = "^8.0.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^7.0.0"
+pytest-cov = "^4.0.0"
+black = "^23.0.0"
+flake8 = "^6.0.0"
+mypy = "^1.0.0"
+
+[tool.poetry.scripts]
+codeql-wrapper = "codeql_wrapper.cli:cli"
+
+[tool.black]
+line-length = 88
+target-version = ['py38']
+
+[tool.mypy]
+python_version = "3.13"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
