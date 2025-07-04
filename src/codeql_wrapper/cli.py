@@ -16,10 +16,10 @@ from .infrastructure.logger import configure_logging, get_logger
 @click.version_option(version="0.1.0", prog_name="codeql-wrapper")
 def cli(use_case: Optional[str] = None, verbose: bool = False) -> None:
     """
-    A clean Python CLI application for CodeQL wrapper functionality.
-
-    This application demonstrates clean code principles with proper
-    separation of concerns, dependency injection, and comprehensive logging.
+    A universal Python CLI wrapper for running CodeQL analysis 
+    on any type of project (monorepo or single repository) 
+    across different CI/CD platforms including Jenkins, GitHub Actions, 
+    Harness, and any environment where Python scripts can be executed.
 
     USE_CASE: The use case to execute (e.g., hello-world)
     """

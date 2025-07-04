@@ -12,7 +12,7 @@ readme = "README.md"
 homepage = "https://github.com/yourusername/codeql-wrapper"
 repository = "https://github.com/yourusername/codeql-wrapper"
 documentation = "https://github.com/yourusername/codeql-wrapper"
-keywords = ["cli", "hello-world", "logging", "clean-architecture"]
+keywords = ["codeql","monorepo"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
