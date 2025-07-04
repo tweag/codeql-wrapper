@@ -20,7 +20,7 @@ class TestCLI:
 
         assert result.exit_code == 0
         assert (
-            "A clean Python CLI application for CodeQL wrapper functionality"
+            "A universal Python CLI wrapper for running CodeQL analysis"
             in result.output
         )
         assert "USE_CASE: The use case to execute" in result.output
@@ -118,7 +118,7 @@ class TestCLI:
 
         assert result.exit_code == 0
         assert (
-            "A clean Python CLI application for CodeQL wrapper functionality"
+            "A universal Python CLI wrapper for running CodeQL analysis"
             in result.output
         )
         assert "USE_CASE" in result.output
