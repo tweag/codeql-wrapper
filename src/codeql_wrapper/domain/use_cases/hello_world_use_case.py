@@ -1,6 +1,6 @@
 """Hello World use case implementation."""
 
-import logging
+# import logging
 from datetime import datetime
 from typing import Any
 

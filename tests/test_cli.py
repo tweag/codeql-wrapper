@@ -17,9 +17,12 @@ class TestCLI:
     def test_cli_no_arguments_shows_help(self) -> None:
         """Test CLI with no arguments shows help."""
         result = self.runner.invoke(cli, [])
-        
+
         assert result.exit_code == 0
-        assert "A clean Python CLI application for CodeQL wrapper functionality" in result.output
+        assert (
+            "A clean Python CLI application for CodeQL wrapper functionality"
+            in result.output
+        )
         assert "USE_CASE: The use case to execute" in result.output
         assert "--verbose" in result.output
 
@@ -46,7 +49,7 @@ class TestCLI:
         # Assert
         assert result.exit_code == 0
         assert "Hello, World!" in result.output
-        
+
         # Verify mocks were called correctly
         mock_configure_logging.assert_called_once_with(verbose=False)
         mock_use_case_class.assert_called_once_with(mock_logger)
@@ -75,14 +78,14 @@ class TestCLI:
         # Assert
         assert result.exit_code == 0
         assert "Hello, World!" in result.output
-        
+
         # Verify verbose flag was passed
         mock_configure_logging.assert_called_once_with(verbose=True)
 
     def test_cli_unknown_use_case(self) -> None:
         """Test CLI with unknown use case."""
         result = self.runner.invoke(cli, ["unknown-case"])
-        
+
         assert result.exit_code == 1
         assert "Error: Unknown use case 'unknown-case'" in result.output
         assert "Available use cases: hello-world" in result.output
@@ -114,7 +117,10 @@ class TestCLI:
         result = self.runner.invoke(cli, ["--help"])
 
         assert result.exit_code == 0
-        assert "A clean Python CLI application for CodeQL wrapper functionality" in result.output
+        assert (
+            "A clean Python CLI application for CodeQL wrapper functionality"
+            in result.output
+        )
         assert "USE_CASE" in result.output
         assert "--verbose" in result.output
 

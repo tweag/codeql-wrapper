@@ -20,7 +20,7 @@ def cli(use_case: Optional[str] = None, verbose: bool = False) -> None:
 
     This application demonstrates clean code principles with proper
     separation of concerns, dependency injection, and comprehensive logging.
-    
+
     USE_CASE: The use case to execute (e.g., hello-world)
     """
     # If no use case provided, show help
@@ -28,7 +28,7 @@ def cli(use_case: Optional[str] = None, verbose: bool = False) -> None:
         ctx = click.get_current_context()
         click.echo(ctx.get_help())
         ctx.exit()
-    
+
     try:
         # Configure logging
         configure_logging(verbose=verbose)
@@ -36,7 +36,7 @@ def cli(use_case: Optional[str] = None, verbose: bool = False) -> None:
         # Get logger
         logger = get_logger(__name__)
 
-        logger.debug(f"Starting CodeQL wrapper CLI application")
+        logger.debug("Starting CodeQL wrapper CLI application")
         logger.debug(f"Arguments: use_case={use_case}, verbose={verbose}")
 
         # Execute based on use case
@@ -44,7 +44,7 @@ def cli(use_case: Optional[str] = None, verbose: bool = False) -> None:
             # Create and execute hello world use case
             hello_use_case = HelloWorldUseCase(logger)
             response = hello_use_case.execute("World")
-            
+
             # Output the result
             click.echo(response.message)
         else:

@@ -1,6 +1,6 @@
 """Tests for the use cases module."""
 
-import logging
+# import logging
 from unittest.mock import Mock
 
 import pytest
