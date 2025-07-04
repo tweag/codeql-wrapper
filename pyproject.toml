@@ -1,0 +1,52 @@
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry]
+name = "codeql-wrapper"
+version = "0.1.0"
+description = "A clean Python CLI application that prints hello world with logging"
+authors = ["Your Name <your.email@example.com>"]
+license = "MIT"
+readme = "README.md"
+homepage = "https://github.com/yourusername/codeql-wrapper"
+repository = "https://github.com/yourusername/codeql-wrapper"
+documentation = "https://github.com/yourusername/codeql-wrapper"
+keywords = ["cli", "hello-world", "logging", "clean-architecture"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+packages = [{include = "codeql_wrapper", from = "src"}]
+
+[tool.poetry.dependencies]
+python = "^3.8.1"
+click = "^8.0.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^7.0.0"
+pytest-cov = "^4.0.0"
+black = "^23.0.0"
+flake8 = "^6.0.0"
+mypy = "^1.0.0"
+
+[tool.poetry.scripts]
+codeql-wrapper = "codeql_wrapper.cli:cli"
+
+[tool.black]
+line-length = 88
+target-version = ['py38']
+
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
