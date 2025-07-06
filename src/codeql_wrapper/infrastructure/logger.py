@@ -28,7 +28,7 @@ def get_logger(
     # Set level
     logger.setLevel(level)
 
-    # Don't propagate to parent loggers to avoid duplicate messages
+    # Propagate to parent loggers (root logger) to use basicConfig
     # since we're using basicConfig for root logging
     logger.propagate = True  # Let root logger handle it
 
