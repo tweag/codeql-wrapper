@@ -171,7 +171,7 @@ def analyze(
 
 
 @cli.command()
-@click.option("--version", "-v", default="v2.22.1", help="CodeQL version to install")
+@click.option("--version", "-V", default="v2.22.1", help="CodeQL version to install")
 @click.option(
     "--force", is_flag=True, help="Force reinstallation even if already installed"
 )
