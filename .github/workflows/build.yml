@@ -42,4 +42,4 @@ jobs:
     - name: Test package installation
       run: |
         pip install dist/*.whl
-        codeql-wrapper hello-world
+        codeql-wrapper --version
