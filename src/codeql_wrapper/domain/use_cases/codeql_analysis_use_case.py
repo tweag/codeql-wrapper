@@ -447,7 +447,6 @@ class CodeQLAnalysisUseCase:
 
         if search_paths:
             # Set the search path for CodeQL to find query suites and libraries
-            os.environ["CODEQL_EXTRACTOR_*_OPTION_VERBOSE"] = "true"
             # Use the standard PATH separator for the platform
             path_separator = ":" if os.name != "nt" else ";"
             os.environ["CODEQL_REPO"] = path_separator.join(search_paths)
