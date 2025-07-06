@@ -303,7 +303,7 @@ class TestCodeQLRunner:
         mock_run.return_value = mock_result
 
         result = self.runner.run_query(
-            "/db", "/query.ql", format="json", output="/results.json"
+            "/db", "/query.ql", output_format="json", output="/results.json"
         )
 
         assert result.success is True

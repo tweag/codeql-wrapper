@@ -178,7 +178,7 @@ class CodeQLRunner:
     def analyze_database(
         self,
         database_path: str,
-        format: str = "sarif-latest",
+        output_format: str = "sarif-latest",
         output: Optional[str] = None,
     ) -> CodeQLResult:
         """
@@ -186,24 +186,24 @@ class CodeQLRunner:
 
         Args:
             database_path: Path to the CodeQL database
-            format: Output format ('sarif-latest', 'csv', 'json')
+            output_format: Output format ('sarif-latest', 'csv', 'json')
             output: Output file path
 
         Returns:
             CodeQLResult with analysis information
         """
         # Determine output format based on output file extension if not specified
-        if output and format == "sarif-latest":
+        if output and output_format == "sarif-latest":
             if output.endswith(".csv"):
-                format = "csv"
+                output_format = "csv"
             elif output.endswith(".json"):
-                format = "json"
+                output_format = "json"
 
         args = [
             "database",
             "analyze",
             database_path,
-            f"--format={format}",
+            f"--format={output_format}",
         ]
 
         if output:
@@ -215,7 +215,7 @@ class CodeQLRunner:
         self,
         database_path: str,
         query_path: str,
-        format: str = "table",
+        output_format: str = "table",
         output: Optional[str] = None,
     ) -> CodeQLResult:
         """
@@ -224,7 +224,7 @@ class CodeQLRunner:
         Args:
             database_path: Path to the CodeQL database
             query_path: Path to the query file (.ql)
-            format: Output format ('table', 'csv', 'json')
+            output_format: Output format ('table', 'csv', 'json')
             output: Output file path
 
         Returns:
@@ -236,7 +236,7 @@ class CodeQLRunner:
             query_path,
             "--database",
             database_path,
-            f"--format={format}",
+            f"--format={output_format}",
         ]
 
         if output:
@@ -364,7 +364,7 @@ class CodeQLRunner:
             self.logger.info("Running analysis on the database")
             analyze_result = self.analyze_database(
                 str(database_path),
-                format="sarif-latest",
+                output_format="sarif-latest",
                 output=output_file,
             )
 

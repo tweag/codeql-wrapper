@@ -311,7 +311,7 @@ class CodeQLAnalysisUseCase:
                 output_file = output_dir / f"results-{language.value}{file_extension}"
                 analysis_result = self._codeql_runner.analyze_database(
                     database_path=str(db_path),
-                    format=output_format,
+                    output_format=output_format,
                     output=str(output_file),
                 )
 
