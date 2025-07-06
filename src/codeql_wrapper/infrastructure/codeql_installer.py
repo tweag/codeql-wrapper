@@ -143,6 +143,43 @@ class CodeQLInstaller:
             shutil.rmtree(temp_dir, ignore_errors=True)
             raise Exception(f"Failed to download CodeQL from {download_url}: {e}")
 
+    def _safe_extract(self, tar: tarfile.TarFile, extract_path: Path) -> None:
+        """
+        Safely extract tar file members, preventing path traversal attacks.
+
+        Args:
+            tar: The tarfile object to extract from
+            extract_path: The base path to extract to
+
+        Raises:
+            Exception: If a member has an unsafe path
+        """
+        for member in tar.getmembers():
+            # Resolve the full path where the member would be extracted
+            member_path = extract_path / member.name
+
+            # Normalize and resolve the path to handle any '..' components
+            try:
+                resolved_path = member_path.resolve()
+                extract_path_resolved = extract_path.resolve()
+            except OSError:
+                # If we can't resolve the path, it's potentially dangerous
+                raise Exception(f"Unsafe path in archive: {member.name}")
+
+            # Check if the resolved path is within the extraction directory
+            try:
+                resolved_path.relative_to(extract_path_resolved)
+            except ValueError:
+                # The path escapes the extraction directory
+                raise Exception(f"Path traversal attempt detected: {member.name}")
+
+            # Additional checks for suspicious characters and patterns
+            if ".." in member.name or member.name.startswith("/"):
+                raise Exception(f"Unsafe path in archive: {member.name}")
+
+            # Extract this member safely
+            tar.extract(member, path=extract_path)
+
     def extract_codeql(self, tar_path: Path) -> None:
         """
         Extract CodeQL bundle to installation directory.
@@ -165,8 +202,8 @@ class CodeQLInstaller:
                 try:
                     tar.extractall(path=self.install_dir, filter="data")
                 except TypeError:
-                    # Fallback for older Python versions without filter parameter
-                    tar.extractall(path=self.install_dir)
+                    # Fallback for older Python versions - use safe extraction
+                    self._safe_extract(tar, self.install_dir)
 
             # Make codeql binary executable (Unix/Linux/macOS only)
             if self.codeql_binary.exists():
