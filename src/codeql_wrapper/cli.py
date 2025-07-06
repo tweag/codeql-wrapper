@@ -1,69 +1,210 @@
-"""Command Line Interface for the hello world application."""
+"""Command Line Interface for the CodeQL wrapper application."""
 
 import sys
-
+from pathlib import Path
 from typing import Optional
 
 import click
 
-from .domain.use_cases import HelloWorldUseCase
+from .domain.use_cases.codeql_analysis_use_case import CodeQLAnalysisUseCase
+from .domain.entities.codeql_analysis import CodeQLAnalysisRequest, CodeQLLanguage
 from .infrastructure.logger import configure_logging, get_logger
 
 
-@click.command()
-@click.argument("use_case", required=False)
+@click.group(invoke_without_command=True)
 @click.option("--verbose", "-v", is_flag=True, help="Enable verbose logging")
 @click.version_option(version="0.1.0", prog_name="codeql-wrapper")
-def cli(use_case: Optional[str] = None, verbose: bool = False) -> None:
+@click.pass_context
+def cli(ctx: click.Context, verbose: bool = False) -> None:
     """
-    A universal Python CLI wrapper for running CodeQL analysis
-    on any type of project (monorepo or single repository)
-    across different CI/CD platforms including Jenkins, GitHub Actions,
-    Harness, and any environment where Python scripts can be executed.
+    A universal Python CLI wrapper for running CodeQL analysis.
 
-    USE_CASE: The use case to execute (e.g., hello-world)
+    This application can run CodeQL analysis on any type of project including
+    monorepos and single repositories across different CI/CD platforms.
     """
-    # If no use case provided, show help
-    if not use_case:
-        ctx = click.get_current_context()
+    # Ensure that ctx.obj exists and is a dict
+    ctx.ensure_object(dict)
+
+    # Configure logging
+    configure_logging(verbose=verbose)
+    ctx.obj["verbose"] = verbose
+
+    # If no command provided, show help
+    if ctx.invoked_subcommand is None:
         click.echo(ctx.get_help())
-        ctx.exit()
 
+
+@cli.command()
+@click.argument(
+    "repository_path", type=click.Path(exists=True, file_okay=False, dir_okay=True)
+)
+@click.option(
+    "--languages",
+    "-l",
+    help="Comma-separated list of languages to analyze (e.g., python,javascript)",
+)
+@click.option(
+    "--output-dir",
+    "-o",
+    type=click.Path(file_okay=False, dir_okay=True),
+    help="Output directory for results",
+)
+@click.option(
+    "--monorepo", is_flag=True, help="Treat as monorepo and analyze sub-projects"
+)
+@click.option(
+    "--force-install",
+    is_flag=True,
+    help="Force reinstallation of the latest CodeQL even if already installed",
+)
+@click.pass_context
+def analyze(
+    ctx: click.Context,
+    repository_path: str,
+    languages: Optional[str],
+    output_dir: Optional[str],
+    monorepo: bool,
+    force_install: bool,
+) -> None:
+    """
+    Run CodeQL analysis on a repository.
+
+    REPOSITORY_PATH: Path to the repository to analyze
+    """
     try:
-        # Configure logging
-        configure_logging(verbose=verbose)
-
-        # Get logger
         logger = get_logger(__name__)
+        verbose = ctx.obj.get("verbose", False)
 
-        logger.debug("Starting CodeQL wrapper CLI application")
-        logger.debug(f"Arguments: use_case={use_case}, verbose={verbose}")
+        logger.info(f"Starting CodeQL analysis for: {repository_path}")
 
-        # Execute based on use case
-        if use_case == "hello-world":
-            # Create and execute hello world use case
-            hello_use_case = HelloWorldUseCase(logger)
-            response = hello_use_case.execute("World")
+        # Parse target languages if provided
+        target_languages = None
+        if languages:
+            target_languages = set()
+            language_mapping = {
+                "javascript": CodeQLLanguage.JAVASCRIPT,
+                "typescript": CodeQLLanguage.TYPESCRIPT,
+                "python": CodeQLLanguage.PYTHON,
+                "java": CodeQLLanguage.JAVA,
+                "csharp": CodeQLLanguage.CSHARP,
+                "cpp": CodeQLLanguage.CPP,
+                "go": CodeQLLanguage.GO,
+                "ruby": CodeQLLanguage.RUBY,
+                "swift": CodeQLLanguage.SWIFT,
+                "actions": CodeQLLanguage.ACTIONS,
+            }
 
-            # Output the result
-            click.echo(response.message)
-        else:
-            click.echo(f"Error: Unknown use case '{use_case}'", err=True)
-            click.echo("Available use cases: hello-world", err=True)
-            sys.exit(1)
+            for lang in languages.split(","):
+                lang = lang.strip().lower()
+                if lang in language_mapping:
+                    target_languages.add(language_mapping[lang])
+                else:
+                    logger.warning(f"Unsupported language: {lang}")
 
-        logger.debug("CodeQL wrapper CLI application completed successfully")
+        # Create analysis request
+        request = CodeQLAnalysisRequest(
+            repository_path=Path(repository_path),
+            target_languages=target_languages,
+            output_directory=Path(output_dir) if output_dir else None,
+            verbose=verbose,
+            force_install=force_install,
+        )
 
-    except ValueError as e:
-        logger = get_logger(__name__)
-        logger.error(f"Invalid input: {e}")
-        click.echo(f"Error: {e}", err=True)
-        sys.exit(1)
+        # Execute analysis
+        analysis_use_case = CodeQLAnalysisUseCase(logger)
+        summary = analysis_use_case.execute(request)
+
+        # Display results
+        click.echo("\n=== CodeQL Analysis Results ===")
+        click.echo(f"Repository: {summary.repository_path}")
+        click.echo(f"Projects detected: {len(summary.detected_projects)}")
+        click.echo(
+            f"Analyses completed: {summary.successful_analyses}/"
+            f"{len(summary.analysis_results)}"
+        )
+        click.echo(f"Success rate: {summary.success_rate:.2%}")
+        click.echo(f"Total findings: {summary.total_findings}")
+
+        if summary.failed_analyses > 0:
+            click.echo(f"\n⚠️  {summary.failed_analyses} analysis(es) failed")
+            for result in summary.analysis_results:
+                if not result.is_successful:
+                    click.echo(
+                        f"  - {result.project_info.name}: {result.error_message}"
+                    )
+
+        # Show output files
+        if any(
+            result.output_files
+            for result in summary.analysis_results
+            if result.output_files
+        ):
+            click.echo("\n📄 Output files:")
+            for result in summary.analysis_results:
+                if result.output_files:
+                    for output_file in result.output_files:
+                        click.echo(f"  - {output_file}")
+
+        logger.info("CodeQL analysis completed successfully")
 
     except Exception as e:
         logger = get_logger(__name__)
-        logger.error(f"Unexpected error: {e}")
-        click.echo(f"An unexpected error occurred: {e}", err=True)
+        logger.error(f"CodeQL analysis failed: {e}")
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+
+
+@cli.command()
+@click.option("--version", "-v", default="v2.22.1", help="CodeQL version to install")
+@click.option(
+    "--force", is_flag=True, help="Force reinstallation even if already installed"
+)
+@click.pass_context
+def install(ctx: click.Context, version: str, force: bool) -> None:
+    """
+    Install CodeQL CLI.
+
+    This command downloads and installs the CodeQL CLI to ~/.codeql
+    """
+    try:
+        from .infrastructure.codeql_installer import CodeQLInstaller
+
+        logger = get_logger(__name__)
+        verbose = ctx.obj.get("verbose", False)  # noqa: F841
+
+        logger.info(f"Installing CodeQL version {version}")
+
+        installer = CodeQLInstaller()
+
+        # Check if already installed
+        if installer.is_installed() and not force:
+            current_version = installer.get_version()
+            click.echo(f"✅ CodeQL is already installed (version: {current_version})")
+            click.echo(f"   Location: {installer.get_binary_path()}")
+            click.echo("   Use --force to reinstall")
+            return
+
+        # Show installation progress
+        if force:
+            click.echo("🔄 Force reinstalling CodeQL...")
+        else:
+            click.echo("📥 Installing CodeQL...")
+
+        # Install CodeQL
+        binary_path = installer.install(version=version, force=force)
+
+        # Verify installation
+        installed_version = installer.get_version()
+        click.echo(f"✅ CodeQL {installed_version} installed successfully!")
+        click.echo(f"   Location: {binary_path}")
+        click.echo("   You can now run: codeql-wrapper analyze /path/to/repo")
+
+        logger.info(f"CodeQL installation completed: {binary_path}")
+
+    except Exception as e:
+        logger = get_logger(__name__)
+        logger.error(f"CodeQL installation failed: {e}")
+        click.echo(f"❌ Installation failed: {e}", err=True)
         sys.exit(1)
 
 

@@ -1,5 +1,5 @@
-"""Use cases package for the hello world application."""
+"""Use cases package for the CodeQL wrapper application."""
 
-from .hello_world_use_case import HelloWorldUseCase
+from .codeql_analysis_use_case import CodeQLAnalysisUseCase
 
-__all__ = ["HelloWorldUseCase"]
+__all__ = ["CodeQLAnalysisUseCase"]
