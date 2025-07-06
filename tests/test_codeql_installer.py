@@ -149,8 +149,8 @@ class TestCodeQLInstaller:
     ) -> None:
         """Test successful CodeQL installation."""
         # Mock download to return a fake tar path
-        fake_tar = Path(tempfile.mktemp())
-        fake_tar.touch()
+        with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
+            fake_tar = Path(tmp_file.name)
         mock_download.return_value = fake_tar
 
         # Mock installation check
@@ -361,8 +361,8 @@ class TestCodeQLInstaller:
         existing_file.touch()
 
         # Mock download to return a fake tar path
-        fake_tar = Path(tempfile.mktemp())
-        fake_tar.touch()
+        with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
+            fake_tar = Path(tmp_file.name)
         mock_download.return_value = fake_tar
 
         # Mock installation check
@@ -391,8 +391,8 @@ class TestCodeQLInstaller:
     ) -> None:
         """Test install fails when verification fails."""
         # Mock download to return a fake tar path
-        fake_tar = Path(tempfile.mktemp())
-        fake_tar.touch()
+        with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
+            fake_tar = Path(tmp_file.name)
         mock_download.return_value = fake_tar
 
         # Mock installation check - not installed before, still not installed after
