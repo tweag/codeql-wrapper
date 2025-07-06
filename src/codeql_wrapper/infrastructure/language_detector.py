@@ -136,7 +136,7 @@ class LanguageDetector:
         if language_type == LanguageType.NON_COMPILED and extension in ["yml", "yaml"]:
             # Check if the file is in .github/workflows directory
             parts = file_path.parts
-            if len(parts) >= 2 and parts[-3:-1] == (".github", "workflows"):
+            if len(parts) >= 3 and parts[-3:-1] == (".github", "workflows"):
                 return "actions"
 
         if language_type == LanguageType.NON_COMPILED:
