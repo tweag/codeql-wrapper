@@ -295,7 +295,20 @@ class CodeQLAnalysisUseCase:
 
                 # Run analysis
                 output_format = "sarif-latest"  # Default output format
-                output_file = output_dir / f"results-{language.value}.{output_format}"
+
+                # Map output formats to conventional file extensions
+                format_to_extension = {
+                    "sarif": ".sarif",
+                    "sarif-latest": ".sarif",
+                    "csv": ".csv",
+                    "json": ".json",
+                    "sarifv1": ".sarif",
+                    "sarifv2": ".sarif",
+                    "text": ".txt",
+                }
+
+                file_extension = format_to_extension.get(output_format, ".sarif")
+                output_file = output_dir / f"results-{language.value}{file_extension}"
                 analysis_result = self._codeql_runner.analyze_database(
                     database_path=str(db_path),
                     format=output_format,
@@ -319,7 +332,7 @@ class CodeQLAnalysisUseCase:
 
                 # Count findings (basic implementation)
                 try:
-                    if output_format == "sarif":
+                    if output_format.startswith("sarif"):
                         findings = self._count_sarif_findings(output_file)
                     else:
                         findings = 0  # Placeholder for other formats

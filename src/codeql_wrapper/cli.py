@@ -11,11 +11,25 @@ from .domain.entities.codeql_analysis import CodeQLAnalysisRequest, CodeQLLangua
 from .infrastructure.logger import configure_logging, get_logger
 
 
+def version_callback(ctx: click.Context, param: click.Parameter, value: bool) -> None:
+    """Callback for version option."""
+    if not value or ctx.resilient_parsing:
+        return
+    click.echo("0.1.0")
+    ctx.exit()
+
+
 @click.group(invoke_without_command=True)
 @click.option("--verbose", "-v", is_flag=True, help="Enable verbose logging")
-@click.option("--version", "-V", is_flag=True, expose_value=False, is_eager=True, 
-              callback=lambda ctx, param, value: (click.echo("0.1.0"), ctx.exit()) if value else None,
-              help="Show the version and exit.")
+@click.option(
+    "--version",
+    "-V",
+    is_flag=True,
+    expose_value=False,
+    is_eager=True,
+    callback=version_callback,
+    help="Show the version and exit.",
+)
 @click.pass_context
 def cli(ctx: click.Context, verbose: bool = False) -> None:
     """
