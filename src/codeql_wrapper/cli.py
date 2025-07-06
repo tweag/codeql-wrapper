@@ -13,7 +13,9 @@ from .infrastructure.logger import configure_logging, get_logger
 
 @click.group(invoke_without_command=True)
 @click.option("--verbose", "-v", is_flag=True, help="Enable verbose logging")
-@click.version_option(version="0.1.0", prog_name="codeql-wrapper")
+@click.option("--version", "-V", is_flag=True, expose_value=False, is_eager=True, 
+              callback=lambda ctx, param, value: (click.echo("0.1.0"), ctx.exit()) if value else None,
+              help="Show the version and exit.")
 @click.pass_context
 def cli(ctx: click.Context, verbose: bool = False) -> None:
     """
