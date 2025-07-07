@@ -116,6 +116,8 @@ curl -sSL https://install.python-poetry.org | python3 -
 git clone https://github.com/ModusCreate-Perdigao-GHAS-Playground/codeql-wrapper.git
 cd codeql-wrapper
 
+python3 -m venv .venv
+
 # Install dependencies
 poetry install
 ```

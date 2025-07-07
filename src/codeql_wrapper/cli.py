@@ -10,12 +10,23 @@ from .domain.use_cases.codeql_analysis_use_case import CodeQLAnalysisUseCase
 from .domain.entities.codeql_analysis import CodeQLAnalysisRequest, CodeQLLanguage
 from .infrastructure.logger import configure_logging, get_logger
 
+try:
+    from importlib.metadata import version as get_package_version
+except ImportError:
+    # Fallback for Python < 3.8
+    def get_package_version(distribution_name: str) -> str:
+        return "0.1.1"
+
 
 def version_callback(ctx: click.Context, param: click.Parameter, value: bool) -> None:
     """Callback for version option."""
     if not value or ctx.resilient_parsing:
         return
-    click.echo("0.1.1")
+    try:
+        pkg_version = get_package_version("codeql-wrapper")
+        click.echo(pkg_version)
+    except Exception:
+        click.echo("0.1.1")  # fallback version
     ctx.exit()
 
 
