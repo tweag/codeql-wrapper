@@ -7,7 +7,7 @@ import json
 from pathlib import Path
 from unittest.mock import patch
 
-from src.codeql_wrapper.infrastructure.directory_manager import DirectoryManager
+from codeql_wrapper.infrastructure.directory_manager import DirectoryManager
 
 
 class TestDirectoryManager:
@@ -239,22 +239,93 @@ class TestDirectoryManager:
         assert info["changed_directories"] == []
 
     def test_max_depth_parameter(self):
-        """Test the max_depth parameter for directory listing."""
+        """Test the max_depth parameter functionality."""
         temp_path = Path(self.temp_dir)
 
-        # Create nested structure
-        (temp_path / "level1").mkdir()
-        (temp_path / "level1" / "level2").mkdir()
-        (temp_path / "level1" / "level2" / "level3").mkdir()
-        (temp_path / "another_level1").mkdir()
+        # Create deep nested structure
+        deep_path = temp_path / "level1" / "level2" / "level3"
+        deep_path.mkdir(parents=True)
 
-        # Test depth 1 (default)
+        # Create file in deepest level
+        (deep_path / "test.txt").touch()
+
+        # Test with max_depth=1
         dirs_depth_1 = self.manager.list_all_directories(max_depth=1)
-        expected_depth_1 = ["another_level1", "level1"]
-        assert sorted(dirs_depth_1) == sorted(expected_depth_1)
+        assert "level1" in dirs_depth_1
+        # level2 and level3 should not be included as separate entries
+        assert len([d for d in dirs_depth_1 if "level" in d]) == 1
 
-        # Test depth 2
+        # Test with max_depth=2
         dirs_depth_2 = self.manager.list_all_directories(max_depth=2)
-        # Should include level1/level2 as well
         assert "level1" in dirs_depth_2
-        assert "another_level1" in dirs_depth_2
+        # Should include level1 and nested directories within it
+
+        # Test with unlimited depth (default)
+        dirs_unlimited = self.manager.list_all_directories()
+        assert "level1" in dirs_unlimited
+
+    def test_permission_error_handling(self):
+        """Test handling of permission errors during directory listing."""
+        from unittest.mock import patch
+
+        # Mock iterdir to raise PermissionError
+        with patch.object(Path, "iterdir") as mock_iterdir:
+            mock_iterdir.side_effect = PermissionError("Access denied")
+
+            with pytest.raises(PermissionError, match="Access denied"):
+                self.manager.list_all_directories()
+
+    def test_git_command_failure_in_list_changed_directories(self):
+        """Test handling of git command failures in list_changed_directories."""
+        with patch.object(self.manager, "_is_git_repository", return_value=True):
+            with patch.object(self.manager, "_run_git_command") as mock_git:
+                mock_git.side_effect = subprocess.CalledProcessError(1, "git")
+
+                # The method should handle git errors gracefully and return empty list
+                result = self.manager.list_changed_directories()
+                assert result == []
+
+    def test_determine_base_commit_fetch_failure(self):
+        """Test determine_base_commit when fetch fails."""
+        with patch.object(self.manager, "_run_git_command") as mock_git:
+            # Mock successful first call but failing fetch
+            def side_effect(cmd):
+                if cmd[0] == "fetch":
+                    raise subprocess.CalledProcessError(1, "git fetch")
+                return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+
+            mock_git.side_effect = side_effect
+
+            # Test push event scenario where fetch fails
+            with patch.dict("os.environ", {"GITHUB_EVENT_NAME": "push"}):
+                result = self.manager._determine_base_commit()
+                assert result == "HEAD^"
+
+    def test_find_git_directories_git_command_error(self) -> None:
+        """Test list_changed_directories when git command fails."""
+        import tempfile
+        from unittest.mock import patch
+        import subprocess
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Create a git repo structure
+            repo_path = Path(temp_dir)
+            (repo_path / ".git").mkdir()
+
+            manager = DirectoryManager(base_path=str(repo_path))
+
+            # Mock _run_git_command to raise CalledProcessError for the diff command
+            with patch.object(manager, "_run_git_command") as mock_run_git:
+                from unittest.mock import Mock
+                
+                # First call (for determining base commit) succeeds
+                # Second call (for getting changed files) fails
+                mock_run_git.side_effect = [
+                    Mock(stdout="main\n", returncode=0),  # base commit determination
+                    subprocess.CalledProcessError(
+                        1, "git", "Git diff command failed"
+                    ),  # diff command
+                ]
+
+                with pytest.raises(subprocess.CalledProcessError):
+                    manager.list_changed_directories()

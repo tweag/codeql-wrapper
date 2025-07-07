@@ -419,3 +419,60 @@ class TestCodeQLInstaller:
         with patch("shutil.rmtree", side_effect=PermissionError("Permission denied")):
             with pytest.raises(Exception, match="Failed to uninstall CodeQL"):
                 self.installer.uninstall()
+
+    def test_get_platform_unknown(self) -> None:
+        """Test get_platform with unknown platform through URL generation."""
+        from unittest.mock import patch
+
+        with patch("platform.system", return_value="unknown"), patch(
+            "platform.machine", return_value="unknown"
+        ):
+            url = self.installer.get_download_url("v2.22.1")
+            # Should default to linux64
+            assert "linux64" in url
+
+    def test_get_platform_windows(self) -> None:
+        """Test get_platform for Windows through URL generation."""
+        from unittest.mock import patch
+
+        with patch("platform.system", return_value="Windows"):
+            url = self.installer.get_download_url("v2.22.1")
+            assert "win64" in url
+
+    def test_get_platform_macos(self) -> None:
+        """Test get_platform for macOS through URL generation."""
+        from unittest.mock import patch
+
+        with patch("platform.system", return_value="Darwin"):
+            url = self.installer.get_download_url("v2.22.1")
+            assert "osx64" in url
+
+    def test_install_network_error(self) -> None:
+        """Test install with network error during download."""
+        from unittest.mock import patch
+        import requests
+
+        with patch("requests.get") as mock_get:
+            mock_get.side_effect = requests.RequestException("Network error")
+
+            with pytest.raises(Exception, match="Network error"):
+                self.installer.install()
+
+    def test_get_version_not_installed(self) -> None:
+        """Test get_version when CodeQL is not installed."""
+        # When not installed, get_version should return None
+        version = self.installer.get_version()
+        assert version is None
+
+    def test_install_with_existing_directory_force_false(self) -> None:
+        """Test install when directory exists and force=False."""
+        # Create existing codeql directory with binary
+        codeql_dir = self.temp_dir / "codeql"
+        codeql_dir.mkdir(parents=True)
+        binary_path = codeql_dir / "codeql"
+        binary_path.touch()
+        binary_path.chmod(0o755)
+
+        # Should return existing path when force=False and already installed
+        result = self.installer.install(force=False)
+        assert str(result) == str(binary_path)
