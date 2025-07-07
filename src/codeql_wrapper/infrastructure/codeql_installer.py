@@ -8,11 +8,13 @@ import subprocess
 import tarfile
 import tempfile
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Dict, Any
 from urllib.request import urlretrieve, urlopen
-from urllib.error import URLError
 
 from .logger import get_logger
+
+# Default fallback version when unable to fetch the latest version from GitHub API
+DEFAULT_CODEQL_VERSION = "codeql-bundle-v2.22.1"
 
 
 class CodeQLInstaller:
@@ -52,29 +54,23 @@ class CodeQLInstaller:
                 if response.status != 200:
                     raise Exception(f"GitHub API returned status {response.status}")
 
-                data = json.loads(response.read().decode("utf-8"))
+                data: Dict[str, Any] = json.loads(response.read().decode("utf-8"))
                 latest_version = data.get("tag_name")
 
-                if not latest_version:
-                    raise Exception("No tag_name found in GitHub API response")
+                if not latest_version or not isinstance(latest_version, str):
+                    raise Exception("No valid tag_name found in GitHub API response")
 
-                # The GitHub API returns tags like "codeql-bundle-v2.22.1" from codeql-action
+                # The GitHub API returns tags like "codeql-bundle-v2.22.1"
+                # from codeql-action
                 # This is already the correct format for bundle releases
                 self.logger.info(f"Latest CodeQL version: {latest_version}")
-                return latest_version
+                return str(latest_version)  # Explicit cast to satisfy mypy
 
-        except (URLError, json.JSONDecodeError) as e:
+        except Exception as e:
             self.logger.error(f"Failed to fetch latest version: {e}")
             # Fallback to a recent known version
-            fallback_version = "codeql-bundle-v2.22.1"
-            self.logger.warning(f"Using fallback version: {fallback_version}")
-            return fallback_version
-        except Exception as e:
-            self.logger.error(f"Unexpected error fetching latest version: {e}")
-            # Fallback to a recent known version
-            fallback_version = "codeql-bundle-v2.22.1"
-            self.logger.warning(f"Using fallback version: {fallback_version}")
-            return fallback_version
+            self.logger.warning(f"Using fallback version: {DEFAULT_CODEQL_VERSION}")
+            return DEFAULT_CODEQL_VERSION
 
     def get_platform_bundle_name(self) -> str:
         """
@@ -112,7 +108,7 @@ class CodeQLInstaller:
         """
         if version is None or version == "latest":
             version = self.get_latest_version()
-        
+
         # Normalize version format for URL construction
         # If version doesn't start with 'codeql-bundle-', add it
         if not version.startswith("codeql-bundle-"):
@@ -120,13 +116,11 @@ class CodeQLInstaller:
             if not version.startswith("v"):
                 version = f"v{version}"
             version = f"codeql-bundle-{version}"
-            
+
         # Use codeql-action repository for downloading bundles
         base_url = "https://github.com/github/codeql-action/releases/download"
         platform = self.get_platform_bundle_name()
-        return (
-            f"{base_url}/{version}/codeql-bundle-{platform}.tar.gz"
-        )
+        return f"{base_url}/{version}/codeql-bundle-{platform}.tar.gz"
 
     def is_installed(self) -> bool:
         """
@@ -184,7 +178,7 @@ class CodeQLInstaller:
         """
         if version is None:
             version = self.get_latest_version()
-            
+
         download_url = self.get_download_url(version)
         self.logger.info(f"Downloading CodeQL {version} from {download_url}")
 
@@ -292,7 +286,7 @@ class CodeQLInstaller:
         """
         if version is None:
             version = self.get_latest_version()
-            
+
         # Check if already installed
         if self.is_installed() and not force:
             installed_version = self.get_version()

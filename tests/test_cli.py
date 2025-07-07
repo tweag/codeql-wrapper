@@ -44,10 +44,12 @@ class TestCLI:
 
     def test_cli_version(self) -> None:
         """Test CLI version output."""
+        from codeql_wrapper import __version__
+
         result = self.runner.invoke(cli, ["--version"])
 
         assert result.exit_code == 0
-        assert "0.1.1" in result.output
+        assert __version__ in result.output
 
     def test_analyze_command_help(self) -> None:
         """Test analyze command help output."""
@@ -226,10 +228,10 @@ class TestCLI:
         assert result.exit_code == 1
         assert "❌ Installation failed: Install error" in result.output
 
-    def test_analyze_command_unsupported_language(self) -> None:
+    @patch("codeql_wrapper.cli.CodeQLAnalysisUseCase")
+    def test_analyze_command_unsupported_language(self, mock_use_case_class) -> None:
         """Test analyze command with unsupported language."""
         import tempfile
-        from unittest.mock import Mock
 
         # Create a temporary repository directory
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -239,12 +241,15 @@ class TestCLI:
             # Mock the use case to avoid actual analysis
             mock_use_case = Mock()
             mock_summary = Mock()
-            mock_summary.total_findings = 0
-            mock_summary.total_projects = 0
+            mock_summary.repository_path = Path(temp_dir)
+            mock_summary.detected_projects = []
             mock_summary.successful_analyses = 0
-            mock_summary.failed_analyses = 0
             mock_summary.analysis_results = []
-            mock_use_case.analyze_repository.return_value = mock_summary
+            mock_summary.success_rate = 1.0
+            mock_summary.total_findings = 0
+            mock_summary.failed_analyses = 0
+            mock_use_case.execute.return_value = mock_summary
+            mock_use_case_class.return_value = mock_use_case
 
             result = self.runner.invoke(
                 cli,
