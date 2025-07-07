@@ -180,3 +180,7 @@ htmlcov/
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# codeql
+results/
+codeql-results/

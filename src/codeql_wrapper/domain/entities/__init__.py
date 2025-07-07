@@ -1,5 +1,21 @@
 """Domain entities package."""
 
-from .greeting import GreetingRequest, GreetingResponse
+from .codeql_analysis import (
+    CodeQLLanguage,
+    AnalysisStatus,
+    ProjectInfo,
+    CodeQLAnalysisRequest,
+    CodeQLAnalysisResult,
+    CodeQLInstallationInfo,
+    RepositoryAnalysisSummary,
+)
 
-__all__ = ["GreetingRequest", "GreetingResponse"]
+__all__ = [
+    "CodeQLLanguage",
+    "AnalysisStatus",
+    "ProjectInfo",
+    "CodeQLAnalysisRequest",
+    "CodeQLAnalysisResult",
+    "CodeQLInstallationInfo",
+    "RepositoryAnalysisSummary",
+]

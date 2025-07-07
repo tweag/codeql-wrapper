@@ -45,11 +45,14 @@ codeql-wrapper analyze /path/to/monorepo --monorepo
 # Analyze specific languages only
 codeql-wrapper analyze /path/to/repo --languages python,javascript
 
-# Run with custom CodeQL queries
-codeql-wrapper analyze /path/to/repo --queries /path/to/custom/queries
+# Specify custom output directory
+codeql-wrapper analyze /path/to/repo --output-dir /path/to/results
 
-# Generate reports in multiple formats
-codeql-wrapper analyze /path/to/repo --output-format json,sarif,csv
+# Analyze as monorepo (detect sub-projects)
+codeql-wrapper analyze /path/to/monorepo --monorepo
+
+# Force CodeQL reinstallation before analysis
+codeql-wrapper analyze /path/to/repo --force-install
 
 # Run with verbose logging
 codeql-wrapper analyze /path/to/repo --verbose
@@ -66,7 +69,7 @@ codeql-wrapper --help
 - name: Run CodeQL Analysis
   run: |
     pip install codeql-wrapper
-    codeql-wrapper analyze $GITHUB_WORKSPACE --output-format sarif
+    codeql-wrapper analyze $GITHUB_WORKSPACE --output-dir results
 ```
 
 #### Jenkins

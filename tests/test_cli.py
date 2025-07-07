@@ -1,5 +1,7 @@
 """Tests for the CLI module."""
 
+import tempfile
+from pathlib import Path
 from unittest.mock import Mock, patch
 
 from click.testing import CliRunner
@@ -23,94 +25,9 @@ class TestCLI:
             "A universal Python CLI wrapper for running CodeQL analysis"
             in result.output
         )
-        assert "USE_CASE: The use case to execute" in result.output
+        assert "analyze" in result.output
+        assert "install" in result.output
         assert "--verbose" in result.output
-
-    @patch("codeql_wrapper.cli.HelloWorldUseCase")
-    @patch("codeql_wrapper.cli.get_logger")
-    @patch("codeql_wrapper.cli.configure_logging")
-    def test_cli_hello_world_use_case(
-        self, mock_configure_logging, mock_get_logger, mock_use_case_class
-    ) -> None:
-        """Test CLI with hello-world use case."""
-        # Setup mocks
-        mock_logger = Mock()
-        mock_get_logger.return_value = mock_logger
-
-        mock_use_case = Mock()
-        mock_response = Mock()
-        mock_response.message = "Hello, World!"
-        mock_use_case.execute.return_value = mock_response
-        mock_use_case_class.return_value = mock_use_case
-
-        # Execute
-        result = self.runner.invoke(cli, ["hello-world"])
-
-        # Assert
-        assert result.exit_code == 0
-        assert "Hello, World!" in result.output
-
-        # Verify mocks were called correctly
-        mock_configure_logging.assert_called_once_with(verbose=False)
-        mock_use_case_class.assert_called_once_with(mock_logger)
-        mock_use_case.execute.assert_called_once_with("World")
-
-    @patch("codeql_wrapper.cli.HelloWorldUseCase")
-    @patch("codeql_wrapper.cli.get_logger")
-    @patch("codeql_wrapper.cli.configure_logging")
-    def test_cli_hello_world_with_verbose(
-        self, mock_configure_logging, mock_get_logger, mock_use_case_class
-    ) -> None:
-        """Test CLI with hello-world use case and verbose flag."""
-        # Setup mocks
-        mock_logger = Mock()
-        mock_get_logger.return_value = mock_logger
-
-        mock_use_case = Mock()
-        mock_response = Mock()
-        mock_response.message = "Hello, World!"
-        mock_use_case.execute.return_value = mock_response
-        mock_use_case_class.return_value = mock_use_case
-
-        # Execute
-        result = self.runner.invoke(cli, ["hello-world", "--verbose"])
-
-        # Assert
-        assert result.exit_code == 0
-        assert "Hello, World!" in result.output
-
-        # Verify verbose flag was passed
-        mock_configure_logging.assert_called_once_with(verbose=True)
-
-    def test_cli_unknown_use_case(self) -> None:
-        """Test CLI with unknown use case."""
-        result = self.runner.invoke(cli, ["unknown-case"])
-
-        assert result.exit_code == 1
-        assert "Error: Unknown use case 'unknown-case'" in result.output
-        assert "Available use cases: hello-world" in result.output
-
-    @patch("codeql_wrapper.cli.HelloWorldUseCase")
-    @patch("codeql_wrapper.cli.get_logger")
-    @patch("codeql_wrapper.cli.configure_logging")
-    def test_cli_hello_world_with_value_error(
-        self, mock_configure_logging, mock_get_logger, mock_use_case_class
-    ) -> None:
-        """Test CLI handling of ValueError in hello-world use case."""
-        # Setup mocks
-        mock_logger = Mock()
-        mock_get_logger.return_value = mock_logger
-
-        mock_use_case = Mock()
-        mock_use_case.execute.side_effect = ValueError("Invalid input")
-        mock_use_case_class.return_value = mock_use_case
-
-        # Execute
-        result = self.runner.invoke(cli, ["hello-world"])
-
-        # Assert
-        assert result.exit_code == 1
-        assert "Error: Invalid input" in result.output
 
     def test_cli_help(self) -> None:
         """Test CLI help output."""
@@ -121,7 +38,8 @@ class TestCLI:
             "A universal Python CLI wrapper for running CodeQL analysis"
             in result.output
         )
-        assert "USE_CASE" in result.output
+        assert "analyze" in result.output
+        assert "install" in result.output
         assert "--verbose" in result.output
 
     def test_cli_version(self) -> None:
@@ -129,4 +47,252 @@ class TestCLI:
         result = self.runner.invoke(cli, ["--version"])
 
         assert result.exit_code == 0
-        assert "0.1.0" in result.output
+        assert "0.1.1" in result.output
+
+    def test_analyze_command_help(self) -> None:
+        """Test analyze command help output."""
+        result = self.runner.invoke(cli, ["analyze", "--help"])
+
+        assert result.exit_code == 0
+        assert "Run CodeQL analysis on a repository" in result.output
+        assert "--languages" in result.output
+        assert "--output-dir" in result.output
+        assert "--force-install" in result.output
+
+    def test_install_command_help(self) -> None:
+        """Test install command help output."""
+        result = self.runner.invoke(cli, ["install", "--help"])
+
+        assert result.exit_code == 0
+        assert "Install CodeQL CLI" in result.output
+        assert "--force" in result.output
+        assert "--version" in result.output
+        # Check that version uses -V, not -v to avoid conflict with global verbose
+        assert "-V" in result.output
+
+    def test_analyze_command_requires_repository_path(self) -> None:
+        """Test analyze command requires repository path."""
+        result = self.runner.invoke(cli, ["analyze"])
+
+        assert result.exit_code == 2  # Click usage error
+        assert "Missing argument" in result.output
+
+    @patch("codeql_wrapper.cli.CodeQLAnalysisUseCase")
+    def test_analyze_command_with_valid_path(self, mock_use_case_class) -> None:
+        """Test analyze command with valid repository path."""
+        # Create a temporary directory for testing
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Mock the use case
+            mock_use_case = Mock()
+            mock_summary = Mock()
+            mock_summary.repository_path = Path(temp_dir)
+            mock_summary.detected_projects = []
+            mock_summary.successful_analyses = 0
+            mock_summary.analysis_results = []
+            mock_summary.success_rate = 1.0
+            mock_summary.total_findings = 0
+            mock_summary.failed_analyses = 0
+            mock_use_case.execute.return_value = mock_summary
+            mock_use_case_class.return_value = mock_use_case
+
+            result = self.runner.invoke(cli, ["analyze", temp_dir])
+
+            assert result.exit_code == 0
+            mock_use_case.execute.assert_called_once()
+
+    @patch("codeql_wrapper.cli.CodeQLAnalysisUseCase")
+    def test_analyze_command_with_languages_option(self, mock_use_case_class) -> None:
+        """Test analyze command with languages option."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Mock the use case
+            mock_use_case = Mock()
+            mock_summary = Mock()
+            mock_summary.repository_path = Path(temp_dir)
+            mock_summary.detected_projects = []
+            mock_summary.successful_analyses = 0
+            mock_summary.analysis_results = []
+            mock_summary.success_rate = 1.0
+            mock_summary.total_findings = 0
+            mock_summary.failed_analyses = 0
+            mock_use_case.execute.return_value = mock_summary
+            mock_use_case_class.return_value = mock_use_case
+
+            result = self.runner.invoke(
+                cli, ["analyze", temp_dir, "--languages", "python,javascript"]
+            )
+
+            assert result.exit_code == 0
+            # Check that the request was created with the right languages
+            call_args = mock_use_case.execute.call_args[0][0]
+            assert call_args.target_languages is not None
+            assert len(call_args.target_languages) == 2
+
+    @patch("codeql_wrapper.infrastructure.codeql_installer.CodeQLInstaller")
+    def test_install_command_success(self, mock_installer_class) -> None:
+        """Test install command success."""
+        mock_installer = Mock()
+        mock_installer.is_installed.return_value = False
+        mock_installer.install.return_value = "/path/to/codeql"
+        mock_installer.get_version.return_value = "2.22.1"
+        mock_installer_class.return_value = mock_installer
+
+        result = self.runner.invoke(cli, ["install"])
+
+        assert result.exit_code == 0
+        assert "✅ CodeQL 2.22.1 installed successfully!" in result.output
+        mock_installer.install.assert_called_once()
+
+    @patch("codeql_wrapper.infrastructure.codeql_installer.CodeQLInstaller")
+    def test_install_command_already_installed(self, mock_installer_class) -> None:
+        """Test install command when already installed."""
+        mock_installer = Mock()
+        mock_installer.is_installed.return_value = True
+        mock_installer.get_version.return_value = "2.22.1"
+        mock_installer.get_binary_path.return_value = "/path/to/codeql"
+        mock_installer_class.return_value = mock_installer
+
+        result = self.runner.invoke(cli, ["install"])
+
+        assert result.exit_code == 0
+        assert "✅ CodeQL is already installed" in result.output
+        mock_installer.install.assert_not_called()
+
+    @patch("codeql_wrapper.infrastructure.codeql_installer.CodeQLInstaller")
+    def test_install_command_with_force(self, mock_installer_class) -> None:
+        """Test install command with force flag."""
+        mock_installer = Mock()
+        mock_installer.is_installed.return_value = True
+        mock_installer.install.return_value = "/path/to/codeql"
+        mock_installer.get_version.return_value = "2.22.1"
+        mock_installer_class.return_value = mock_installer
+
+        result = self.runner.invoke(cli, ["install", "--force"])
+
+        assert result.exit_code == 0
+        assert "🔄 Force reinstalling CodeQL..." in result.output
+        mock_installer.install.assert_called_once_with(version="v2.22.1", force=True)
+
+    @patch("codeql_wrapper.infrastructure.codeql_installer.CodeQLInstaller")
+    def test_install_command_custom_version(self, mock_installer_class) -> None:
+        """Test install command with custom version."""
+        mock_installer = Mock()
+        mock_installer.is_installed.return_value = False
+        mock_installer.install.return_value = "/path/to/codeql"
+        mock_installer.get_version.return_value = "2.20.0"
+        mock_installer_class.return_value = mock_installer
+
+        result = self.runner.invoke(cli, ["install", "--version", "v2.20.0"])
+
+        assert result.exit_code == 0
+        mock_installer.install.assert_called_once_with(version="v2.20.0", force=False)
+
+    def test_verbose_flag_global(self) -> None:
+        """Test that verbose flag works globally."""
+        result = self.runner.invoke(cli, ["--verbose", "--help"])
+
+        assert result.exit_code == 0
+        # The verbose flag should be processed without error
+
+    def test_analyze_with_nonexistent_path(self) -> None:
+        """Test analyze command with non-existent path."""
+        result = self.runner.invoke(cli, ["analyze", "/nonexistent/path"])
+
+        assert result.exit_code == 2  # Click validation error
+        assert "does not exist" in result.output.lower()
+
+    @patch("codeql_wrapper.cli.CodeQLAnalysisUseCase")
+    def test_analyze_command_handles_exception(self, mock_use_case_class) -> None:
+        """Test analyze command handles exceptions gracefully."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Mock the use case to raise an exception
+            mock_use_case = Mock()
+            mock_use_case.execute.side_effect = Exception("Test error")
+            mock_use_case_class.return_value = mock_use_case
+
+            result = self.runner.invoke(cli, ["analyze", temp_dir])
+
+            assert result.exit_code == 1
+            assert "Error: Test error" in result.output
+
+    @patch("codeql_wrapper.infrastructure.codeql_installer.CodeQLInstaller")
+    def test_install_command_handles_exception(self, mock_installer_class) -> None:
+        """Test install command handles exceptions gracefully."""
+        mock_installer = Mock()
+        mock_installer.is_installed.side_effect = Exception("Install error")
+        mock_installer_class.return_value = mock_installer
+
+        result = self.runner.invoke(cli, ["install"])
+
+        assert result.exit_code == 1
+        assert "❌ Installation failed: Install error" in result.output
+
+    def test_analyze_command_unsupported_language(self) -> None:
+        """Test analyze command with unsupported language."""
+        import tempfile
+        from unittest.mock import Mock
+
+        # Create a temporary repository directory
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_path = Path(temp_dir)
+            (repo_path / "main.py").write_text("print('hello')")
+
+            # Mock the use case to avoid actual analysis
+            mock_use_case = Mock()
+            mock_summary = Mock()
+            mock_summary.total_findings = 0
+            mock_summary.total_projects = 0
+            mock_summary.successful_analyses = 0
+            mock_summary.failed_analyses = 0
+            mock_summary.analysis_results = []
+            mock_use_case.analyze_repository.return_value = mock_summary
+
+            result = self.runner.invoke(
+                cli,
+                ["analyze", str(repo_path), "--languages", "unsupported-lang,python"],
+            )
+
+            assert result.exit_code == 0
+            assert "Unsupported language: unsupported-lang" in result.output
+
+    def test_analyze_command_with_failures(self) -> None:
+        """Test analyze command output when there are failures."""
+        import tempfile
+        from unittest.mock import patch, Mock
+
+        # Create a temporary repository directory
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_path = Path(temp_dir)
+            (repo_path / "main.py").write_text("print('hello')")
+
+            # Mock the use case to return failures
+            mock_use_case = Mock()
+            mock_summary = Mock()
+            mock_summary.total_findings = 0
+            mock_summary.total_projects = 1
+            mock_summary.successful_analyses = 0
+            mock_summary.failed_analyses = 1
+            mock_summary.success_rate = 0.0
+            mock_summary.repository_path = str(repo_path)
+            mock_summary.detected_projects = ["test-project"]
+
+            # Create a mock failed result
+            mock_result = Mock()
+            mock_result.is_successful = False
+            mock_result.project_info.name = "test-project"
+            mock_result.error_message = "Analysis failed"
+            mock_result.output_files = None
+            mock_summary.analysis_results = [mock_result]
+
+            # Set up the mock use case to return the summary when execute is called
+            mock_use_case.execute.return_value = mock_summary
+
+            with patch(
+                "codeql_wrapper.cli.CodeQLAnalysisUseCase", return_value=mock_use_case
+            ):
+                result = self.runner.invoke(cli, ["analyze", str(repo_path)])
+
+            # The CLI should succeed even with failed analyses -
+            # it only exits with error code on exceptions
+            assert result.exit_code == 0
+            assert "1 analysis(es) failed" in result.output
+            assert "test-project: Analysis failed" in result.output

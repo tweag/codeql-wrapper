@@ -28,19 +28,25 @@ def get_logger(
     # Set level
     logger.setLevel(level)
 
-    # Create console handler
-    handler = logging.StreamHandler(sys.stdout)
-    handler.setLevel(level)
+    # Propagate to parent loggers (root logger) to use basicConfig
+    # since we're using basicConfig for root logging
+    logger.propagate = True  # Let root logger handle it
 
-    # Create formatter
-    if format_string is None:
-        format_string = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    # Only add handler if we want a custom format different from root
+    if format_string is not None:
+        # Create console handler
+        handler = logging.StreamHandler(sys.stdout)
+        handler.setLevel(level)
 
-    formatter = logging.Formatter(format_string)
-    handler.setFormatter(formatter)
+        # Create formatter
+        formatter = logging.Formatter(format_string)
+        handler.setFormatter(formatter)
 
-    # Add handler to logger
-    logger.addHandler(handler)
+        # Add handler to logger
+        logger.addHandler(handler)
+
+        # Disable propagation since we have our own handler
+        logger.propagate = False
 
     return logger
 
@@ -54,8 +60,13 @@ def configure_logging(verbose: bool = False) -> None:
     """
     level = logging.DEBUG if verbose else logging.INFO
 
+    # Clear any existing handlers to avoid duplicates
+    root_logger = logging.getLogger()
+    root_logger.handlers.clear()
+
     logging.basicConfig(
         level=level,
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
         handlers=[logging.StreamHandler(sys.stdout)],
+        force=True,  # Force reconfiguration
     )
