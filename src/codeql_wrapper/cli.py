@@ -15,7 +15,7 @@ def version_callback(ctx: click.Context, param: click.Parameter, value: bool) ->
     """Callback for version option."""
     if not value or ctx.resilient_parsing:
         return
-    click.echo("0.1.0")
+    click.echo("0.1.1")
     ctx.exit()
 
 
