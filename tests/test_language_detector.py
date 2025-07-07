@@ -310,7 +310,7 @@ class TestLanguageDetector:
 
     def test_permission_error_handling(self) -> None:
         """Test handling of permission errors during directory scanning."""
-        from unittest.mock import patch, Mock
+        from unittest.mock import patch
 
         # Mock pathlib.rglob to raise PermissionError
         with patch.object(Path, "rglob") as mock_rglob:
@@ -435,7 +435,7 @@ class TestLanguageDetector:
                 (".github/workflows/ci.yml", "actions"),
                 (".github/workflows/deploy.yaml", "actions"),
                 ("docs/README.md", None),  # Should be ignored
-                ("config.xml", None),      # Should be ignored
+                ("config.xml", None),  # Should be ignored
             ]
 
             for file_path, _ in files:
@@ -445,7 +445,13 @@ class TestLanguageDetector:
             non_compiled = self.detector.detect_languages(
                 temp_path, LanguageType.NON_COMPILED
             )
-            expected_non_compiled = ["actions", "javascript", "python", "ruby", "typescript"]
+            expected_non_compiled = [
+                "actions",
+                "javascript",
+                "python",
+                "ruby",
+                "typescript",
+            ]
             assert sorted(non_compiled) == sorted(expected_non_compiled)
 
             # Test compiled languages
@@ -535,11 +541,11 @@ class TestLanguageDetector:
 
             # Create files with special characters
             special_files = [
-                "файл.py",      # Unicode
+                "файл.py",  # Unicode
                 "file-name.js",  # Hyphen
-                "file_name.java", # Underscore
+                "file_name.java",  # Underscore
                 "file name.cpp",  # Space (if supported)
-                "file.backup.rb", # Multiple dots
+                "file.backup.rb",  # Multiple dots
             ]
 
             created_files = []
@@ -578,9 +584,7 @@ class TestLanguageDetector:
         ]
 
         for filename, expected_lang, lang_type in test_cases:
-            result = self.detector._get_language_from_file(
-                Path(filename), lang_type
-            )
+            result = self.detector._get_language_from_file(Path(filename), lang_type)
             assert result == expected_lang, f"Failed for {filename}"
 
     def test_github_actions_edge_cases(self) -> None:
@@ -618,7 +622,9 @@ class TestLanguageDetector:
                 )
 
                 # Verify logger.info was called
-                assert mock_logger.info.call_count >= 2  # At least start and end logging
+                assert (
+                    mock_logger.info.call_count >= 2
+                )  # At least start and end logging
                 assert "python" in result
 
     def test_format_languages_edge_cases(self) -> None:
@@ -665,11 +671,13 @@ class TestLanguageDetector:
         # In practice, this case shouldn't occur since LanguageType is an Enum
         # But we can still test it by directly calling the method with a mock
         from unittest.mock import Mock
-        
+
         # Create a mock that doesn't match either LanguageType value
         mock_type = Mock()
-        mock_type.__eq__ = Mock(return_value=False)  # Won't equal NON_COMPILED or COMPILED
-        
+        mock_type.__eq__ = Mock(
+            return_value=False
+        )  # Won't equal NON_COMPILED or COMPILED
+
         # Use type: ignore to bypass type checking for this edge case test
         result = self.detector._get_language_from_file(
             Path("test.py"), mock_type  # type: ignore

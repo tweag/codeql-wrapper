@@ -229,7 +229,7 @@ class TestCLI:
     def test_analyze_command_unsupported_language(self) -> None:
         """Test analyze command with unsupported language."""
         import tempfile
-        from unittest.mock import patch, Mock
+        from unittest.mock import Mock
 
         # Create a temporary repository directory
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -246,11 +246,10 @@ class TestCLI:
             mock_summary.analysis_results = []
             mock_use_case.analyze_repository.return_value = mock_summary
 
-            result = self.runner.invoke(cli, [
-                'analyze',
-                str(repo_path),
-                '--languages', 'unsupported-lang,python'
-            ])
+            result = self.runner.invoke(
+                cli,
+                ["analyze", str(repo_path), "--languages", "unsupported-lang,python"],
+            )
 
             assert result.exit_code == 0
             assert "Unsupported language: unsupported-lang" in result.output
@@ -272,22 +271,28 @@ class TestCLI:
             mock_summary.total_projects = 1
             mock_summary.successful_analyses = 0
             mock_summary.failed_analyses = 1
+            mock_summary.success_rate = 0.0
+            mock_summary.repository_path = str(repo_path)
+            mock_summary.detected_projects = ["test-project"]
 
             # Create a mock failed result
             mock_result = Mock()
             mock_result.is_successful = False
             mock_result.project_info.name = "test-project"
             mock_result.error_message = "Analysis failed"
+            mock_result.output_files = None
             mock_summary.analysis_results = [mock_result]
 
-            with patch('codeql_wrapper.cli.CodeQLAnalysisUseCase', return_value=mock_use_case):
-                mock_use_case.analyze_repository.return_value = mock_summary
+            # Set up the mock use case to return the summary when execute is called
+            mock_use_case.execute.return_value = mock_summary
 
-                result = self.runner.invoke(cli, [
-                    'analyze',
-                    str(repo_path)
-                ])
+            with patch(
+                "codeql_wrapper.cli.CodeQLAnalysisUseCase", return_value=mock_use_case
+            ):
+                result = self.runner.invoke(cli, ["analyze", str(repo_path)])
 
+            # The CLI should succeed even with failed analyses -
+            # it only exits with error code on exceptions
             assert result.exit_code == 0
             assert "1 analysis(es) failed" in result.output
             assert "test-project: Analysis failed" in result.output

@@ -369,9 +369,8 @@ class TestCodeQLAnalysisUseCase:
     def test_analyze_project_full_workflow(self) -> None:
         """Test the complete _analyze_project workflow."""
         from unittest.mock import patch, Mock
-        from datetime import datetime
         import tempfile
-        
+
         # Create a temporary directory for the test
         with tempfile.TemporaryDirectory() as temp_dir:
             project_path = Path(temp_dir) / "test-project"
@@ -380,14 +379,14 @@ class TestCodeQLAnalysisUseCase:
             repo_path.mkdir()
             output_path = Path(temp_dir) / "test-output"
             output_path.mkdir()
-            
+
             # Create a project info
             project = ProjectInfo(
                 name="test-project",
                 path=project_path,
-                languages={CodeQLLanguage.PYTHON}
+                languages={CodeQLLanguage.PYTHON},
             )
-            
+
             # Create a request
             request = CodeQLAnalysisRequest(
                 repository_path=repo_path,
@@ -396,19 +395,20 @@ class TestCodeQLAnalysisUseCase:
                 verbose=False,
                 force_install=False,
             )
-            
+
             # Mock CodeQL runner and all necessary methods
             mock_runner = Mock()
             mock_runner.create_database.return_value = Mock(success=True)
             mock_runner.analyze_database.return_value = Mock(success=True)
-            
+
             self.use_case._codeql_runner = mock_runner
-            
+
             # Mock _export_codeql_suites_path to avoid path issues
-            with patch.object(self.use_case, '_export_codeql_suites_path'), \
-                 patch.object(self.use_case, '_count_sarif_findings', return_value=5):
+            with patch.object(
+                self.use_case, "_export_codeql_suites_path"
+            ), patch.object(self.use_case, "_count_sarif_findings", return_value=5):
                 result = self.use_case._analyze_project(project, request)
-            
+
             assert result.project_info == project
             assert result.status == AnalysisStatus.COMPLETED
             assert result.findings_count == 5
@@ -418,7 +418,7 @@ class TestCodeQLAnalysisUseCase:
         """Test _analyze_project when CodeQL analysis fails."""
         from unittest.mock import Mock, patch
         import tempfile
-        
+
         # Create a temporary directory for the test
         with tempfile.TemporaryDirectory() as temp_dir:
             project_path = Path(temp_dir) / "test-project"
@@ -427,13 +427,13 @@ class TestCodeQLAnalysisUseCase:
             repo_path.mkdir()
             output_path = Path(temp_dir) / "test-output"
             output_path.mkdir()
-            
+
             project = ProjectInfo(
                 name="test-project",
                 path=project_path,
-                languages={CodeQLLanguage.PYTHON}
+                languages={CodeQLLanguage.PYTHON},
             )
-            
+
             request = CodeQLAnalysisRequest(
                 repository_path=repo_path,
                 target_languages=None,
@@ -441,29 +441,31 @@ class TestCodeQLAnalysisUseCase:
                 verbose=False,
                 force_install=False,
             )
-            
+
             # Mock CodeQL runner to fail
             mock_runner = Mock()
             mock_runner.create_database.return_value = Mock(
-                success=False, 
-                stderr="Database creation failed"
+                success=False, stderr="Database creation failed"
             )
-            
+
             self.use_case._codeql_runner = mock_runner
-            
+
             # Mock _export_codeql_suites_path to avoid path issues
-            with patch.object(self.use_case, '_export_codeql_suites_path'):
+            with patch.object(self.use_case, "_export_codeql_suites_path"):
                 result = self.use_case._analyze_project(project, request)
-            
+
             assert result.project_info == project
             assert result.status == AnalysisStatus.FAILED
             assert result.findings_count == 0
-            assert result.error_message is not None and "Database creation failed" in result.error_message
-        
+            assert (
+                result.error_message is not None
+                and "Database creation failed" in result.error_message
+            )
+
         self.use_case._codeql_runner = mock_runner
-        
+
         result = self.use_case._analyze_project(project, request)
-        
+
         assert result.status == AnalysisStatus.FAILED
         assert result.error_message is not None
         assert "Analysis failed" in result.error_message
@@ -471,26 +473,54 @@ class TestCodeQLAnalysisUseCase:
     def test_export_codeql_suites_path(self) -> None:
         """Test _export_codeql_suites_path method."""
         from unittest.mock import patch, Mock
-        
-        # Mock the installer
-        mock_installer = Mock()
-        mock_installer.get_codeql_suites_path.return_value = "/path/to/suites"
-        
-        with patch.object(self.use_case, '_codeql_installer', mock_installer), \
-             patch('os.environ', {}) as mock_env:
-            self.use_case._export_codeql_suites_path()
-            
-            # Verify the environment variable was set
-            assert mock_env.get('CODEQL_SUITES_PATH') == "/path/to/suites"
+        import tempfile
+        from pathlib import Path
+
+        # Mock the runner with a valid codeql path
+        mock_runner = Mock()
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            codeql_root = Path(temp_dir) / "codeql"
+            codeql_root.mkdir()
+
+            # Create bin directory
+            bin_dir = codeql_root / "bin"
+            bin_dir.mkdir()
+
+            # Create qlpacks directory under bin
+            # (since that's where the algorithm looks)
+            qlpacks_dir = bin_dir / "qlpacks"
+            qlpacks_dir.mkdir()
+
+            # Create a language directory under bin
+            python_dir = bin_dir / "python"
+            python_dir.mkdir()
+
+            # Set the mock runner to use the codeql binary path
+            mock_runner.codeql_path = str(bin_dir / "codeql")
+
+            with patch.object(self.use_case, "_codeql_runner", mock_runner), patch(
+                "os.environ", {}
+            ) as mock_env:
+                self.use_case._export_codeql_suites_path()
+
+                # Verify the environment variables were set
+                assert mock_env.get("CODEQL_DIST") == str(bin_dir)
+                assert "CODEQL_REPO" in mock_env
+                # Should contain both qlpacks and python directories
+                codeql_repo = mock_env.get("CODEQL_REPO")
+                assert codeql_repo is not None
+                assert str(qlpacks_dir) in codeql_repo
+                assert str(python_dir) in codeql_repo
 
     def test_verify_codeql_installation_auto_install(self) -> None:
         """Test _verify_codeql_installation when auto-install is needed."""
         from unittest.mock import patch, Mock
-        
+
         mock_installer = Mock()
         mock_installer.get_binary_path.return_value = None  # Not installed
         mock_installer.install.return_value = "/path/to/codeql"
-        
+
         # Mock CodeQLRunner to return successful version check
         mock_runner_class = Mock()
         mock_runner_instance = Mock()
@@ -499,11 +529,13 @@ class TestCodeQLAnalysisUseCase:
         mock_version_result.stdout = '{"version": "2.22.1"}'
         mock_runner_instance.version.return_value = mock_version_result
         mock_runner_class.return_value = mock_runner_instance
-        
-        with patch.object(self.use_case, '_codeql_installer', mock_installer), \
-             patch('codeql_wrapper.domain.use_cases.codeql_analysis_use_case.CodeQLRunner', mock_runner_class):
+
+        with patch.object(self.use_case, "_codeql_installer", mock_installer), patch(
+            "codeql_wrapper.domain.use_cases.codeql_analysis_use_case.CodeQLRunner",
+            mock_runner_class,
+        ):
             info = self.use_case._verify_codeql_installation(force_install=False)
-        
+
         assert info.is_valid
         assert info.version == "2.22.1"
         mock_installer.install.assert_called_once_with(force=False)
@@ -511,38 +543,46 @@ class TestCodeQLAnalysisUseCase:
     def test_verify_codeql_installation_install_failure(self) -> None:
         """Test _verify_codeql_installation when install fails."""
         from unittest.mock import patch, Mock
-        
+
         mock_installer = Mock()
         mock_installer.get_binary_path.return_value = None  # Not installed
         mock_installer.install.side_effect = Exception("Install failed")
-        
-        with patch.object(self.use_case, '_codeql_installer', mock_installer):
+
+        with patch.object(self.use_case, "_codeql_installer", mock_installer):
             info = self.use_case._verify_codeql_installation(force_install=False)
-        
+
         assert not info.is_valid
-        assert info.error_message is not None and "Failed to install CodeQL: Install failed" in info.error_message
+        assert (
+            info.error_message is not None
+            and "Failed to install CodeQL: Install failed" in info.error_message
+        )
 
     def test_verify_codeql_installation_force_install_failure(self) -> None:
         """Test _verify_codeql_installation when force reinstall fails."""
         from unittest.mock import patch, Mock
-        
+
         mock_installer = Mock()
-        mock_installer.get_binary_path.return_value = "/existing/path"  # Already installed
+        mock_installer.get_binary_path.return_value = (
+            "/existing/path"  # Already installed
+        )
         mock_installer.install.side_effect = Exception("Reinstall failed")
-        
-        with patch.object(self.use_case, '_codeql_installer', mock_installer):
+
+        with patch.object(self.use_case, "_codeql_installer", mock_installer):
             info = self.use_case._verify_codeql_installation(force_install=True)
-        
+
         assert not info.is_valid
-        assert info.error_message is not None and "Failed to reinstall CodeQL: Reinstall failed" in info.error_message
+        assert (
+            info.error_message is not None
+            and "Failed to reinstall CodeQL: Reinstall failed" in info.error_message
+        )
 
     def test_verify_codeql_installation_version_check_failure(self) -> None:
         """Test _verify_codeql_installation when version check fails."""
         from unittest.mock import patch, Mock
-        
+
         mock_installer = Mock()
         mock_installer.get_binary_path.return_value = "/path/to/codeql"
-        
+
         # Mock CodeQLRunner to return failed version check
         mock_runner_class = Mock()
         mock_runner_instance = Mock()
@@ -551,39 +591,45 @@ class TestCodeQLAnalysisUseCase:
         mock_version_result.stderr = "Version command failed"
         mock_runner_instance.version.return_value = mock_version_result
         mock_runner_class.return_value = mock_runner_instance
-        
-        with patch.object(self.use_case, '_codeql_installer', mock_installer), \
-             patch('codeql_wrapper.domain.use_cases.codeql_analysis_use_case.CodeQLRunner', mock_runner_class):
+
+        with patch.object(self.use_case, "_codeql_installer", mock_installer), patch(
+            "codeql_wrapper.domain.use_cases.codeql_analysis_use_case.CodeQLRunner",
+            mock_runner_class,
+        ):
             info = self.use_case._verify_codeql_installation(force_install=False)
-        
+
         assert not info.is_valid
-        assert info.error_message is not None and "Failed to get CodeQL version: Version command failed" in info.error_message
+        assert (
+            info.error_message is not None
+            and "Failed to get CodeQL version: Version command failed"
+            in info.error_message
+        )
 
     def test_count_sarif_findings_from_file(self) -> None:
         """Test _count_sarif_findings method."""
         import tempfile
         import json
-        
+
         # Create a temporary SARIF file
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.sarif', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".sarif", delete=False) as f:
             sarif_data = {
                 "runs": [
                     {
                         "results": [
                             {"ruleId": "rule1", "message": {"text": "Finding 1"}},
-                            {"ruleId": "rule2", "message": {"text": "Finding 2"}}
+                            {"ruleId": "rule2", "message": {"text": "Finding 2"}},
                         ]
                     },
                     {
                         "results": [
                             {"ruleId": "rule3", "message": {"text": "Finding 3"}}
                         ]
-                    }
+                    },
                 ]
             }
             json.dump(sarif_data, f)
             sarif_file = Path(f.name)
-        
+
         try:
             count = self.use_case._count_sarif_findings(sarif_file)
             assert count == 3
@@ -593,12 +639,12 @@ class TestCodeQLAnalysisUseCase:
     def test_count_sarif_findings_invalid_file(self) -> None:
         """Test _count_sarif_findings with invalid file."""
         import tempfile
-        
+
         # Create a temporary non-JSON file
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.sarif', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".sarif", delete=False) as f:
             f.write("invalid json")
             sarif_file = Path(f.name)
-        
+
         try:
             count = self.use_case._count_sarif_findings(sarif_file)
             assert count == 0  # Should return 0 on error
@@ -613,9 +659,9 @@ class TestCodeQLAnalysisUseCase:
 
     def test_analyze_project_exception_handling(self) -> None:
         """Test _analyze_project exception handling."""
-        from unittest.mock import Mock, patch
+        from unittest.mock import patch
         import tempfile
-        
+
         # Create a temporary directory for the test
         with tempfile.TemporaryDirectory() as temp_dir:
             project_path = Path(temp_dir) / "test-project"
@@ -624,13 +670,13 @@ class TestCodeQLAnalysisUseCase:
             repo_path.mkdir()
             output_path = Path(temp_dir) / "test-output"
             output_path.mkdir()
-            
+
             project = ProjectInfo(
                 name="test-project",
                 path=project_path,
-                languages={CodeQLLanguage.PYTHON}
+                languages={CodeQLLanguage.PYTHON},
             )
-            
+
             request = CodeQLAnalysisRequest(
                 repository_path=repo_path,
                 target_languages=None,
@@ -638,11 +684,15 @@ class TestCodeQLAnalysisUseCase:
                 verbose=False,
                 force_install=False,
             )
-            
+
             # Mock _export_codeql_suites_path to raise an exception
-            with patch.object(self.use_case, '_export_codeql_suites_path', side_effect=Exception("Unexpected error")):
+            with patch.object(
+                self.use_case,
+                "_export_codeql_suites_path",
+                side_effect=Exception("Unexpected error"),
+            ):
                 result = self.use_case._analyze_project(project, request)
-            
+
             assert result.status == AnalysisStatus.FAILED
             assert result.error_message is not None
             assert "Unexpected error" in result.error_message
@@ -650,13 +700,13 @@ class TestCodeQLAnalysisUseCase:
     def test_verify_codeql_installation_forced(self) -> None:
         """Test _verify_codeql_installation with force install."""
         from unittest.mock import patch, Mock
-        
+
         mock_installer = Mock()
         mock_installer.is_installed.return_value = True
         mock_installer.install.return_value = "/path/to/codeql"
         mock_installer.get_binary_path.return_value = "/path/to/codeql"
         mock_installer.get_version.return_value = "2.22.1"
-        
+
         # Mock CodeQLRunner to return successful version check
         mock_runner_class = Mock()
         mock_runner_instance = Mock()
@@ -665,11 +715,13 @@ class TestCodeQLAnalysisUseCase:
         mock_version_result.stdout = '{"version": "2.22.1"}'
         mock_runner_instance.version.return_value = mock_version_result
         mock_runner_class.return_value = mock_runner_instance
-        
-        with patch.object(self.use_case, '_codeql_installer', mock_installer), \
-             patch('codeql_wrapper.domain.use_cases.codeql_analysis_use_case.CodeQLRunner', mock_runner_class):
+
+        with patch.object(self.use_case, "_codeql_installer", mock_installer), patch(
+            "codeql_wrapper.domain.use_cases.codeql_analysis_use_case.CodeQLRunner",
+            mock_runner_class,
+        ):
             info = self.use_case._verify_codeql_installation(force_install=True)
-        
+
         assert info.is_valid
         assert info.version == "2.22.1"
         assert str(info.path) == "/path/to/codeql"
@@ -678,17 +730,21 @@ class TestCodeQLAnalysisUseCase:
     def test_determine_primary_language_with_priorities(self) -> None:
         """Test _determine_primary_language with different language priorities."""
         # Test with high priority languages - JavaScript has higher priority than Java
-        languages = {CodeQLLanguage.JAVA, CodeQLLanguage.PYTHON, CodeQLLanguage.JAVASCRIPT}
+        languages = {
+            CodeQLLanguage.JAVA,
+            CodeQLLanguage.PYTHON,
+            CodeQLLanguage.JAVASCRIPT,
+        }
         result = self.use_case._determine_primary_language(languages)
         # JavaScript should have higher priority than Java and Python
         assert result == CodeQLLanguage.JAVASCRIPT
-        
+
         # Test with only compiled languages
         languages = {CodeQLLanguage.CPP, CodeQLLanguage.CSHARP}
         result = self.use_case._determine_primary_language(languages)
         # Should return one of them (order defined by implementation)
         assert result in {CodeQLLanguage.CPP, CodeQLLanguage.CSHARP}
-        
+
         # Test with mixed compiled and non-compiled
         languages = {CodeQLLanguage.PYTHON, CodeQLLanguage.GO}
         result = self.use_case._determine_primary_language(languages)

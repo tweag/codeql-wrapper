@@ -450,12 +450,14 @@ class TestCodeQLInstaller:
     def test_install_network_error(self) -> None:
         """Test install with network error during download."""
         from unittest.mock import patch
-        import requests
+        from urllib.error import URLError
 
-        with patch("requests.get") as mock_get:
-            mock_get.side_effect = requests.RequestException("Network error")
+        with patch(
+            "codeql_wrapper.infrastructure.codeql_installer.urlretrieve"
+        ) as mock_urlretrieve:
+            mock_urlretrieve.side_effect = URLError("Network error")
 
-            with pytest.raises(Exception, match="Network error"):
+            with pytest.raises(Exception, match="Failed to download CodeQL"):
                 self.installer.install()
 
     def test_get_version_not_installed(self) -> None:
@@ -466,6 +468,8 @@ class TestCodeQLInstaller:
 
     def test_install_with_existing_directory_force_false(self) -> None:
         """Test install when directory exists and force=False."""
+        from unittest.mock import patch
+
         # Create existing codeql directory with binary
         codeql_dir = self.temp_dir / "codeql"
         codeql_dir.mkdir(parents=True)
@@ -473,6 +477,8 @@ class TestCodeQLInstaller:
         binary_path.touch()
         binary_path.chmod(0o755)
 
-        # Should return existing path when force=False and already installed
-        result = self.installer.install(force=False)
-        assert str(result) == str(binary_path)
+        # Mock the version check to avoid execution errors
+        with patch.object(self.installer, "get_version", return_value="2.22.1"):
+            # Should return existing path when force=False and already installed
+            result = self.installer.install(force=False)
+            assert str(result) == str(binary_path)

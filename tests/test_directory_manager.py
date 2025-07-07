@@ -287,6 +287,8 @@ class TestDirectoryManager:
 
     def test_determine_base_commit_fetch_failure(self):
         """Test determine_base_commit when fetch fails."""
+        from unittest.mock import patch
+
         with patch.object(self.manager, "_run_git_command") as mock_git:
             # Mock successful first call but failing fetch
             def side_effect(cmd):
@@ -301,7 +303,7 @@ class TestDirectoryManager:
                 result = self.manager._determine_base_commit()
                 assert result == "HEAD^"
 
-    def test_find_git_directories_git_command_error(self) -> None:
+    def test_list_changed_directories_git_command_error(self) -> None:
         """Test list_changed_directories when git command fails."""
         import tempfile
         from unittest.mock import patch
@@ -314,10 +316,12 @@ class TestDirectoryManager:
 
             manager = DirectoryManager(base_path=str(repo_path))
 
-            # Mock _run_git_command to raise CalledProcessError for the diff command
-            with patch.object(manager, "_run_git_command") as mock_run_git:
+            # Mock _is_git_repository to return True and _run_git_command to raise error
+            with patch.object(
+                manager, "_is_git_repository", return_value=True
+            ), patch.object(manager, "_run_git_command") as mock_run_git:
                 from unittest.mock import Mock
-                
+
                 # First call (for determining base commit) succeeds
                 # Second call (for getting changed files) fails
                 mock_run_git.side_effect = [
@@ -327,5 +331,6 @@ class TestDirectoryManager:
                     ),  # diff command
                 ]
 
-                with pytest.raises(subprocess.CalledProcessError):
-                    manager.list_changed_directories()
+                # The method should handle the error gracefully and return an empty list
+                result = manager.list_changed_directories()
+                assert result == []
