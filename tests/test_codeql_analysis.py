@@ -398,8 +398,7 @@ class TestCodeQLAnalysisUseCase:
 
             # Mock CodeQL runner and all necessary methods
             mock_runner = Mock()
-            mock_runner.create_database.return_value = Mock(success=True)
-            mock_runner.analyze_database.return_value = Mock(success=True)
+            mock_runner.create_and_analyze.return_value = Mock(success=True)
 
             self.use_case._codeql_runner = mock_runner
 
@@ -444,8 +443,8 @@ class TestCodeQLAnalysisUseCase:
 
             # Mock CodeQL runner to fail
             mock_runner = Mock()
-            mock_runner.create_database.return_value = Mock(
-                success=False, stderr="Database creation failed"
+            mock_runner.create_and_analyze.return_value = Mock(
+                success=False, stderr="Database creation and analysis failed"
             )
 
             self.use_case._codeql_runner = mock_runner
@@ -459,7 +458,7 @@ class TestCodeQLAnalysisUseCase:
             assert result.findings_count == 0
             assert (
                 result.error_message is not None
-                and "Database creation failed" in result.error_message
+                and "Database creation and analysis failed" in result.error_message
             )
 
         self.use_case._codeql_runner = mock_runner

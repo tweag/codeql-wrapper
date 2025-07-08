@@ -270,31 +270,12 @@ class CodeQLAnalysisUseCase:
             for language in project.languages:
                 self._logger.debug(f"Running CodeQL analysis for {language.value}")
 
-                # Create database
-                db_path = output_dir / f"db-{language.value}"
+                # Create database and run analysis using the robust method
                 if self._codeql_runner is None:
                     raise Exception("CodeQL runner not initialized")
 
-                db_result = self._codeql_runner.create_database(
-                    database_path=str(db_path),
-                    source_root=str(project.path),
-                    language=language.value,
-                    overwrite=True,
-                )
-
-                if not db_result.success:
-                    error_msg = (
-                        f"Failed to create database for {language.value}: "
-                        f"{db_result.stderr}"
-                    )
-                    self._logger.error(error_msg)
-                    result.status = AnalysisStatus.FAILED
-                    result.error_message = error_msg
-                    result.end_time = datetime.now()
-                    return result
-
-                # Run analysis
-                output_format = "sarif-latest"  # Default output format
+                # Default output format
+                output_format = "sarif-latest"
 
                 # Map output formats to conventional file extensions
                 format_to_extension = {
@@ -309,15 +290,20 @@ class CodeQLAnalysisUseCase:
 
                 file_extension = format_to_extension.get(output_format, ".sarif")
                 output_file = output_dir / f"results-{language.value}{file_extension}"
-                analysis_result = self._codeql_runner.analyze_database(
-                    database_path=str(db_path),
-                    output_format=output_format,
-                    output=str(output_file),
+
+                # Use the robust create_and_analyze method that handles corrupted databases
+                analysis_result = self._codeql_runner.create_and_analyze(
+                    source_root=str(project.path),
+                    language=language.value,
+                    output_file=str(output_file),
+                    database_name=str(output_dir / f"db-{language.value}"),
+                    cleanup_database=False,  # Keep database for debugging
                 )
 
                 if not analysis_result.success:
                     error_msg = (
-                        f"Failed to analyze {language.value}: {analysis_result.stderr}"
+                        f"Failed to create database and analyze {language.value}: "
+                        f"{analysis_result.stderr}"
                     )
                     self._logger.error(error_msg)
                     result.status = AnalysisStatus.FAILED

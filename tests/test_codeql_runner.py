@@ -511,19 +511,28 @@ class TestCodeQLRunner:
         )
 
         assert result.success is False
+        assert "Analysis failed" in result.stderr
         assert result.stderr == "Analysis failed"
-        assert mock_run.call_count == 2
 
     @patch("subprocess.run")
-    def test_create_and_analyze_with_custom_database_path(self, mock_run) -> None:
+    @patch("pathlib.Path.exists")
+    def test_create_and_analyze_with_custom_database_path(self, mock_exists, mock_run) -> None:
         """Test create and analyze with custom database path."""
-        # Mock successful database creation and analysis
-        success_result = Mock()
-        success_result.returncode = 0
-        success_result.stdout = "Success"
-        success_result.stderr = ""
+        # Mock that database doesn't exist
+        mock_exists.return_value = False
+        
+        # Mock successful create and analyze
+        create_result = Mock()
+        create_result.returncode = 0
+        create_result.stdout = "Database created"
+        create_result.stderr = ""
 
-        mock_run.return_value = success_result
+        analyze_result = Mock()
+        analyze_result.returncode = 0
+        analyze_result.stdout = "Analysis complete"
+        analyze_result.stderr = ""
+
+        mock_run.side_effect = [create_result, analyze_result]
 
         result = self.runner.create_and_analyze(
             "/source",
@@ -534,7 +543,7 @@ class TestCodeQLRunner:
         )
 
         assert result.success is True
-        assert mock_run.call_count == 2
+        assert mock_run.call_count == 2  # create, analyze
 
         # Check that the custom database path was used
         create_call_args = mock_run.call_args_list[0][0][0]
