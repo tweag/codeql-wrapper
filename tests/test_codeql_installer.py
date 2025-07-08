@@ -465,13 +465,16 @@ class TestCodeQLInstaller:
         from unittest.mock import patch
         from urllib.error import URLError
 
-        with patch(
-            "codeql_wrapper.infrastructure.codeql_installer.urlretrieve"
-        ) as mock_urlretrieve:
-            mock_urlretrieve.side_effect = URLError("Network error")
+        # Mock get_latest_version to avoid hitting GitHub API
+        with patch.object(self.installer, "get_latest_version", return_value="v2.22.1"):
+            with patch(
+                "codeql_wrapper.infrastructure.codeql_installer.urlretrieve"
+            ) as mock_urlretrieve:
+                mock_urlretrieve.side_effect = URLError("Network error")
 
-            with pytest.raises(Exception, match="Failed to download CodeQL"):
-                self.installer.install()
+                # Test with network error during download
+                with pytest.raises(Exception, match="Failed to download CodeQL"):
+                    self.installer.install(version="v2.22.1")
 
     def test_get_version_not_installed(self) -> None:
         """Test get_version when CodeQL is not installed."""
@@ -504,8 +507,8 @@ class TestCodeQLInstaller:
                 "https://api.github.com/repos/github/codeql-action/releases/latest"
             )
 
-    def test_get_latest_version_exits_on_http_error(self) -> None:
-        """Test get_latest_version exits program on HTTP error status."""
+    def test_get_latest_version_raises_on_http_error(self) -> None:
+        """Test get_latest_version raises exception on HTTP error status."""
         with patch(
             "codeql_wrapper.infrastructure.codeql_installer.urlopen"
         ) as mock_urlopen:
@@ -517,18 +520,16 @@ class TestCodeQLInstaller:
             mock_urlopen.return_value.__enter__ = Mock(return_value=mock_response)
             mock_urlopen.return_value.__exit__ = Mock(return_value=None)
 
-            # Should exit the program
-            with pytest.raises(SystemExit) as exc_info:
+            # Should raise an exception
+            with pytest.raises(Exception, match="GitHub API returned status 404"):
                 self.installer.get_latest_version()
-
-            assert exc_info.value.code == 1
 
             mock_urlopen.assert_called_once_with(
                 "https://api.github.com/repos/github/codeql-action/releases/latest"
             )
 
-    def test_get_latest_version_exits_on_invalid_json(self) -> None:
-        """Test get_latest_version exits program on invalid JSON response."""
+    def test_get_latest_version_raises_on_invalid_json(self) -> None:
+        """Test get_latest_version raises exception on invalid JSON response."""
         with patch(
             "codeql_wrapper.infrastructure.codeql_installer.urlopen"
         ) as mock_urlopen:
@@ -541,18 +542,18 @@ class TestCodeQLInstaller:
             mock_urlopen.return_value.__enter__ = Mock(return_value=mock_response)
             mock_urlopen.return_value.__exit__ = Mock(return_value=None)
 
-            # Should exit the program
-            with pytest.raises(SystemExit) as exc_info:
+            # Should raise an exception
+            with pytest.raises(
+                Exception, match="Unable to fetch latest CodeQL version"
+            ):
                 self.installer.get_latest_version()
-
-            assert exc_info.value.code == 1
 
             mock_urlopen.assert_called_once_with(
                 "https://api.github.com/repos/github/codeql-action/releases/latest"
             )
 
-    def test_get_latest_version_exits_on_error(self) -> None:
-        """Test get_latest_version exits program on network error."""
+    def test_get_latest_version_raises_on_error(self) -> None:
+        """Test get_latest_version raises exception on network error."""
         # Mock urlopen to raise an exception
         with patch(
             "codeql_wrapper.infrastructure.codeql_installer.urlopen"
@@ -561,11 +562,11 @@ class TestCodeQLInstaller:
 
             mock_urlopen.side_effect = URLError("Network error")
 
-            # Should exit the program
-            with pytest.raises(SystemExit) as exc_info:
+            # Should raise an exception
+            with pytest.raises(
+                Exception, match="Unable to fetch latest CodeQL version"
+            ):
                 self.installer.get_latest_version()
-
-            assert exc_info.value.code == 1
 
             mock_urlopen.assert_called_once_with(
                 "https://api.github.com/repos/github/codeql-action/releases/latest"
@@ -648,15 +649,18 @@ class TestCodeQLInstaller:
         binary_path.touch()
         binary_path.chmod(0o755)
 
-        # Mock the version check to avoid execution errors
+        # Mock both version check and get_latest_version to avoid any API calls
         with patch.object(self.installer, "get_version", return_value="2.22.1"):
-            # Should return existing path when force=False and already installed
-            result = self.installer.install(force=False)
-            assert str(result) == str(binary_path)
+            with patch.object(
+                self.installer, "get_latest_version", return_value="v2.22.1"
+            ):
+                # Should return existing path when force=False and already installed
+                result = self.installer.install(version="v2.22.1", force=False)
+                assert str(result) == str(binary_path)
 
-    def test_get_download_url_exits_on_api_error(self) -> None:
-        """Test get_download_url exits when get_latest_version fails."""
-        # Mock urlopen to fail so get_latest_version exits
+    def test_get_download_url_raises_on_api_error(self) -> None:
+        """Test get_download_url raises exception when get_latest_version fails."""
+        # Mock urlopen to fail so get_latest_version raises exception
         with patch(
             "codeql_wrapper.infrastructure.codeql_installer.urlopen"
         ) as mock_urlopen:
@@ -664,15 +668,15 @@ class TestCodeQLInstaller:
 
             mock_urlopen.side_effect = URLError("Network error")
 
-            # Should exit the program
-            with pytest.raises(SystemExit) as exc_info:
+            # Should raise an exception
+            with pytest.raises(
+                Exception, match="Unable to fetch latest CodeQL version"
+            ):
                 self.installer.get_download_url(None)
 
-            assert exc_info.value.code == 1
-
-    def test_download_codeql_exits_on_api_error(self) -> None:
-        """Test download_codeql exits when get_latest_version fails."""
-        # Mock urlopen to fail so get_latest_version exits
+    def test_download_codeql_raises_on_api_error(self) -> None:
+        """Test download_codeql raises exception when get_latest_version fails."""
+        # Mock urlopen to fail so get_latest_version raises exception
         with patch(
             "codeql_wrapper.infrastructure.codeql_installer.urlopen"
         ) as mock_urlopen:
@@ -680,15 +684,15 @@ class TestCodeQLInstaller:
 
             mock_urlopen.side_effect = URLError("Network error")
 
-            # Should exit the program
-            with pytest.raises(SystemExit) as exc_info:
+            # Should raise an exception
+            with pytest.raises(
+                Exception, match="Unable to fetch latest CodeQL version"
+            ):
                 self.installer.download_codeql(None)
 
-            assert exc_info.value.code == 1
-
-    def test_install_exits_on_api_error(self) -> None:
-        """Test install exits when get_latest_version fails."""
-        # Mock urlopen to fail so get_latest_version exits
+    def test_install_raises_on_api_error(self) -> None:
+        """Test install raises exception when get_latest_version fails."""
+        # Mock urlopen to fail so get_latest_version raises exception
         with patch(
             "codeql_wrapper.infrastructure.codeql_installer.urlopen"
         ) as mock_urlopen:
@@ -696,8 +700,8 @@ class TestCodeQLInstaller:
 
             mock_urlopen.side_effect = URLError("Network error")
 
-            # Should exit the program
-            with pytest.raises(SystemExit) as exc_info:
+            # Should raise an exception
+            with pytest.raises(
+                Exception, match="Unable to fetch latest CodeQL version"
+            ):
                 self.installer.install(None)
-
-            assert exc_info.value.code == 1
