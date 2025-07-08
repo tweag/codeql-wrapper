@@ -31,6 +31,77 @@ class CodeQLAnalysisUseCase:
 
     def execute(self, request: CodeQLAnalysisRequest) -> RepositoryAnalysisSummary:
         """
+        Execute CodeQL analysis on a repo or monorepo
+        """
+        try:
+            if request.monorepo:
+                self._logger.info(
+                    f"Starting monorepo CodeQL analysis for: "
+                    f"{request.repository_path}"
+                )
+                return self._execute_monorepo_analysis(request)
+            else:
+                self._logger.info(
+                    f"Starting single repository CodeQL analysis for: "
+                    f"{request.repository_path}"
+                )
+                return self._execute_single_repo_analysis(request)
+
+        except Exception as e:
+            self._logger.error(f"CodeQL analysis failed: {e}")
+            raise
+
+    def _execute_monorepo_analysis(
+        self, request: CodeQLAnalysisRequest
+    ) -> RepositoryAnalysisSummary:
+        """
+        Execute CodeQL analysis on a monorepo by analyzing each project.
+        """
+        self._logger.info("Starting monorepo analysis...")
+
+        # Find all 1st-level folders inside the monorepo path
+        sub_project_paths = [p for p in request.repository_path.iterdir() if p.is_dir()]
+
+        if not sub_project_paths:
+            self._logger.warning("No projects found in the monorepo path.")
+            return RepositoryAnalysisSummary(
+                repository_path=request.repository_path,
+                detected_projects=[],
+                analysis_results=[],
+            )
+
+        all_detected_projects = []
+        all_analysis_results = []
+
+        for sub_path in sub_project_paths:
+            self._logger.info(f"Processing project: {sub_path}")
+
+            # Create a new request object for the project
+            sub_request = CodeQLAnalysisRequest(
+                repository_path=sub_path,
+                force_install=request.force_install,
+                target_languages=request.target_languages,
+                verbose=request.verbose,
+                output_directory=request.output_directory,
+            )
+
+            try:
+                summary = self._execute_single_repo_analysis(sub_request)
+                all_detected_projects.extend(summary.detected_projects)
+                all_analysis_results.extend(summary.analysis_results)
+            except Exception as e:
+                self._logger.error(f"Analysis failed for {sub_path}: {e}")
+
+        return RepositoryAnalysisSummary(
+            repository_path=request.repository_path,
+            detected_projects=all_detected_projects,
+            analysis_results=all_analysis_results,
+        )
+
+    def _execute_single_repo_analysis(
+        self, request: CodeQLAnalysisRequest
+    ) -> RepositoryAnalysisSummary:
+        """
         Execute CodeQL analysis on a repository.
 
         Args:
