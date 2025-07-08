@@ -110,38 +110,30 @@ jobs:
         git push origin release/v${{ github.event.inputs.version }}
         git push origin v${{ github.event.inputs.version }}
 
-    - name: Create Pull Request for version bump
-      id: create-pr
-      uses: peter-evans/create-pull-request@v5
-      with:
-        token: ${{ secrets.GITHUB_TOKEN }}
-        branch: release/v${{ github.event.inputs.version }}
-        title: "Release v${{ github.event.inputs.version }}"
-        body: |
-          Automated release pull request for version ${{ github.event.inputs.version }}
-          
-          Changes:
-          - Bump version to ${{ github.event.inputs.version }} in pyproject.toml
-          
-          This PR was created automatically by the release workflow.
-        base: main
-
-    - name: Auto-merge Pull Request
+    - name: Create and Auto-merge Pull Request
       run: |
-        echo "Waiting for PR to be created..."
-        sleep 10
+        echo "Creating pull request..."
         
-        PR_NUMBER=$(gh pr list --head release/v${{ github.event.inputs.version }} --json number --jq '.[0].number')
+        # Create PR using GitHub CLI
+        PR_URL=$(gh pr create \
+          --title "Release v${{ github.event.inputs.version }}" \
+          --body "Automated release pull request for version ${{ github.event.inputs.version }}
+
+        Changes:
+        - Bump version to ${{ github.event.inputs.version }} in pyproject.toml
+
+        This PR was created automatically by the release workflow." \
+          --base main \
+          --head release/v${{ github.event.inputs.version }})
         
-        if [ "$PR_NUMBER" = "null" ] || [ -z "$PR_NUMBER" ]; then
-          echo "Error: Could not find PR for branch release/v${{ github.event.inputs.version }}"
-          exit 1
-        fi
-
-        echo "Found PR #$PR_NUMBER, enabling auto-merge..."
-        gh pr merge $PR_NUMBER --merge --auto
-        echo "Auto-merge enabled for PR #$PR_NUMBER"
-
+        echo "Created PR: $PR_URL"
+        
+        # Enable auto-merge using PR URL directly
+        echo "Enabling auto-merge for PR: $PR_URL"
+        sleep 5
+        gh pr merge "$PR_URL" --merge --auto
+        
+        echo "Auto-merge enabled for PR: $PR_URL"
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
