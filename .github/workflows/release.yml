@@ -83,7 +83,7 @@ jobs:
 
     - name: Verify package version
       run: |
-        PACKAGE_VERSION=$(python -c "from codeql_wrapper import __version__; print(__version__)")
+        PACKAGE_VERSION=$(poetry run python -c "from codeql_wrapper import __version__; print(__version__)")
         echo "Package version: $PACKAGE_VERSION"
         if [ "$PACKAGE_VERSION" != "${{ github.event.inputs.version }}" ]; then
           echo "Error: Package version mismatch. Expected ${{ github.event.inputs.version }}, got $PACKAGE_VERSION"
