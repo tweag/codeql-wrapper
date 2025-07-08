@@ -60,9 +60,7 @@ class CodeQLAnalysisUseCase:
         self._logger.info("Starting monorepo analysis...")
 
         # Find all 1st-level folders inside the monorepo path
-        sub_project_paths = [
-            p for p in request.repository_path.iterdir() if p.is_dir()
-        ]
+        sub_project_paths = [p for p in request.repository_path.iterdir() if p.is_dir()]
 
         if not sub_project_paths:
             self._logger.warning("No projects found in the monorepo path.")
@@ -100,8 +98,9 @@ class CodeQLAnalysisUseCase:
             analysis_results=all_analysis_results,
         )
 
-
-    def _execute_single_repo_analysis(self, request: CodeQLAnalysisRequest) -> RepositoryAnalysisSummary:
+    def _execute_single_repo_analysis(
+        self, request: CodeQLAnalysisRequest
+    ) -> RepositoryAnalysisSummary:
         """
         Execute CodeQL analysis on a repository.
 
