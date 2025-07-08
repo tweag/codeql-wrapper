@@ -141,7 +141,7 @@ class TestCLI:
         result = self.runner.invoke(cli, ["install"])
 
         assert result.exit_code == 0
-        assert "✅ CodeQL 2.22.1 installed successfully!" in result.output
+        assert "SUCCESS: CodeQL 2.22.1 installed successfully!" in result.output
         mock_installer.install.assert_called_once()
 
     @patch("src.codeql_wrapper.infrastructure.codeql_installer.CodeQLInstaller")
@@ -156,7 +156,7 @@ class TestCLI:
         result = self.runner.invoke(cli, ["install"])
 
         assert result.exit_code == 0
-        assert "✅ CodeQL is already installed" in result.output
+        assert "SUCCESS: CodeQL is already installed" in result.output
         mock_installer.install.assert_not_called()
 
     @patch("src.codeql_wrapper.infrastructure.codeql_installer.CodeQLInstaller")
@@ -171,7 +171,7 @@ class TestCLI:
         result = self.runner.invoke(cli, ["install", "--force"])
 
         assert result.exit_code == 0
-        assert "🔄 Force reinstalling CodeQL..." in result.output
+        assert "REINSTALLING: Force reinstalling CodeQL..." in result.output
         mock_installer.install.assert_called_once_with(version="v2.22.1", force=True)
 
     @patch("src.codeql_wrapper.infrastructure.codeql_installer.CodeQLInstaller")
@@ -214,7 +214,7 @@ class TestCLI:
             result = self.runner.invoke(cli, ["analyze", temp_dir])
 
             assert result.exit_code == 1
-            assert "Error: Test error" in result.output
+            assert "ERROR: Test error" in result.output
 
     @patch("src.codeql_wrapper.infrastructure.codeql_installer.CodeQLInstaller")
     def test_install_command_handles_exception(self, mock_installer_class) -> None:
@@ -226,7 +226,7 @@ class TestCLI:
         result = self.runner.invoke(cli, ["install"])
 
         assert result.exit_code == 1
-        assert "❌ Installation failed: Install error" in result.output
+        assert "ERROR: Installation failed: Install error" in result.output
 
     @patch("src.codeql_wrapper.cli.CodeQLAnalysisUseCase")
     def test_analyze_command_unsupported_language(self, mock_use_case_class) -> None:
@@ -300,7 +300,7 @@ class TestCLI:
             # The CLI should succeed even with failed analyses -
             # it only exits with error code on exceptions
             assert result.exit_code == 0
-            assert "1 analysis(es) failed" in result.output
+            assert "WARNING: 1 analysis(es) failed" in result.output
             assert "test-project: Analysis failed" in result.output
 
     def test_upload_sarif_command_help(self) -> None:
@@ -356,7 +356,7 @@ class TestCLI:
             )
 
             assert result.exit_code == 0
-            assert "Successfully uploaded SARIF file" in result.output
+            assert "SUCCESS: Successfully uploaded SARIF file" in result.output
             mock_use_case.execute.assert_called_once()
 
         finally:
@@ -422,7 +422,7 @@ class TestCLI:
                 )
 
             assert result.exit_code == 0
-            assert "Successfully uploaded 1 SARIF file(s)" in result.output
+            assert "SUCCESS: Successfully uploaded 1 SARIF file(s)" in result.output
 
     def test_analyze_command_upload_sarif_validation(self) -> None:
         """Test analyze command validates required parameters for SARIF upload."""
@@ -441,7 +441,10 @@ class TestCLI:
                 ],
             )
             assert result.exit_code == 1
-            assert "--repository is required when using --upload-sarif" in result.output
+            assert (
+                "ERROR: --repository is required when using --upload-sarif"
+                in result.output
+            )
 
             # Test missing commit-sha
             result = self.runner.invoke(
@@ -457,7 +460,10 @@ class TestCLI:
                 ],
             )
             assert result.exit_code == 1
-            assert "--commit-sha is required when using --upload-sarif" in result.output
+            assert (
+                "ERROR: --commit-sha is required when using --upload-sarif"
+                in result.output
+            )
 
             # Test missing github-token
             result = self.runner.invoke(
@@ -473,4 +479,7 @@ class TestCLI:
                 ],
             )
             assert result.exit_code == 1
-            assert "GitHub token is required when using --upload-sarif" in result.output
+            assert (
+                "ERROR: GitHub token is required when using --upload-sarif"
+                in result.output
+            )
