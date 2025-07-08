@@ -8,6 +8,8 @@ from .codeql_analysis import (
     CodeQLAnalysisResult,
     CodeQLInstallationInfo,
     RepositoryAnalysisSummary,
+    SarifUploadRequest,
+    SarifUploadResult,
 )
 
 __all__ = [
@@ -18,4 +20,6 @@ __all__ = [
     "CodeQLAnalysisResult",
     "CodeQLInstallationInfo",
     "RepositoryAnalysisSummary",
+    "SarifUploadRequest",
+    "SarifUploadResult",
 ]

@@ -6,7 +6,7 @@ from unittest.mock import Mock, patch
 
 from click.testing import CliRunner
 
-from codeql_wrapper.cli import cli
+from src.codeql_wrapper.cli import cli
 
 
 class TestCLI:
@@ -44,7 +44,7 @@ class TestCLI:
 
     def test_cli_version(self) -> None:
         """Test CLI version output."""
-        from codeql_wrapper import __version__
+        from src.codeql_wrapper import __version__
 
         result = self.runner.invoke(cli, ["--version"])
 
@@ -79,7 +79,7 @@ class TestCLI:
         assert result.exit_code == 2  # Click usage error
         assert "Missing argument" in result.output
 
-    @patch("codeql_wrapper.cli.CodeQLAnalysisUseCase")
+    @patch("src.codeql_wrapper.cli.CodeQLAnalysisUseCase")
     def test_analyze_command_with_valid_path(self, mock_use_case_class) -> None:
         """Test analyze command with valid repository path."""
         # Create a temporary directory for testing
@@ -102,7 +102,7 @@ class TestCLI:
             assert result.exit_code == 0
             mock_use_case.execute.assert_called_once()
 
-    @patch("codeql_wrapper.cli.CodeQLAnalysisUseCase")
+    @patch("src.codeql_wrapper.cli.CodeQLAnalysisUseCase")
     def test_analyze_command_with_languages_option(self, mock_use_case_class) -> None:
         """Test analyze command with languages option."""
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -129,7 +129,7 @@ class TestCLI:
             assert call_args.target_languages is not None
             assert len(call_args.target_languages) == 2
 
-    @patch("codeql_wrapper.infrastructure.codeql_installer.CodeQLInstaller")
+    @patch("src.codeql_wrapper.infrastructure.codeql_installer.CodeQLInstaller")
     def test_install_command_success(self, mock_installer_class) -> None:
         """Test install command success."""
         mock_installer = Mock()
@@ -144,7 +144,7 @@ class TestCLI:
         assert "✅ CodeQL 2.22.1 installed successfully!" in result.output
         mock_installer.install.assert_called_once()
 
-    @patch("codeql_wrapper.infrastructure.codeql_installer.CodeQLInstaller")
+    @patch("src.codeql_wrapper.infrastructure.codeql_installer.CodeQLInstaller")
     def test_install_command_already_installed(self, mock_installer_class) -> None:
         """Test install command when already installed."""
         mock_installer = Mock()
@@ -159,7 +159,7 @@ class TestCLI:
         assert "✅ CodeQL is already installed" in result.output
         mock_installer.install.assert_not_called()
 
-    @patch("codeql_wrapper.infrastructure.codeql_installer.CodeQLInstaller")
+    @patch("src.codeql_wrapper.infrastructure.codeql_installer.CodeQLInstaller")
     def test_install_command_with_force(self, mock_installer_class) -> None:
         """Test install command with force flag."""
         mock_installer = Mock()
@@ -174,7 +174,7 @@ class TestCLI:
         assert "🔄 Force reinstalling CodeQL..." in result.output
         mock_installer.install.assert_called_once_with(version="v2.22.1", force=True)
 
-    @patch("codeql_wrapper.infrastructure.codeql_installer.CodeQLInstaller")
+    @patch("src.codeql_wrapper.infrastructure.codeql_installer.CodeQLInstaller")
     def test_install_command_custom_version(self, mock_installer_class) -> None:
         """Test install command with custom version."""
         mock_installer = Mock()
@@ -202,7 +202,7 @@ class TestCLI:
         assert result.exit_code == 2  # Click validation error
         assert "does not exist" in result.output.lower()
 
-    @patch("codeql_wrapper.cli.CodeQLAnalysisUseCase")
+    @patch("src.codeql_wrapper.cli.CodeQLAnalysisUseCase")
     def test_analyze_command_handles_exception(self, mock_use_case_class) -> None:
         """Test analyze command handles exceptions gracefully."""
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -216,7 +216,7 @@ class TestCLI:
             assert result.exit_code == 1
             assert "Error: Test error" in result.output
 
-    @patch("codeql_wrapper.infrastructure.codeql_installer.CodeQLInstaller")
+    @patch("src.codeql_wrapper.infrastructure.codeql_installer.CodeQLInstaller")
     def test_install_command_handles_exception(self, mock_installer_class) -> None:
         """Test install command handles exceptions gracefully."""
         mock_installer = Mock()
@@ -228,7 +228,7 @@ class TestCLI:
         assert result.exit_code == 1
         assert "❌ Installation failed: Install error" in result.output
 
-    @patch("codeql_wrapper.cli.CodeQLAnalysisUseCase")
+    @patch("src.codeql_wrapper.cli.CodeQLAnalysisUseCase")
     def test_analyze_command_unsupported_language(self, mock_use_case_class) -> None:
         """Test analyze command with unsupported language."""
         import tempfile
@@ -292,7 +292,8 @@ class TestCLI:
             mock_use_case.execute.return_value = mock_summary
 
             with patch(
-                "codeql_wrapper.cli.CodeQLAnalysisUseCase", return_value=mock_use_case
+                "src.codeql_wrapper.cli.CodeQLAnalysisUseCase",
+                return_value=mock_use_case,
             ):
                 result = self.runner.invoke(cli, ["analyze", str(repo_path)])
 
@@ -301,3 +302,175 @@ class TestCLI:
             assert result.exit_code == 0
             assert "1 analysis(es) failed" in result.output
             assert "test-project: Analysis failed" in result.output
+
+    def test_upload_sarif_command_help(self) -> None:
+        """Test upload-sarif command help output."""
+        result = self.runner.invoke(cli, ["upload-sarif", "--help"])
+
+        assert result.exit_code == 0
+        assert "Upload SARIF file to GitHub Code Scanning" in result.output
+        assert "--repository" in result.output
+        assert "--commit-sha" in result.output
+        assert "--github-token" in result.output
+
+    def test_upload_sarif_command_requires_arguments(self) -> None:
+        """Test upload-sarif command requires required arguments."""
+        # Test missing SARIF file
+        result = self.runner.invoke(cli, ["upload-sarif"])
+        assert result.exit_code == 2
+        assert "Missing argument" in result.output
+
+    @patch("src.codeql_wrapper.cli.SarifUploadUseCase")
+    def test_upload_sarif_command_success(self, mock_use_case_class) -> None:
+        """Test upload-sarif command success."""
+        import tempfile
+
+        # Create a temporary SARIF file
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".sarif", delete=False) as f:
+            f.write('{"version": "2.1.0", "runs": []}')
+            sarif_file = f.name
+
+        try:
+            # Mock the use case
+            mock_use_case = Mock()
+            mock_result = Mock()
+            mock_result.success = True
+            mock_result.successful_uploads = 1
+            mock_result.failed_uploads = 0
+            mock_result.errors = None
+            mock_use_case.execute.return_value = mock_result
+            mock_use_case_class.return_value = mock_use_case
+
+            result = self.runner.invoke(
+                cli,
+                [
+                    "upload-sarif",
+                    sarif_file,
+                    "--repository",
+                    "owner/repo",
+                    "--commit-sha",
+                    "abc123",
+                    "--github-token",
+                    "token",
+                ],
+            )
+
+            assert result.exit_code == 0
+            assert "Successfully uploaded SARIF file" in result.output
+            mock_use_case.execute.assert_called_once()
+
+        finally:
+            import os
+
+            os.unlink(sarif_file)
+
+    @patch("src.codeql_wrapper.cli.SarifUploadUseCase")
+    def test_analyze_command_with_upload_sarif(
+        self, mock_upload_use_case_class
+    ) -> None:
+        """Test analyze command with SARIF upload enabled."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Create a mock SARIF file
+            sarif_file = Path(temp_dir) / "results.sarif"
+            sarif_file.write_text('{"version": "2.1.0", "runs": []}')
+
+            # Mock the analysis use case
+            mock_analysis_use_case = Mock()
+            mock_summary = Mock()
+            mock_summary.repository_path = Path(temp_dir)
+            mock_summary.detected_projects = []
+            mock_summary.successful_analyses = 1
+            mock_summary.analysis_results = []
+            mock_summary.success_rate = 1.0
+            mock_summary.total_findings = 0
+            mock_summary.failed_analyses = 0
+
+            # Create a mock result with SARIF files
+            mock_result = Mock()
+            mock_result.output_files = [sarif_file]
+            mock_summary.analysis_results = [mock_result]
+
+            mock_analysis_use_case.execute.return_value = mock_summary
+
+            # Mock the upload use case
+            mock_upload_use_case = Mock()
+            mock_upload_result = Mock()
+            mock_upload_result.success = True
+            mock_upload_result.successful_uploads = 1
+            mock_upload_result.failed_uploads = 0
+            mock_upload_result.errors = None
+            mock_upload_use_case.execute.return_value = mock_upload_result
+            mock_upload_use_case_class.return_value = mock_upload_use_case
+
+            with patch(
+                "src.codeql_wrapper.cli.CodeQLAnalysisUseCase",
+                return_value=mock_analysis_use_case,
+            ):
+                result = self.runner.invoke(
+                    cli,
+                    [
+                        "analyze",
+                        temp_dir,
+                        "--upload-sarif",
+                        "--repository",
+                        "owner/repo",
+                        "--commit-sha",
+                        "abc123",
+                        "--github-token",
+                        "token",
+                    ],
+                )
+
+            assert result.exit_code == 0
+            assert "Successfully uploaded 1 SARIF file(s)" in result.output
+
+    def test_analyze_command_upload_sarif_validation(self) -> None:
+        """Test analyze command validates required parameters for SARIF upload."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Test missing repository
+            result = self.runner.invoke(
+                cli,
+                [
+                    "analyze",
+                    temp_dir,
+                    "--upload-sarif",
+                    "--commit-sha",
+                    "abc123",
+                    "--github-token",
+                    "token",
+                ],
+            )
+            assert result.exit_code == 1
+            assert "--repository is required when using --upload-sarif" in result.output
+
+            # Test missing commit-sha
+            result = self.runner.invoke(
+                cli,
+                [
+                    "analyze",
+                    temp_dir,
+                    "--upload-sarif",
+                    "--repository",
+                    "owner/repo",
+                    "--github-token",
+                    "token",
+                ],
+            )
+            assert result.exit_code == 1
+            assert "--commit-sha is required when using --upload-sarif" in result.output
+
+            # Test missing github-token
+            result = self.runner.invoke(
+                cli,
+                [
+                    "analyze",
+                    temp_dir,
+                    "--upload-sarif",
+                    "--repository",
+                    "owner/repo",
+                    "--commit-sha",
+                    "abc123",
+                ],
+            )
+            assert result.exit_code == 1
+            assert "GitHub token is required when using --upload-sarif" in result.output
