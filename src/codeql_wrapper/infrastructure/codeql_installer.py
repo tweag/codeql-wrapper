@@ -5,6 +5,7 @@ import os
 import platform
 import shutil
 import subprocess
+import sys
 import tarfile
 import tempfile
 from pathlib import Path
@@ -12,9 +13,6 @@ from typing import Optional, Dict, Any
 from urllib.request import urlretrieve, urlopen
 
 from .logger import get_logger
-
-# Default fallback version when unable to fetch the latest version from GitHub API
-DEFAULT_CODEQL_VERSION = "codeql-bundle-v2.22.1"
 
 
 class CodeQLInstaller:
@@ -43,13 +41,13 @@ class CodeQLInstaller:
         Returns:
             Latest version string (e.g., 'codeql-bundle-v2.22.1')
 
-        Raises:
-            Exception: If unable to fetch the latest version
+        Note:
+            If unable to fetch the latest version, logs the error and exits the program.
         """
         api_url = "https://api.github.com/repos/github/codeql-action/releases/latest"
 
+        self.logger.info("Fetching latest CodeQL version from GitHub API")
         try:
-            self.logger.info("Fetching latest CodeQL version from GitHub API")
             with urlopen(api_url) as response:
                 if response.status != 200:
                     raise Exception(f"GitHub API returned status {response.status}")
@@ -65,12 +63,12 @@ class CodeQLInstaller:
                 # This is already the correct format for bundle releases
                 self.logger.info(f"Latest CodeQL version: {latest_version}")
                 return str(latest_version)  # Explicit cast to satisfy mypy
-
         except Exception as e:
-            self.logger.error(f"Failed to fetch latest version: {e}")
-            # Fallback to a recent known version
-            self.logger.warning(f"Using fallback version: {DEFAULT_CODEQL_VERSION}")
-            return DEFAULT_CODEQL_VERSION
+            self.logger.error(f"Failed to fetch latest CodeQL version: {e}")
+            self.logger.error(
+                "Unable to continue without version information. Exiting."
+            )
+            sys.exit(1)
 
     def get_platform_bundle_name(self) -> str:
         """
