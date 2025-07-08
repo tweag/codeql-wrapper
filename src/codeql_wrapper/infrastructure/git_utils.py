@@ -4,6 +4,7 @@ import subprocess
 from pathlib import Path
 from typing import Optional
 from dataclasses import dataclass
+from urllib.parse import urlparse
 
 
 @dataclass
@@ -143,12 +144,12 @@ class GitUtils:
                 if ":" in url:
                     repo_part = url.split(":", 1)[1]
                     return repo_part
-            # Handle HTTPS format: https://github.com/owner/repo
-            elif "github.com/" in url:
-                # Extract the part after github.com/
-                parts = url.split("github.com/", 1)
-                if len(parts) == 2:
-                    repo_part = parts[1]
+            else:
+                # Parse the URL and validate the hostname
+                parsed_url = urlparse(url)
+                if parsed_url.hostname == "github.com":
+                    # Extract the path component (e.g., /owner/repo)
+                    repo_part = parsed_url.path.lstrip("/")
                     # Remove any query parameters or fragments
                     if "?" in repo_part:
                         repo_part = repo_part.split("?")[0]
