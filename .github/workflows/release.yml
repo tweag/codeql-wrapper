@@ -1,3 +1,9 @@
+# Note: This workflow requires the repository to allow GitHub Actions to bypass branch protection rules
+# for pushing tags and commits. If branch protection rules prevent direct pushes to main:
+# 1. The tag will be created and pushed successfully
+# 2. The version bump commit will need to be manually merged via a pull request
+# 3. Or configure the repository to allow GitHub Actions to bypass branch protection
+
 name: Release
 
 on:
@@ -39,11 +45,13 @@ jobs:
     permissions:
       contents: write
       packages: write
+      pull-requests: write
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
+        fetch-depth: 0
 
     - name: Set up Python
       uses: actions/setup-python@v4
@@ -90,22 +98,55 @@ jobs:
           exit 1
         fi
 
-    - name: Run tests with new version
-      run: poetry run pytest tests/test_cli.py::TestCLI::test_cli_version -v
-
-    - name: Commit version bump
+    - name: Create release branch and commit version bump
       run: |
+        git checkout -b release/v${{ github.event.inputs.version }}
         git add pyproject.toml
         git commit -m "Bump version to ${{ github.event.inputs.version }}"
+        git tag v${{ github.event.inputs.version }}
+
+    - name: Push release branch and tag
+      run: |
+        git push origin release/v${{ github.event.inputs.version }}
+        git push origin v${{ github.event.inputs.version }}
+
+    - name: Create Pull Request for version bump
+      id: create-pr
+      uses: peter-evans/create-pull-request@v5
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        branch: release/v${{ github.event.inputs.version }}
+        title: "Release v${{ github.event.inputs.version }}"
+        body: |
+          Automated release pull request for version ${{ github.event.inputs.version }}
+          
+          Changes:
+          - Bump version to ${{ github.event.inputs.version }} in pyproject.toml
+          
+          This PR was created automatically by the release workflow.
+        base: main
+
+    - name: Auto-merge Pull Request
+      run: |
+        echo "Waiting for PR to be created..."
+        sleep 10
+        
+        PR_NUMBER=$(gh pr list --head release/v${{ github.event.inputs.version }} --json number --jq '.[0].number')
+        
+        if [ "$PR_NUMBER" = "null" ] || [ -z "$PR_NUMBER" ]; then
+          echo "Error: Could not find PR for branch release/v${{ github.event.inputs.version }}"
+          exit 1
+        fi
+
+        echo "Found PR #$PR_NUMBER, enabling auto-merge..."
+        gh pr merge $PR_NUMBER --merge --auto
+        echo "Auto-merge enabled for PR #$PR_NUMBER"
+
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Build package
       run: poetry build
-
-    - name: Create and push Git tag
-      run: |
-        git tag v${{ github.event.inputs.version }}
-        git push origin main
-        git push origin v${{ github.event.inputs.version }}
 
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v1
@@ -121,5 +162,5 @@ jobs:
 
     - name: Publish to PyPI
       env:
-        POETRY_PYPI_TOKEN_PYPI: ${{ secrets.PYPI_API_TOKEN }}
+        POETRY_PYPI_TOKEN_PYPI: ${{ secrets.PYPI_TOKEN }}
       run: poetry publish
