@@ -5,7 +5,6 @@ import os
 import platform
 import shutil
 import subprocess
-import sys
 import tarfile
 import tempfile
 from pathlib import Path
@@ -41,8 +40,8 @@ class CodeQLInstaller:
         Returns:
             Latest version string (e.g., 'codeql-bundle-v2.22.1')
 
-        Note:
-            If unable to fetch the latest version, logs the error and exits the program.
+        Raises:
+            Exception: If unable to fetch the latest version from GitHub API
         """
         api_url = "https://api.github.com/repos/github/codeql-action/releases/latest"
 
@@ -65,10 +64,7 @@ class CodeQLInstaller:
                 return str(latest_version)  # Explicit cast to satisfy mypy
         except Exception as e:
             self.logger.error(f"Failed to fetch latest CodeQL version: {e}")
-            self.logger.error(
-                "Unable to continue without version information. Exiting."
-            )
-            sys.exit(1)
+            raise Exception(f"Unable to fetch latest CodeQL version: {e}") from e
 
     def get_platform_bundle_name(self) -> str:
         """
