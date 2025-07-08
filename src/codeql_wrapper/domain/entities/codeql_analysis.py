@@ -150,3 +150,52 @@ class RepositoryAnalysisSummary:
         if not self.analysis_results:
             return 0.0
         return self.successful_analyses / len(self.analysis_results)
+
+
+@dataclass
+class SarifUploadRequest:
+    """Request for uploading SARIF files to GitHub Code Scanning."""
+
+    sarif_files: List[Path]
+    repository: str  # Format: 'owner/name'
+    commit_sha: str
+    github_token: str
+    ref: Optional[str] = None
+
+    def __post_init__(self) -> None:
+        """Validate upload request."""
+        if not self.sarif_files:
+            raise ValueError("At least one SARIF file is required")
+
+        for sarif_file in self.sarif_files:
+            if not sarif_file.exists():
+                raise ValueError(f"SARIF file does not exist: {sarif_file}")
+            if sarif_file.suffix != ".sarif":
+                raise ValueError(f"File is not a SARIF file: {sarif_file}")
+
+        if "/" not in self.repository:
+            raise ValueError("Repository must be in 'owner/name' format")
+
+        if not self.commit_sha:
+            raise ValueError("Commit SHA is required")
+
+        if not self.github_token:
+            raise ValueError("GitHub token is required")
+
+
+@dataclass
+class SarifUploadResult:
+    """Result of SARIF upload operation."""
+
+    success: bool
+    successful_uploads: int
+    failed_uploads: int
+    total_files: int
+    errors: Optional[List[str]] = None
+
+    @property
+    def success_rate(self) -> float:
+        """Calculate upload success rate."""
+        if self.total_files == 0:
+            return 0.0
+        return self.successful_uploads / self.total_files

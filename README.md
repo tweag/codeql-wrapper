@@ -14,6 +14,7 @@ A universal Python CLI wrapper for running CodeQL analysis on any type of projec
 - **Multi-Platform CI/CD**: Works seamlessly with Jenkins, GitHub Actions, Harness, and other CI/CD tools
 - **Smart Project Detection**: Automatically identifies project types and languages
 - **Parallel Processing**: Run analysis on multiple projects concurrently
+- **SARIF Upload**: Built-in integration with GitHub Code Scanning using CodeQL's native upload functionality
 
 ## Installation
 
@@ -57,8 +58,64 @@ codeql-wrapper analyze /path/to/repo --force-install
 # Run with verbose logging
 codeql-wrapper analyze /path/to/repo --verbose
 
+# Analyze and upload SARIF results to GitHub Code Scanning
+codeql-wrapper analyze /path/to/repo \
+  --upload-sarif \
+  --repository owner/repository \
+  --commit-sha $COMMIT_SHA \
+  --ref refs/heads/main
+
 # Show available commands and options
 codeql-wrapper --help
+```
+
+### SARIF Upload to GitHub Code Scanning
+
+The wrapper provides built-in functionality to upload SARIF files to GitHub Code Scanning after analysis.
+
+```bash
+# Upload a single SARIF file
+codeql-wrapper upload-sarif /path/to/results.sarif \
+  --repository owner/repository \
+  --github-token $GITHUB_TOKEN \
+  --ref refs/heads/main \
+  --commit-sha $COMMIT_SHA
+
+# Upload with custom analysis key (useful for multiple analyses)
+codeql-wrapper upload-sarif results.sarif \
+  --repository owner/repository \
+  --github-token $GITHUB_TOKEN \
+  --ref refs/heads/main \
+  --commit-sha $COMMIT_SHA \
+  --tool-name "custom-analysis-2024"
+```
+
+#### Authentication
+
+Set up authentication using one of these methods:
+
+1. **Environment variable** (recommended for CI/CD):
+   ```bash
+   export GITHUB_TOKEN="your_github_token"
+   codeql-wrapper upload-sarif results.sarif --repository owner/repo --ref refs/heads/main --commit-sha abc123
+   ```
+
+2. **Command line argument**:
+   ```bash
+   codeql-wrapper upload-sarif results.sarif --github-token "your_token" --repository owner/repo --ref refs/heads/main --commit-sha abc123
+   ```
+
+The token requires the `security_events` scope for public repositories or `security_events` and `repo` scopes for private repositories.
+
+#### Combined Analysis and Upload
+
+```bash
+# Analyze and upload in one command
+codeql-wrapper analyze /path/to/repo \
+  --upload-sarif \
+  --repository owner/repository \
+  --commit-sha $COMMIT_SHA \
+  --ref $GITHUB_REF
 ```
 
 ### CI/CD Integration Examples
@@ -66,20 +123,34 @@ codeql-wrapper --help
 #### GitHub Actions
 
 ```yaml
-- name: Run CodeQL Analysis
+- name: Run CodeQL Analysis and Upload Results
+  env:
+    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   run: |
     pip install codeql-wrapper
-    codeql-wrapper analyze $GITHUB_WORKSPACE --output-dir results
+    codeql-wrapper analyze $GITHUB_WORKSPACE \
+      --upload-sarif \
+      --repository ${{ github.repository }} \
+      --commit-sha ${{ github.sha }} \
+      --ref ${{ github.ref }}
 ```
 
 #### Jenkins
 
 ```groovy
 stage('CodeQL Analysis') {
+    environment {
+        GITHUB_TOKEN = credentials('github-token')
+    }
     steps {
         sh '''
             pip install codeql-wrapper
-            codeql-wrapper analyze ${WORKSPACE} --monorepo --verbose
+            codeql-wrapper analyze ${WORKSPACE} \
+              --monorepo --verbose \
+              --upload-sarif \
+              --repository owner/repository \
+              --commit-sha ${GIT_COMMIT} \
+              --ref ${GIT_BRANCH}
         '''
     }
 }
@@ -90,13 +161,20 @@ stage('CodeQL Analysis') {
 ```yaml
 - step:
     type: Run
-    name: CodeQL Analysis
+    name: CodeQL Analysis and Upload
     identifier: codeql_analysis
     spec:
       shell: Sh
+      envVariables:
+        GITHUB_TOKEN: <+secrets.getValue("github_token")>
       command: |
         pip install codeql-wrapper
-        codeql-wrapper analyze /harness --languages java,python
+        codeql-wrapper analyze /harness \
+          --languages java,python \
+          --upload-sarif \
+          --repository owner/repository \
+          --commit-sha ${DRONE_COMMIT_SHA} \
+          --ref refs/heads/main
 ```
 
 ## Development
