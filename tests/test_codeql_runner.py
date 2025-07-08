@@ -516,11 +516,13 @@ class TestCodeQLRunner:
 
     @patch("subprocess.run")
     @patch("pathlib.Path.exists")
-    def test_create_and_analyze_with_custom_database_path(self, mock_exists, mock_run) -> None:
+    def test_create_and_analyze_with_custom_database_path(
+        self, mock_exists, mock_run
+    ) -> None:
         """Test create and analyze with custom database path."""
         # Mock that database doesn't exist
         mock_exists.return_value = False
-        
+
         # Mock successful create and analyze
         create_result = Mock()
         create_result.returncode = 0

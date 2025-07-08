@@ -357,8 +357,10 @@ class CodeQLRunner:
 
             if not create_result.success:
                 # Check if this is the specific corrupted database error
-                if ("Unrecognized file in database cluster" in create_result.stderr or
-                        "does not appear to be a CodeQL database" in create_result.stderr):
+                if (
+                    "Unrecognized file in database cluster" in create_result.stderr
+                    or "does not appear to be a CodeQL database" in create_result.stderr
+                ):
                     self.logger.warning(
                         "Detected corrupted database directory, removing and retrying..."
                     )
@@ -367,19 +369,29 @@ class CodeQLRunner:
                     if database_path.exists():
                         try:
                             shutil.rmtree(database_path, ignore_errors=True)
-                            self.logger.info(f"Removed corrupted database directory: {database_path}")
+                            self.logger.info(
+                                f"Removed corrupted database directory: {database_path}"
+                            )
                         except Exception as e:
-                            self.logger.error(f"Failed to remove corrupted directory: {e}")
+                            self.logger.error(
+                                f"Failed to remove corrupted directory: {e}"
+                            )
                             return create_result
 
                     # Retry database creation
                     self.logger.info("Retrying database creation...")
                     create_result = self.create_database(
-                        str(database_path), source_root, language, build_command, overwrite=True
+                        str(database_path),
+                        source_root,
+                        language,
+                        build_command,
+                        overwrite=True,
                     )
 
                 if not create_result.success:
-                    self.logger.error(f"Database creation failed: {create_result.stderr}")
+                    self.logger.error(
+                        f"Database creation failed: {create_result.stderr}"
+                    )
                     return create_result
 
             self.logger.info("Database created successfully")
