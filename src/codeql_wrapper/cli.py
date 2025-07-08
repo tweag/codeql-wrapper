@@ -349,11 +349,6 @@ def install(ctx: click.Context, version: str, force: bool) -> None:
     help="Git reference (branch or tag) that was analyzed (default: 'refs/heads/main')",
 )
 @click.option(
-    "--checkout-path",
-    type=click.Path(exists=True, file_okay=False, dir_okay=True),
-    help="Path where the repository was checked out for analysis",
-)
-@click.option(
     "--github-token",
     envvar="GITHUB_TOKEN",
     help="GitHub token for authentication (or set GITHUB_TOKEN env var)",
@@ -365,7 +360,6 @@ def upload_sarif(
     repository: str,
     commit_sha: str,
     ref: Optional[str],
-    checkout_path: Optional[str],
     github_token: Optional[str],
 ) -> None:
     """
