@@ -135,6 +135,7 @@ jobs:
         
         # Enable auto-merge
         echo "Enabling auto-merge for PR #$PR_NUMBER..."
+        sleep 10
         gh pr merge $PR_NUMBER --merge --auto
         
         echo "Auto-merge enabled for PR #$PR_NUMBER"
