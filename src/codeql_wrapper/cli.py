@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Optional
 
 import click
+import colorama
 
 from .domain.use_cases.codeql_analysis_use_case import CodeQLAnalysisUseCase
 from .domain.use_cases.sarif_upload_use_case import SarifUploadUseCase
@@ -16,6 +17,9 @@ from .domain.entities.codeql_analysis import (
 from .infrastructure.logger import configure_logging, get_logger
 from .infrastructure.git_utils import GitUtils
 from . import __version__
+
+# Initialize colorama for cross-platform color support
+colorama.init()
 
 
 def version_callback(ctx: click.Context, param: click.Parameter, value: bool) -> None:
@@ -139,7 +143,8 @@ def analyze(
 
             if not final_repository:
                 click.echo(
-                    "❌ --repository is required when using --upload-sarif. "
+                    click.style("ERROR:", fg="red", bold=True)
+                    + " --repository is required when using --upload-sarif. "
                     "Could not auto-detect from Git remote.",
                     err=True,
                 )
@@ -147,7 +152,8 @@ def analyze(
 
             if not final_commit_sha:
                 click.echo(
-                    "❌ --commit-sha is required when using --upload-sarif. "
+                    click.style("ERROR:", fg="red", bold=True)
+                    + " --commit-sha is required when using --upload-sarif. "
                     "Could not auto-detect from Git.",
                     err=True,
                 )
@@ -155,7 +161,8 @@ def analyze(
 
             if not github_token:
                 click.echo(
-                    "❌ GitHub token is required when using --upload-sarif. "
+                    click.style("ERROR:", fg="red", bold=True)
+                    + " GitHub token is required when using --upload-sarif. "
                     "Set GITHUB_TOKEN environment variable or use "
                     "--github-token option.",
                     err=True,
@@ -217,7 +224,11 @@ def analyze(
         click.echo(f"Total findings: {summary.total_findings}")
 
         if summary.failed_analyses > 0:
-            click.echo(f"\n⚠️  {summary.failed_analyses} analysis(es) failed")
+            click.echo(
+                "\n"
+                + click.style("WARNING:", fg="yellow", bold=True)
+                + f" {summary.failed_analyses} analysis(es) failed"
+            )
             for result in summary.analysis_results:
                 if not result.is_successful:
                     click.echo(
@@ -231,7 +242,7 @@ def analyze(
             for result in summary.analysis_results
             if result.output_files
         ):
-            click.echo("\n📄 Output files:")
+            click.echo("\n" + click.style("OUTPUT FILES:", fg="blue", bold=True))
             for result in summary.analysis_results:
                 if result.output_files:
                     for output_file in result.output_files:
@@ -242,7 +253,11 @@ def analyze(
         # Upload SARIF files if requested
         if upload_sarif:
             if not sarif_files:
-                click.echo("\n⚠️  No SARIF files found for upload")
+                click.echo(
+                    "\n"
+                    + click.style("WARNING:", fg="yellow", bold=True)
+                    + " No SARIF files found for upload"
+                )
             else:
                 # These are guaranteed to be non-None due to validation above
                 assert repository is not None
@@ -252,7 +267,9 @@ def analyze(
                 # Show upload info
                 used_ref = ref or "refs/heads/main"
                 click.echo(
-                    f"\n📤 Uploading {len(sarif_files)} SARIF file(s) to {repository}"
+                    "\n"
+                    + click.style("UPLOADING:", fg="blue", bold=True)
+                    + f" {len(sarif_files)} SARIF file(s) to {repository}"
                 )
                 click.echo(f"   Commit: {commit_sha}")
                 click.echo(f"   Reference: {used_ref}")
@@ -273,12 +290,16 @@ def analyze(
                 # Display results
                 if upload_result.success:
                     click.echo(
-                        f"\n✅ Successfully uploaded "
+                        "\n"
+                        + click.style("SUCCESS:", fg="green", bold=True)
+                        + f" Successfully uploaded "
                         f"{upload_result.successful_uploads} SARIF file(s)"
                     )
                 else:
                     click.echo(
-                        f"\n❌ Upload failed: "
+                        "\n"
+                        + click.style("ERROR:", fg="red", bold=True)
+                        + f" Upload failed: "
                         f"{upload_result.failed_uploads}/"
                         f"{upload_result.total_files} files failed"
                     )
@@ -292,7 +313,7 @@ def analyze(
     except Exception as e:
         logger = get_logger(__name__)
         logger.error(f"CodeQL analysis failed: {e}")
-        click.echo(f"Error: {e}", err=True)
+        click.echo(click.style("ERROR:", fg="red", bold=True) + f" {e}", err=True)
         sys.exit(1)
 
 
@@ -321,23 +342,35 @@ def install(ctx: click.Context, version: str, force: bool) -> None:
         # Check if already installed
         if installer.is_installed() and not force:
             current_version = installer.get_version()
-            click.echo(f"✅ CodeQL is already installed (version: {current_version})")
+            click.echo(
+                click.style("SUCCESS:", fg="green", bold=True)
+                + f" CodeQL is already installed (version: {current_version})"
+            )
             click.echo(f"   Location: {installer.get_binary_path()}")
             click.echo("   Use --force to reinstall")
             return
 
         # Show installation progress
         if force:
-            click.echo("🔄 Force reinstalling CodeQL...")
+            click.echo(
+                click.style("REINSTALLING:", fg="yellow", bold=True)
+                + " Force reinstalling CodeQL..."
+            )
         else:
-            click.echo("📥 Installing CodeQL...")
+            click.echo(
+                click.style("INSTALLING:", fg="blue", bold=True)
+                + " Installing CodeQL..."
+            )
 
         # Install CodeQL
         binary_path = installer.install(version=version, force=force)
 
         # Verify installation
         installed_version = installer.get_version()
-        click.echo(f"✅ CodeQL {installed_version} installed successfully!")
+        click.echo(
+            click.style("SUCCESS:", fg="green", bold=True)
+            + f" CodeQL {installed_version} installed successfully!"
+        )
         click.echo(f"   Location: {binary_path}")
         click.echo("   You can now run: codeql-wrapper analyze /path/to/repo")
 
@@ -346,7 +379,10 @@ def install(ctx: click.Context, version: str, force: bool) -> None:
     except Exception as e:
         logger = get_logger(__name__)
         logger.error(f"CodeQL installation failed: {e}")
-        click.echo(f"❌ Installation failed: {e}", err=True)
+        click.echo(
+            click.style("ERROR:", fg="red", bold=True) + f" Installation failed: {e}",
+            err=True,
+        )
         sys.exit(1)
 
 
@@ -424,7 +460,8 @@ def upload_sarif(
         # Parse repository owner/name
         if not final_repository:
             click.echo(
-                "❌ Repository is required. Provide --repository or ensure you're in a Git repository "
+                click.style("ERROR:", fg="red", bold=True)
+                + " Repository is required. Provide --repository or ensure you're in a Git repository "
                 "with a GitHub remote configured.",
                 err=True,
             )
@@ -432,7 +469,8 @@ def upload_sarif(
 
         if not final_commit_sha:
             click.echo(
-                "❌ Commit SHA is required. Provide --commit-sha or ensure you're in a Git repository.",
+                click.style("ERROR:", fg="red", bold=True)
+                + " Commit SHA is required. Provide --commit-sha or ensure you're in a Git repository.",
                 err=True,
             )
             sys.exit(1)
@@ -441,21 +479,27 @@ def upload_sarif(
             repository_owner, repository_name = final_repository.split("/", 1)
         except ValueError:
             click.echo(
-                "❌ Invalid repository format. Use 'owner/name' format.", err=True
+                click.style("ERROR:", fg="red", bold=True)
+                + " Invalid repository format. Use 'owner/name' format.",
+                err=True,
             )
             sys.exit(1)
 
         # Validate GitHub token
         if not github_token:
             click.echo(
-                "❌ GitHub token is required. Set GITHUB_TOKEN environment variable "
+                click.style("ERROR:", fg="red", bold=True)
+                + " GitHub token is required. Set GITHUB_TOKEN environment variable "
                 "or use --github-token option.",
                 err=True,
             )
             sys.exit(1)
 
         used_ref = final_ref or "refs/heads/main"
-        click.echo(f"📤 Uploading SARIF file: {sarif_file}")
+        click.echo(
+            click.style("UPLOADING:", fg="blue", bold=True)
+            + f" SARIF file: {sarif_file}"
+        )
         click.echo(f"   Repository: {final_repository}")
         click.echo(f"   Commit: {final_commit_sha}")
         click.echo(f"   Reference: {used_ref}")
@@ -470,7 +514,10 @@ def upload_sarif(
             if not ref and git_info.ref:
                 auto_detected.append("ref")
             if auto_detected:
-                click.echo(f"   Auto-detected: {', '.join(auto_detected)}")
+                click.echo(
+                    click.style("INFO:", fg="cyan", bold=True)
+                    + f" Auto-detected: {', '.join(auto_detected)}"
+                )
 
         # Create upload request
         upload_request = SarifUploadRequest(
@@ -487,11 +534,14 @@ def upload_sarif(
 
         # Display results
         if upload_result.success:
-            click.echo("✅ Successfully uploaded SARIF file")
+            click.echo(
+                click.style("SUCCESS:", fg="green", bold=True)
+                + " Successfully uploaded SARIF file"
+            )
         else:
             if upload_result.errors:
                 for error in upload_result.errors:
-                    click.echo(f"❌ {error}")
+                    click.echo(click.style("ERROR:", fg="red", bold=True) + f" {error}")
             raise Exception("SARIF upload failed")
 
         logger.info(f"SARIF upload completed for {final_repository}")
@@ -499,5 +549,8 @@ def upload_sarif(
     except Exception as e:
         logger = get_logger(__name__)
         logger.error(f"SARIF upload failed: {e}")
-        click.echo(f"❌ Upload failed: {e}", err=True)
+        click.echo(
+            click.style("ERROR:", fg="red", bold=True) + f" Upload failed: {e}",
+            err=True,
+        )
         sys.exit(1)

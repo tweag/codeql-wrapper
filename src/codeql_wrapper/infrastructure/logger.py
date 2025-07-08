@@ -5,6 +5,16 @@ import sys
 from typing import Optional
 
 
+class ShortNameFormatter(logging.Formatter):
+    """Custom formatter that shows only the class name instead of full module path."""
+
+    def format(self, record: logging.LogRecord) -> str:
+        # Extract just the class name from the full module path
+        if "." in record.name:
+            record.name = record.name.split(".")[-1]
+        return super().format(record)
+
+
 def get_logger(
     name: str, level: int = logging.INFO, format_string: Optional[str] = None
 ) -> logging.Logger:
@@ -38,8 +48,8 @@ def get_logger(
         handler = logging.StreamHandler(sys.stdout)
         handler.setLevel(level)
 
-        # Create formatter
-        formatter = logging.Formatter(format_string)
+        # Create formatter with our custom short name formatter
+        formatter = ShortNameFormatter(format_string)
         handler.setFormatter(formatter)
 
         # Add handler to logger
@@ -64,9 +74,16 @@ def configure_logging(verbose: bool = False) -> None:
     root_logger = logging.getLogger()
     root_logger.handlers.clear()
 
-    logging.basicConfig(
-        level=level,
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-        handlers=[logging.StreamHandler(sys.stdout)],
-        force=True,  # Force reconfiguration
+    # Create a console handler with our custom formatter
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setLevel(level)
+
+    # Use our custom formatter that shows only class names
+    formatter = ShortNameFormatter(
+        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     )
+    handler.setFormatter(formatter)
+
+    # Configure root logger
+    root_logger.setLevel(level)
+    root_logger.addHandler(handler)
