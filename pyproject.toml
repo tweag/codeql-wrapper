@@ -33,6 +33,7 @@ pytest-cov = "^4.0.0"
 black = ">=23,<25"
 flake8 = "^6.0.0"
 mypy = "^1.0.0"
+types-colorama = "^0.4.15"
 
 [tool.poetry.scripts]
 codeql-wrapper = "codeql_wrapper.cli:cli"
