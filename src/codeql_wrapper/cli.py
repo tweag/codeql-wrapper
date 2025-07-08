@@ -205,6 +205,7 @@ def analyze(
             output_directory=Path(output_dir) if output_dir else None,
             verbose=verbose,
             force_install=force_install,
+            monorepo=monorepo,
         )
 
         # Execute analysis

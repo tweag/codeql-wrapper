@@ -66,6 +66,7 @@ class CodeQLAnalysisRequest:
     output_directory: Optional[Path] = None
     verbose: bool = False
     force_install: bool = False
+    monorepo: bool = False
 
     def __post_init__(self) -> None:
         """Validate analysis request."""
