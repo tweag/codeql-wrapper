@@ -218,12 +218,25 @@ class TestCodeQLInstaller:
 
     def test_get_download_url_different_versions(self) -> None:
         """Test download URL generation for different versions."""
-        test_cases = ["v2.14.6", "v2.16.0", "latest"]
+        test_cases = [
+            ("v2.14.6", "codeql-bundle-v2.14.6"),
+            ("v2.16.0", "codeql-bundle-v2.16.0"),
+        ]
 
-        for version in test_cases:
-            url = self.installer.get_download_url(version)
+        # Test non-latest versions (no network calls)
+        for version_input, expected_in_url in test_cases:
+            url = self.installer.get_download_url(version_input)
             # Test should work on both macOS and Linux
-            assert f"codeql-bundle-{version}" in url
+            assert expected_in_url in url
+            assert url.endswith(".tar.gz")
+            assert "github.com/github/codeql-action/releases/download" in url
+
+        # Test "latest" version with mocked get_latest_version
+        with patch.object(
+            self.installer, "get_latest_version", return_value="codeql-bundle-v2.22.1"
+        ):
+            url = self.installer.get_download_url("latest")
+            assert "codeql-bundle-v2.22.1" in url
             assert url.endswith(".tar.gz")
             assert "github.com/github/codeql-action/releases/download" in url
 
@@ -395,7 +408,7 @@ class TestCodeQLInstaller:
             fake_tar = Path(tmp_file.name)
         mock_download.return_value = fake_tar
 
-        # Mock installation check - not installed before, still not installed after
+        # Mock installation check - not installed before, still not installed
         mock_is_installed.side_effect = [False, False]
 
         try:
@@ -466,6 +479,164 @@ class TestCodeQLInstaller:
         version = self.installer.get_version()
         assert version is None
 
+    def test_get_latest_version_success(self) -> None:
+        """Test successful fetching of latest version from GitHub API."""
+        # Mock urlopen at the module level where it's imported
+        with patch(
+            "codeql_wrapper.infrastructure.codeql_installer.urlopen"
+        ) as mock_urlopen:
+            # Mock the HTTP response
+            mock_response = Mock()
+            mock_response.status = 200
+            mock_response.read.return_value = json.dumps(
+                {"tag_name": "codeql-bundle-v2.23.0"}
+            ).encode("utf-8")
+
+            # Set up the context manager properly
+            mock_urlopen.return_value.__enter__ = Mock(return_value=mock_response)
+            mock_urlopen.return_value.__exit__ = Mock(return_value=None)
+
+            version = self.installer.get_latest_version()
+
+            # Should return the mocked version
+            assert version == "codeql-bundle-v2.23.0"
+            mock_urlopen.assert_called_once_with(
+                "https://api.github.com/repos/github/codeql-action/releases/latest"
+            )
+
+    def test_get_latest_version_exits_on_http_error(self) -> None:
+        """Test get_latest_version exits program on HTTP error status."""
+        with patch(
+            "codeql_wrapper.infrastructure.codeql_installer.urlopen"
+        ) as mock_urlopen:
+            # Mock the HTTP response with error status
+            mock_response = Mock()
+            mock_response.status = 404
+
+            # Set up the context manager properly
+            mock_urlopen.return_value.__enter__ = Mock(return_value=mock_response)
+            mock_urlopen.return_value.__exit__ = Mock(return_value=None)
+
+            # Should exit the program
+            with pytest.raises(SystemExit) as exc_info:
+                self.installer.get_latest_version()
+
+            assert exc_info.value.code == 1
+
+            mock_urlopen.assert_called_once_with(
+                "https://api.github.com/repos/github/codeql-action/releases/latest"
+            )
+
+    def test_get_latest_version_exits_on_invalid_json(self) -> None:
+        """Test get_latest_version exits program on invalid JSON response."""
+        with patch(
+            "codeql_wrapper.infrastructure.codeql_installer.urlopen"
+        ) as mock_urlopen:
+            # Mock the HTTP response with invalid JSON
+            mock_response = Mock()
+            mock_response.status = 200
+            mock_response.read.return_value = b"invalid json"
+
+            # Set up the context manager properly
+            mock_urlopen.return_value.__enter__ = Mock(return_value=mock_response)
+            mock_urlopen.return_value.__exit__ = Mock(return_value=None)
+
+            # Should exit the program
+            with pytest.raises(SystemExit) as exc_info:
+                self.installer.get_latest_version()
+
+            assert exc_info.value.code == 1
+
+            mock_urlopen.assert_called_once_with(
+                "https://api.github.com/repos/github/codeql-action/releases/latest"
+            )
+
+    def test_get_latest_version_exits_on_error(self) -> None:
+        """Test get_latest_version exits program on network error."""
+        # Mock urlopen to raise an exception
+        with patch(
+            "codeql_wrapper.infrastructure.codeql_installer.urlopen"
+        ) as mock_urlopen:
+            from urllib.error import URLError
+
+            mock_urlopen.side_effect = URLError("Network error")
+
+            # Should exit the program
+            with pytest.raises(SystemExit) as exc_info:
+                self.installer.get_latest_version()
+
+            assert exc_info.value.code == 1
+
+            mock_urlopen.assert_called_once_with(
+                "https://api.github.com/repos/github/codeql-action/releases/latest"
+            )
+
+    def test_get_download_url_with_none_version(self) -> None:
+        """Test get_download_url calls get_latest_version when version is None."""
+        with patch.object(
+            self.installer, "get_latest_version", return_value="v2.23.0"
+        ) as mock_get_latest:
+            url = self.installer.get_download_url(None)
+
+            mock_get_latest.assert_called_once()
+            assert "codeql-bundle-v2.23.0" in url
+
+    def test_download_codeql_with_none_version(self) -> None:
+        """Test download_codeql calls get_latest_version when version is None."""
+        with patch.object(
+            self.installer, "get_latest_version", return_value="v2.23.0"
+        ) as mock_get_latest:
+            with patch(
+                "codeql_wrapper.infrastructure.codeql_installer.urlretrieve"
+            ) as mock_urlretrieve:
+
+                def mock_download(url, path):
+                    Path(path).touch()
+
+                mock_urlretrieve.side_effect = mock_download
+
+                result_path = self.installer.download_codeql(None)
+
+                mock_get_latest.assert_called_once()
+                assert "codeql-bundle-v2.23.0.tar.gz" in str(result_path)
+
+    def test_install_with_none_version(self) -> None:
+        """Test install calls get_latest_version when version is None."""
+        with patch.object(
+            self.installer, "get_latest_version", return_value="v2.23.0"
+        ) as mock_get_latest:
+            with patch.object(self.installer, "download_codeql") as mock_download:
+                with patch.object(self.installer, "extract_codeql") as mock_extract:
+                    with patch.object(
+                        self.installer, "is_installed"
+                    ) as mock_is_installed:
+                        with patch.object(
+                            self.installer, "get_version"
+                        ) as mock_get_version_installed:
+                            # Mock download to return a fake tar path
+                            with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
+                                fake_tar = Path(tmp_file.name)
+                            mock_download.return_value = fake_tar
+
+                            # Mock installation check
+                            mock_is_installed.side_effect = [
+                                False,
+                                True,
+                            ]  # Not installed, then installed
+                            mock_get_version_installed.return_value = "2.23.0"
+
+                            try:
+                                result = self.installer.install(None)
+
+                                mock_get_latest.assert_called_once()
+                                assert result == str(self.installer.codeql_binary)
+                                mock_download.assert_called_once_with("v2.23.0")
+                                mock_extract.assert_called_once_with(fake_tar)
+                            finally:
+                                # Clean up
+                                if fake_tar.exists():
+                                    fake_tar.unlink()
+
     def test_install_with_existing_directory_force_false(self) -> None:
         """Test install when directory exists and force=False."""
         from unittest.mock import patch
@@ -482,3 +653,51 @@ class TestCodeQLInstaller:
             # Should return existing path when force=False and already installed
             result = self.installer.install(force=False)
             assert str(result) == str(binary_path)
+
+    def test_get_download_url_exits_on_api_error(self) -> None:
+        """Test get_download_url exits when get_latest_version fails."""
+        # Mock urlopen to fail so get_latest_version exits
+        with patch(
+            "codeql_wrapper.infrastructure.codeql_installer.urlopen"
+        ) as mock_urlopen:
+            from urllib.error import URLError
+
+            mock_urlopen.side_effect = URLError("Network error")
+
+            # Should exit the program
+            with pytest.raises(SystemExit) as exc_info:
+                self.installer.get_download_url(None)
+
+            assert exc_info.value.code == 1
+
+    def test_download_codeql_exits_on_api_error(self) -> None:
+        """Test download_codeql exits when get_latest_version fails."""
+        # Mock urlopen to fail so get_latest_version exits
+        with patch(
+            "codeql_wrapper.infrastructure.codeql_installer.urlopen"
+        ) as mock_urlopen:
+            from urllib.error import URLError
+
+            mock_urlopen.side_effect = URLError("Network error")
+
+            # Should exit the program
+            with pytest.raises(SystemExit) as exc_info:
+                self.installer.download_codeql(None)
+
+            assert exc_info.value.code == 1
+
+    def test_install_exits_on_api_error(self) -> None:
+        """Test install exits when get_latest_version fails."""
+        # Mock urlopen to fail so get_latest_version exits
+        with patch(
+            "codeql_wrapper.infrastructure.codeql_installer.urlopen"
+        ) as mock_urlopen:
+            from urllib.error import URLError
+
+            mock_urlopen.side_effect = URLError("Network error")
+
+            # Should exit the program
+            with pytest.raises(SystemExit) as exc_info:
+                self.installer.install(None)
+
+            assert exc_info.value.code == 1

@@ -5,11 +5,12 @@ import os
 import platform
 import shutil
 import subprocess
+import sys
 import tarfile
 import tempfile
 from pathlib import Path
-from typing import Optional
-from urllib.request import urlretrieve
+from typing import Optional, Dict, Any
+from urllib.request import urlretrieve, urlopen
 
 from .logger import get_logger
 
@@ -32,6 +33,42 @@ class CodeQLInstaller:
             "codeql.exe" if platform.system().lower() == "windows" else "codeql"
         )
         self.codeql_binary = self.install_dir / "codeql" / binary_name
+
+    def get_latest_version(self) -> str:
+        """
+        Get the latest CodeQL version from GitHub releases.
+
+        Returns:
+            Latest version string (e.g., 'codeql-bundle-v2.22.1')
+
+        Note:
+            If unable to fetch the latest version, logs the error and exits the program.
+        """
+        api_url = "https://api.github.com/repos/github/codeql-action/releases/latest"
+
+        self.logger.info("Fetching latest CodeQL version from GitHub API")
+        try:
+            with urlopen(api_url) as response:
+                if response.status != 200:
+                    raise Exception(f"GitHub API returned status {response.status}")
+
+                data: Dict[str, Any] = json.loads(response.read().decode("utf-8"))
+                latest_version = data.get("tag_name")
+
+                if not latest_version or not isinstance(latest_version, str):
+                    raise Exception("No valid tag_name found in GitHub API response")
+
+                # The GitHub API returns tags like "codeql-bundle-v2.22.1"
+                # from codeql-action
+                # This is already the correct format for bundle releases
+                self.logger.info(f"Latest CodeQL version: {latest_version}")
+                return str(latest_version)  # Explicit cast to satisfy mypy
+        except Exception as e:
+            self.logger.error(f"Failed to fetch latest CodeQL version: {e}")
+            self.logger.error(
+                "Unable to continue without version information. Exiting."
+            )
+            sys.exit(1)
 
     def get_platform_bundle_name(self) -> str:
         """
@@ -56,21 +93,32 @@ class CodeQLInstaller:
             )
             return "linux64"
 
-    def get_download_url(self, version: str = "v2.22.1") -> str:
+    def get_download_url(self, version: Optional[str] = None) -> str:
         """
         Get the download URL for CodeQL bundle.
 
         Args:
-            version: CodeQL version to download (e.g., 'v2.22.1')
+            version: CodeQL version to download. If None, uses the latest version.
+                   Can be in format 'v2.22.1' or 'codeql-bundle-v2.22.1'
 
         Returns:
             Download URL for the CodeQL bundle
         """
+        if version is None or version == "latest":
+            version = self.get_latest_version()
+
+        # Normalize version format for URL construction
+        # If version doesn't start with 'codeql-bundle-', add it
+        if not version.startswith("codeql-bundle-"):
+            # Handle cases like 'v2.22.1' -> 'codeql-bundle-v2.22.1'
+            if not version.startswith("v"):
+                version = f"v{version}"
+            version = f"codeql-bundle-{version}"
+
+        # Use codeql-action repository for downloading bundles
         base_url = "https://github.com/github/codeql-action/releases/download"
-        platform_bundle = self.get_platform_bundle_name()
-        return (
-            f"{base_url}/codeql-bundle-{version}/codeql-bundle-{platform_bundle}.tar.gz"
-        )
+        platform = self.get_platform_bundle_name()
+        return f"{base_url}/{version}/codeql-bundle-{platform}.tar.gz"
 
     def is_installed(self) -> bool:
         """
@@ -113,12 +161,12 @@ class CodeQLInstaller:
         except (subprocess.CalledProcessError, json.JSONDecodeError, FileNotFoundError):
             return None
 
-    def download_codeql(self, version: str = "v2.22.1") -> Path:
+    def download_codeql(self, version: Optional[str] = None) -> Path:
         """
         Download CodeQL bundle.
 
         Args:
-            version: CodeQL version to download
+            version: CodeQL version to download. If None, uses the latest version.
 
         Returns:
             Path to downloaded tar.gz file
@@ -126,6 +174,9 @@ class CodeQLInstaller:
         Raises:
             Exception: If download fails
         """
+        if version is None:
+            version = self.get_latest_version()
+
         download_url = self.get_download_url(version)
         self.logger.info(f"Downloading CodeQL {version} from {download_url}")
 
@@ -217,12 +268,12 @@ class CodeQLInstaller:
             self.logger.error(f"Failed to extract CodeQL: {e}")
             raise Exception(f"Failed to extract CodeQL: {e}")
 
-    def install(self, version: str = "v2.22.1", force: bool = False) -> str:
+    def install(self, version: Optional[str] = None, force: bool = False) -> str:
         """
         Download and install CodeQL.
 
         Args:
-            version: CodeQL version to install
+            version: CodeQL version to install. If None, uses the latest version.
             force: Force reinstallation even if already installed
 
         Returns:
@@ -231,6 +282,9 @@ class CodeQLInstaller:
         Raises:
             Exception: If installation fails
         """
+        if version is None:
+            version = self.get_latest_version()
+
         # Check if already installed
         if self.is_installed() and not force:
             installed_version = self.get_version()

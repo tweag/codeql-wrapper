@@ -9,13 +9,14 @@ import click
 from .domain.use_cases.codeql_analysis_use_case import CodeQLAnalysisUseCase
 from .domain.entities.codeql_analysis import CodeQLAnalysisRequest, CodeQLLanguage
 from .infrastructure.logger import configure_logging, get_logger
+from . import __version__
 
 
 def version_callback(ctx: click.Context, param: click.Parameter, value: bool) -> None:
     """Callback for version option."""
     if not value or ctx.resilient_parsing:
         return
-    click.echo("0.1.1")
+    click.echo(__version__)
     ctx.exit()
 
 
