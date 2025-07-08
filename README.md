@@ -71,15 +71,18 @@ codeql-wrapper --help
 
 ### SARIF Upload to GitHub Code Scanning
 
-The wrapper provides built-in functionality to upload SARIF files to GitHub Code Scanning after analysis.
+The wrapper provides built-in functionality to upload SARIF files to GitHub Code Scanning after analysis. It can automatically detect Git information (repository, commit SHA, and reference) when you're working in a Git repository with a GitHub remote.
 
 ```bash
-# Upload a single SARIF file
+# Upload a single SARIF file (auto-detects Git info)
+codeql-wrapper upload-sarif /path/to/results.sarif
+
+# Upload with explicit parameters
 codeql-wrapper upload-sarif /path/to/results.sarif \
   --repository owner/repository \
-  --github-token $GITHUB_TOKEN \
+  --commit-sha $COMMIT_SHA \
   --ref refs/heads/main \
-  --commit-sha $COMMIT_SHA
+  --github-token $GITHUB_TOKEN
 ```
 
 #### Authentication
@@ -89,20 +92,30 @@ Set up authentication using one of these methods:
 1. **Environment variable** (recommended for CI/CD):
    ```bash
    export GITHUB_TOKEN="your_github_token"
-   codeql-wrapper upload-sarif results.sarif --repository owner/repo --ref refs/heads/main --commit-sha abc123
+   codeql-wrapper upload-sarif results.sarif  # Auto-detects Git info
    ```
 
 2. **Command line argument**:
    ```bash
-   codeql-wrapper upload-sarif results.sarif --github-token "your_token" --repository owner/repo --ref refs/heads/main --commit-sha abc123
+   codeql-wrapper upload-sarif results.sarif --github-token "your_token"
    ```
+
+The tool will automatically detect:
+- **Repository**: From Git remote origin URL (if it's a GitHub repository)
+- **Commit SHA**: From current Git HEAD
+- **Reference**: From current Git branch or tag
+
+You can override any auto-detected value by providing the corresponding command-line option.
 
 The token requires the `security_events` scope for public repositories or `security_events` and `repo` scopes for private repositories.
 
 #### Combined Analysis and Upload
 
 ```bash
-# Analyze and upload in one command
+# Analyze and upload in one command (auto-detects Git info)
+codeql-wrapper analyze /path/to/repo --upload-sarif
+
+# Analyze and upload with explicit parameters
 codeql-wrapper analyze /path/to/repo \
   --upload-sarif \
   --repository owner/repository \
