@@ -1,13 +1,13 @@
 """Tests for SARIF upload use case."""
 
+import json
 import tempfile
 from pathlib import Path
-from unittest.mock import Mock, patch
-import json
+from unittest.mock import patch
 
 import pytest
 
-from src.codeql_wrapper.domain.entities import SarifUploadRequest, SarifUploadResult
+from src.codeql_wrapper.domain.entities import SarifUploadRequest
 from src.codeql_wrapper.domain.use_cases import SarifUploadUseCase
 
 
@@ -22,6 +22,7 @@ class TestSarifUploadUseCase:
     def teardown_method(self):
         """Clean up test fixtures."""
         import shutil
+
         if self.temp_dir.exists():
             shutil.rmtree(self.temp_dir, ignore_errors=True)
 
@@ -71,7 +72,9 @@ class TestSarifUploadUseCase:
         assert request.repository == "octocat/Hello-World"
 
         # Invalid repository format
-        with pytest.raises(ValueError, match="Repository must be in 'owner/name' format"):
+        with pytest.raises(
+            ValueError, match="Repository must be in 'owner/name' format"
+        ):
             SarifUploadRequest(
                 sarif_files=[sarif_file],
                 repository="invalid-repo",
@@ -88,10 +91,18 @@ class TestSarifUploadUseCase:
                 github_token="test-token",
             )
 
-    @patch('src.codeql_wrapper.infrastructure.codeql_installer.CodeQLInstaller.is_installed')
-    @patch('src.codeql_wrapper.infrastructure.codeql_installer.CodeQLInstaller.get_binary_path')
-    @patch('subprocess.run')
-    def test_successful_upload(self, mock_subprocess, mock_get_binary, mock_is_installed):
+    @patch(
+        "src.codeql_wrapper.infrastructure.codeql_installer."
+        "CodeQLInstaller.is_installed"
+    )
+    @patch(
+        "src.codeql_wrapper.infrastructure.codeql_installer."
+        "CodeQLInstaller.get_binary_path"
+    )
+    @patch("subprocess.run")
+    def test_successful_upload(
+        self, mock_subprocess, mock_get_binary, mock_is_installed
+    ):
         """Test successful SARIF upload."""
         # Setup mocks
         mock_is_installed.return_value = True
@@ -120,7 +131,10 @@ class TestSarifUploadUseCase:
         assert result.total_files == 1
         assert result.errors is None
 
-    @patch('src.codeql_wrapper.infrastructure.codeql_installer.CodeQLInstaller.is_installed')
+    @patch(
+        "src.codeql_wrapper.infrastructure.codeql_installer."
+        "CodeQLInstaller.is_installed"
+    )
     def test_codeql_not_installed(self, mock_is_installed):
         """Test error when CodeQL is not installed."""
         # Setup mock

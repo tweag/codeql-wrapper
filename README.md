@@ -80,14 +80,6 @@ codeql-wrapper upload-sarif /path/to/results.sarif \
   --github-token $GITHUB_TOKEN \
   --ref refs/heads/main \
   --commit-sha $COMMIT_SHA
-
-# Upload with custom analysis key (useful for multiple analyses)
-codeql-wrapper upload-sarif results.sarif \
-  --repository owner/repository \
-  --github-token $GITHUB_TOKEN \
-  --ref refs/heads/main \
-  --commit-sha $COMMIT_SHA \
-  --tool-name "custom-analysis-2024"
 ```
 
 #### Authentication

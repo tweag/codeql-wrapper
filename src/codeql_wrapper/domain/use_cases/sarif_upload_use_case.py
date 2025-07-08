@@ -1,9 +1,9 @@
 """SARIF upload use case using CodeQL's built-in functionality."""
 
-import os
+import logging
 import subprocess
 from pathlib import Path
-from typing import List, Optional
+from typing import Optional
 
 from ..entities.codeql_analysis import SarifUploadRequest, SarifUploadResult
 from ...infrastructure.codeql_installer import CodeQLInstaller
@@ -13,7 +13,7 @@ from ...infrastructure.logger import get_logger
 class SarifUploadUseCase:
     """Use case for uploading SARIF files to GitHub Code Scanning using CodeQL CLI."""
 
-    def __init__(self, logger=None):
+    def __init__(self, logger: Optional[logging.Logger] = None) -> None:
         """
         Initialize the SARIF upload use case.
 
@@ -102,9 +102,12 @@ class SarifUploadUseCase:
             str(codeql_path),
             "github",
             "upload-results",
-            "--sarif", str(sarif_file),
-            "--repository", request.repository,
-            "--commit", request.commit_sha,
+            "--sarif",
+            str(sarif_file),
+            "--repository",
+            request.repository,
+            "--commit",
+            request.commit_sha,
         ]
 
         # Add ref parameter - use provided ref or default to main branch
@@ -114,8 +117,12 @@ class SarifUploadUseCase:
         # Add GitHub authentication - pass token via stdin for security
         cmd.append("--github-auth-stdin")
 
-        self._logger.debug(f"Uploading {sarif_file} to {request.repository} (ref: {ref})")
-        self._logger.debug(f"Command: {' '.join(cmd[:-1])} --github-auth-stdin")  # Don't log the actual token
+        self._logger.debug(
+            f"Uploading {sarif_file} to {request.repository} (ref: {ref})"
+        )
+        self._logger.debug(
+            f"Command: {' '.join(cmd[:-1])} --github-auth-stdin"
+        )  # Don't log the actual token
 
         # Execute command with token passed via stdin
         result = subprocess.run(

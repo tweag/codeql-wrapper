@@ -292,7 +292,8 @@ class TestCLI:
             mock_use_case.execute.return_value = mock_summary
 
             with patch(
-                "src.codeql_wrapper.cli.CodeQLAnalysisUseCase", return_value=mock_use_case
+                "src.codeql_wrapper.cli.CodeQLAnalysisUseCase",
+                return_value=mock_use_case,
             ):
                 result = self.runner.invoke(cli, ["analyze", str(repo_path)])
 
@@ -340,12 +341,19 @@ class TestCLI:
             mock_use_case.execute.return_value = mock_result
             mock_use_case_class.return_value = mock_use_case
 
-            result = self.runner.invoke(cli, [
-                "upload-sarif", sarif_file,
-                "--repository", "owner/repo",
-                "--commit-sha", "abc123",
-                "--github-token", "token"
-            ])
+            result = self.runner.invoke(
+                cli,
+                [
+                    "upload-sarif",
+                    sarif_file,
+                    "--repository",
+                    "owner/repo",
+                    "--commit-sha",
+                    "abc123",
+                    "--github-token",
+                    "token",
+                ],
+            )
 
             assert result.exit_code == 0
             assert "Successfully uploaded SARIF file" in result.output
@@ -353,12 +361,19 @@ class TestCLI:
 
         finally:
             import os
+
             os.unlink(sarif_file)
 
     @patch("src.codeql_wrapper.cli.SarifUploadUseCase")
-    def test_analyze_command_with_upload_sarif(self, mock_upload_use_case_class) -> None:
+    def test_analyze_command_with_upload_sarif(
+        self, mock_upload_use_case_class
+    ) -> None:
         """Test analyze command with SARIF upload enabled."""
         with tempfile.TemporaryDirectory() as temp_dir:
+            # Create a mock SARIF file
+            sarif_file = Path(temp_dir) / "results.sarif"
+            sarif_file.write_text('{"version": "2.1.0", "runs": []}')
+
             # Mock the analysis use case
             mock_analysis_use_case = Mock()
             mock_summary = Mock()
@@ -369,12 +384,12 @@ class TestCLI:
             mock_summary.success_rate = 1.0
             mock_summary.total_findings = 0
             mock_summary.failed_analyses = 0
-            
+
             # Create a mock result with SARIF files
             mock_result = Mock()
-            mock_result.output_files = [Path(temp_dir) / "results.sarif"]
+            mock_result.output_files = [sarif_file]
             mock_summary.analysis_results = [mock_result]
-            
+
             mock_analysis_use_case.execute.return_value = mock_summary
 
             # Mock the upload use case
@@ -387,14 +402,24 @@ class TestCLI:
             mock_upload_use_case.execute.return_value = mock_upload_result
             mock_upload_use_case_class.return_value = mock_upload_use_case
 
-            with patch("src.codeql_wrapper.cli.CodeQLAnalysisUseCase", return_value=mock_analysis_use_case):
-                result = self.runner.invoke(cli, [
-                    "analyze", temp_dir,
-                    "--upload-sarif",
-                    "--repository", "owner/repo",
-                    "--commit-sha", "abc123",
-                    "--github-token", "token"
-                ])
+            with patch(
+                "src.codeql_wrapper.cli.CodeQLAnalysisUseCase",
+                return_value=mock_analysis_use_case,
+            ):
+                result = self.runner.invoke(
+                    cli,
+                    [
+                        "analyze",
+                        temp_dir,
+                        "--upload-sarif",
+                        "--repository",
+                        "owner/repo",
+                        "--commit-sha",
+                        "abc123",
+                        "--github-token",
+                        "token",
+                    ],
+                )
 
             assert result.exit_code == 0
             assert "Successfully uploaded 1 SARIF file(s)" in result.output
@@ -403,31 +428,49 @@ class TestCLI:
         """Test analyze command validates required parameters for SARIF upload."""
         with tempfile.TemporaryDirectory() as temp_dir:
             # Test missing repository
-            result = self.runner.invoke(cli, [
-                "analyze", temp_dir,
-                "--upload-sarif",
-                "--commit-sha", "abc123",
-                "--github-token", "token"
-            ])
+            result = self.runner.invoke(
+                cli,
+                [
+                    "analyze",
+                    temp_dir,
+                    "--upload-sarif",
+                    "--commit-sha",
+                    "abc123",
+                    "--github-token",
+                    "token",
+                ],
+            )
             assert result.exit_code == 1
             assert "--repository is required when using --upload-sarif" in result.output
 
             # Test missing commit-sha
-            result = self.runner.invoke(cli, [
-                "analyze", temp_dir,
-                "--upload-sarif",
-                "--repository", "owner/repo",
-                "--github-token", "token"
-            ])
+            result = self.runner.invoke(
+                cli,
+                [
+                    "analyze",
+                    temp_dir,
+                    "--upload-sarif",
+                    "--repository",
+                    "owner/repo",
+                    "--github-token",
+                    "token",
+                ],
+            )
             assert result.exit_code == 1
             assert "--commit-sha is required when using --upload-sarif" in result.output
 
             # Test missing github-token
-            result = self.runner.invoke(cli, [
-                "analyze", temp_dir,
-                "--upload-sarif",
-                "--repository", "owner/repo",
-                "--commit-sha", "abc123"
-            ])
+            result = self.runner.invoke(
+                cli,
+                [
+                    "analyze",
+                    temp_dir,
+                    "--upload-sarif",
+                    "--repository",
+                    "owner/repo",
+                    "--commit-sha",
+                    "abc123",
+                ],
+            )
             assert result.exit_code == 1
             assert "GitHub token is required when using --upload-sarif" in result.output
