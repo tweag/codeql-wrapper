@@ -74,10 +74,10 @@ class CodeQLAnalysisUseCase:
         all_detected_projects = []
         all_analysis_results = []
 
-        def process_project(sub_path: Path) -> RepositoryAnalysisSummary:
-            self._logger.info(f"Processing project: {sub_path}")
+        def process_project(project_path: Path) -> RepositoryAnalysisSummary:
+            self._logger.info(f"Processing project: {project_path}")
             sub_request = CodeQLAnalysisRequest(
-                repository_path=sub_path,
+                repository_path=project_path,
                 force_install=request.force_install,
                 target_languages=request.target_languages,
                 verbose=request.verbose,
@@ -87,10 +87,10 @@ class CodeQLAnalysisUseCase:
                 summary = self._execute_single_repo_analysis(sub_request)
                 return summary
             except Exception as e:
-                self._logger.error(f"Analysis failed for {sub_path}: {e}")
+                self._logger.error(f"Analysis failed for {project_path}: {e}")
                 # Return empty summary on error
                 return RepositoryAnalysisSummary(
-                    repository_path=sub_path,
+                    repository_path=project_path,
                     detected_projects=[],
                     analysis_results=[],
                 )
@@ -99,7 +99,8 @@ class CodeQLAnalysisUseCase:
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             # Submit all projects in parallel
             futures = [
-                executor.submit(process_project, sub_path) for sub_path in project_paths
+                executor.submit(process_project, project_path)
+                for project_path in project_paths
             ]
 
             for future in as_completed(futures):
