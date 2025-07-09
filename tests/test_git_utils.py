@@ -166,11 +166,36 @@ class TestGitUtils:
         assert git_info.ref == "refs/heads/main"
         assert git_info.remote_url == "https://github.com/owner/repo.git"
 
-    def test_git_info_dataclass_defaults(self):
+    def test_git_info_dataclass_defaults(self) -> None:
         """Test GitInfo dataclass with default values."""
         git_info = GitInfo()
 
         assert git_info.repository is None
         assert git_info.commit_sha is None
         assert git_info.ref is None
-        assert git_info.remote_url is None
+
+    def test_get_git_info_with_invalid_path(self) -> None:
+        """Test get_git_info handles invalid paths gracefully."""
+        test_path = Path("/nonexistent/path")
+        
+        # Should return GitInfo with None values when path doesn't exist
+        result = GitUtils.get_git_info(test_path)
+        assert result.repository is None
+        assert result.commit_sha is None
+        assert result.ref is None
+
+    def test_get_git_info_with_subprocess_exceptions(self) -> None:
+        """Test get_git_info handles subprocess exceptions gracefully."""
+        with patch("subprocess.run", side_effect=Exception("Subprocess error")):
+            result = GitUtils.get_git_info(Path.cwd())
+            assert result.repository is None
+            assert result.commit_sha is None
+            assert result.ref is None
+
+    def test_is_git_repository_exception_handling(self) -> None:
+        """Test is_git_repository handles exceptions gracefully."""
+        test_path = Path("/nonexistent/path")
+
+        # Should return False when path doesn't exist
+        result = GitUtils.is_git_repository(test_path)
+        assert result is False

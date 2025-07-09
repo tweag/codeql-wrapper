@@ -52,6 +52,31 @@ class TestCodeQLInstaller:
 
         assert self.installer.is_installed()
 
+    def test_is_installed_false_when_not_executable(self) -> None:
+        """Test is_installed returns False when binary is not executable."""
+        installer = CodeQLInstaller(install_dir=str(self.temp_dir))
+
+        # Create the binary file but make it not executable
+        installer.codeql_binary.parent.mkdir(parents=True, exist_ok=True)
+        installer.codeql_binary.touch()
+
+        # Make it not executable (Unix-like systems)
+        with patch("platform.system", return_value="Linux"):
+            with patch("os.access", return_value=False):
+                assert installer.is_installed() is False
+
+    def test_is_installed_windows_executable_check(self) -> None:
+        """Test is_installed on Windows always returns True if file exists."""
+        installer = CodeQLInstaller(install_dir=str(self.temp_dir))
+
+        # Create the binary file
+        installer.codeql_binary.parent.mkdir(parents=True, exist_ok=True)
+        installer.codeql_binary.touch()
+
+        # On Windows, just check if file exists
+        with patch("platform.system", return_value="Windows"):
+            assert installer.is_installed() is True
+
     def test_get_version_none_when_not_installed(self) -> None:
         """Test get_version returns None when CodeQL is not installed."""
         assert self.installer.get_version() is None
@@ -181,26 +206,6 @@ class TestCodeQLInstaller:
 
         assert result == str(self.installer.codeql_binary)
 
-    def test_uninstall_not_installed(self) -> None:
-        """Test uninstall when CodeQL is not installed."""
-        # Ensure the directory doesn't exist
-        if self.temp_dir.exists():
-            shutil.rmtree(self.temp_dir)
-
-        # Should not raise an exception
-        self.installer.uninstall()
-
-    def test_uninstall_success(self) -> None:
-        """Test successful uninstall."""
-        # Create installation directory
-        self.temp_dir.mkdir(parents=True, exist_ok=True)
-        test_file = self.temp_dir / "test.txt"
-        test_file.touch()
-
-        self.installer.uninstall()
-
-        assert not self.temp_dir.exists()
-
     def test_installer_initialization_default_dir(self) -> None:
         """Test installer initialization with default directory."""
         default_installer = CodeQLInstaller()
@@ -210,11 +215,21 @@ class TestCodeQLInstaller:
 
     def test_installer_initialization_custom_dir(self) -> None:
         """Test installer initialization with custom directory."""
-        custom_dir = "/custom/path"
-        custom_installer = CodeQLInstaller(custom_dir)
-        expected_path = Path(custom_dir)
-        assert custom_installer.install_dir == expected_path
-        assert custom_installer.codeql_binary == expected_path / "codeql" / "codeql"
+        custom_dir = str(self.temp_dir / "custom_codeql")
+        installer = CodeQLInstaller(install_dir=custom_dir)
+
+        assert installer.install_dir == Path(custom_dir)
+        expected_binary = Path(custom_dir) / "codeql" / "codeql"
+        assert installer.codeql_binary == expected_binary
+
+    def test_installer_initialization_invalid_dir_file(self) -> None:
+        """Test installer initialization with invalid directory (file path)."""
+        # Create a file instead of directory
+        file_path = self.temp_dir / "invalid_file.txt"
+        file_path.write_text("test")
+
+        with pytest.raises(ValueError, match="Install directory cannot be a file"):
+            CodeQLInstaller(install_dir=str(file_path))
 
     def test_get_download_url_different_versions(self) -> None:
         """Test download URL generation for different versions."""
@@ -240,17 +255,31 @@ class TestCodeQLInstaller:
             assert url.endswith(".tar.gz")
             assert "github.com/github/codeql-action/releases/download" in url
 
-    def test_is_installed_false_when_not_executable(self) -> None:
-        """Test is_installed returns False when binary exists but is not executable."""
-        # Create the codeql directory and binary
-        codeql_dir = self.temp_dir / "codeql"
-        codeql_dir.mkdir(parents=True)
-        binary_path = codeql_dir / "codeql"
-        binary_path.touch()
-        # Don't make it executable
-        os.chmod(binary_path, 0o644)
+    def test_get_download_url_different_version_formats(self) -> None:
+        """Test download URL generation with different version formats."""
+        installer = CodeQLInstaller()
 
-        assert not self.installer.is_installed()
+        # Test with version already in bundle format
+        url = installer.get_download_url("codeql-bundle-v2.22.1")
+        assert "codeql-bundle-v2.22.1" in url
+
+        # Test with version needing 'v' prefix
+        url = installer.get_download_url("2.22.1")
+        assert "codeql-bundle-v2.22.1" in url
+
+        # Test with version already having 'v' prefix
+        url = installer.get_download_url("v2.22.1")
+        assert "codeql-bundle-v2.22.1" in url
+
+    def test_get_download_url_version_format_handling(self) -> None:
+        """Test download URL generation with various version formats."""
+        installer = CodeQLInstaller()
+
+        # Test version without 'v' prefix
+        with patch.object(installer, "get_platform_bundle_name", return_value="linux64"):
+            url = installer.get_download_url("2.22.1")
+            assert "codeql-bundle-v2.22.1" in url
+            assert "codeql-bundle-linux64.tar.gz" in url
 
     @patch("subprocess.run")
     def test_get_version_handles_json_decode_error(self, mock_run) -> None:
@@ -421,18 +450,6 @@ class TestCodeQLInstaller:
             if fake_tar.exists():
                 fake_tar.unlink()
 
-    def test_uninstall_handles_permission_error(self) -> None:
-        """Test uninstall handles permission errors gracefully."""
-        # Create installation directory with a file
-        self.temp_dir.mkdir(parents=True, exist_ok=True)
-        test_file = self.temp_dir / "test.txt"
-        test_file.touch()
-
-        # Mock shutil.rmtree to raise PermissionError
-        with patch("shutil.rmtree", side_effect=PermissionError("Permission denied")):
-            with pytest.raises(Exception, match="Failed to uninstall CodeQL"):
-                self.installer.uninstall()
-
     def test_get_platform_unknown(self) -> None:
         """Test get_platform with unknown platform through URL generation."""
         from unittest.mock import patch
@@ -453,12 +470,21 @@ class TestCodeQLInstaller:
             assert "win64" in url
 
     def test_get_platform_macos(self) -> None:
-        """Test get_platform for macOS through URL generation."""
-        from unittest.mock import patch
+        """Test platform detection for macOS."""
+        installer = CodeQLInstaller()
 
         with patch("platform.system", return_value="Darwin"):
-            url = self.installer.get_download_url("v2.22.1")
-            assert "osx64" in url
+            platform_name = installer.get_platform_bundle_name()
+            assert platform_name == "osx64"
+
+    def test_get_platform_unknown_system(self) -> None:
+        """Test platform detection for unknown system."""
+        installer = CodeQLInstaller()
+
+        with patch("platform.system", return_value="FreeBSD"):
+            with patch("platform.machine", return_value="x86_64"):
+                platform_name = installer.get_platform_bundle_name()
+                assert platform_name == "linux64"  # Default fallback
 
     def test_install_network_error(self) -> None:
         """Test install with network error during download."""

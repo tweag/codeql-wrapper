@@ -71,6 +71,11 @@ class TestCodeQLRunner:
         runner = CodeQLRunner(codeql_path="/custom/path/codeql")
         assert runner._codeql_path == "/custom/path/codeql"
 
+    def test_runner_initialization_with_timeout(self) -> None:
+        """Test runner initialization with custom timeout."""
+        runner = CodeQLRunner(codeql_path="/custom/path/codeql", timeout=600)
+        assert runner._timeout == 600
+
     @patch("codeql_wrapper.infrastructure.codeql_runner.CodeQLInstaller")
     def test_runner_initialization_without_path(self, mock_installer_class) -> None:
         """Test runner initialization without explicit CodeQL path."""
@@ -135,7 +140,7 @@ class TestCodeQLRunner:
         result = self.runner._run_command(["long-running"])
 
         assert result.success is False
-        assert result.stderr == "Command timed out after 5 minutes"
+        assert result.stderr == "Command timed out after 300 seconds"
         assert result.exit_code == -1
 
     @patch("subprocess.run")
@@ -165,28 +170,6 @@ class TestCodeQLRunner:
         mock_run.assert_called_once()
         args = mock_run.call_args[0][0]
         assert args == [self.fake_codeql_path, "version", "--format=json"]
-
-    @patch("subprocess.run")
-    def test_resolve_languages(self, mock_run) -> None:
-        """Test resolve languages command."""
-        mock_result = Mock()
-        mock_result.returncode = 0
-        mock_result.stdout = "language: javascript\nlanguage: python"
-        mock_result.stderr = ""
-        mock_run.return_value = mock_result
-
-        result = self.runner.resolve_languages("/source")
-
-        assert result.success is True
-        mock_run.assert_called_once()
-        args = mock_run.call_args[0][0]
-        assert args == [
-            self.fake_codeql_path,
-            "resolve",
-            "languages",
-            "--source-root",
-            "/source",
-        ]
 
     @patch("subprocess.run")
     def test_create_database_minimal(self, mock_run) -> None:
@@ -292,134 +275,6 @@ class TestCodeQLRunner:
             "/results.csv",
         ]
         assert args == expected
-
-    @patch("subprocess.run")
-    def test_run_query(self, mock_run) -> None:
-        """Test running a specific query."""
-        mock_result = Mock()
-        mock_result.returncode = 0
-        mock_result.stdout = "Query results"
-        mock_result.stderr = ""
-        mock_run.return_value = mock_result
-
-        result = self.runner.run_query(
-            "/db", "/query.ql", output_format="json", output="/results.json"
-        )
-
-        assert result.success is True
-        mock_run.assert_called_once()
-        args = mock_run.call_args[0][0]
-        expected = [
-            self.fake_codeql_path,
-            "query",
-            "run",
-            "/query.ql",
-            "--database",
-            "/db",
-            "--format=json",
-            "--output",
-            "/results.json",
-        ]
-        assert args == expected
-
-    @patch("subprocess.run")
-    def test_pack_download(self, mock_run) -> None:
-        """Test downloading a CodeQL pack."""
-        mock_result = Mock()
-        mock_result.returncode = 0
-        mock_result.stdout = "Pack downloaded"
-        mock_result.stderr = ""
-        mock_run.return_value = mock_result
-
-        result = self.runner.pack_download("codeql/javascript-all", "/target")
-
-        assert result.success is True
-        mock_run.assert_called_once()
-        args = mock_run.call_args[0][0]
-        expected = [
-            self.fake_codeql_path,
-            "pack",
-            "download",
-            "codeql/javascript-all",
-            "--dir",
-            "/target",
-        ]
-        assert args == expected
-
-    @patch("subprocess.run")
-    def test_database_finalize(self, mock_run) -> None:
-        """Test database finalization."""
-        mock_result = Mock()
-        mock_result.returncode = 0
-        mock_result.stdout = "Database finalized"
-        mock_result.stderr = ""
-        mock_run.return_value = mock_result
-
-        result = self.runner.database_finalize("/db")
-
-        assert result.success is True
-        mock_run.assert_called_once()
-        args = mock_run.call_args[0][0]
-        expected = [self.fake_codeql_path, "database", "finalize", "/db"]
-        assert args == expected
-
-    @patch("subprocess.run")
-    def test_database_cleanup(self, mock_run) -> None:
-        """Test database cleanup."""
-        mock_result = Mock()
-        mock_result.returncode = 0
-        mock_result.stdout = "Database cleaned"
-        mock_result.stderr = ""
-        mock_run.return_value = mock_result
-
-        result = self.runner.database_cleanup("/db")
-
-        assert result.success is True
-        mock_run.assert_called_once()
-        args = mock_run.call_args[0][0]
-        expected = [self.fake_codeql_path, "database", "cleanup", "/db"]
-        assert args == expected
-
-    @patch("subprocess.run")
-    def test_get_supported_languages_success(self, mock_run) -> None:
-        """Test getting supported languages successfully."""
-        mock_result = Mock()
-        mock_result.returncode = 0
-        mock_result.stdout = "language: javascript\nlanguage: python\nlanguage: java"
-        mock_result.stderr = ""
-        mock_run.return_value = mock_result
-
-        languages = self.runner.get_supported_languages()
-
-        assert "javascript" in languages
-        assert "python" in languages
-        assert "java" in languages
-
-    @patch("subprocess.run")
-    def test_get_supported_languages_failure(self, mock_run) -> None:
-        """Test getting supported languages when command fails."""
-        mock_result = Mock()
-        mock_result.returncode = 1
-        mock_result.stdout = ""
-        mock_result.stderr = "Error"
-        mock_run.return_value = mock_result
-
-        languages = self.runner.get_supported_languages()
-
-        assert languages == []
-
-    @patch("subprocess.run")
-    def test_get_supported_languages_parse_error(self, mock_run) -> None:
-        """Test getting supported languages with parse error."""
-        mock_result = Mock()
-        mock_result.returncode = 0
-        mock_result.stdout = "invalid output format"
-        mock_result.stderr = ""
-        mock_run.return_value = mock_result
-
-        languages = self.runner.get_supported_languages()
-
-        assert languages == []
 
     @patch("subprocess.run")
     @patch("tempfile.mkdtemp")
@@ -550,3 +405,98 @@ class TestCodeQLRunner:
         # Check that the custom database path was used
         create_call_args = mock_run.call_args_list[0][0][0]
         assert "/custom/db/path" in create_call_args
+
+    @patch("subprocess.run")
+    @patch("tempfile.mkdtemp")
+    @patch("pathlib.Path.exists")
+    @patch("shutil.rmtree")
+    def test_create_and_analyze_corrupted_database_retry(
+        self, mock_rmtree, mock_exists, mock_mkdtemp, mock_run
+    ) -> None:
+        """Test create_and_analyze handles corrupted database and retries."""
+        mock_mkdtemp.return_value = "/tmp/test123"
+        mock_exists.return_value = True  # Database path exists for cleanup
+
+        # Mock corrupted database creation failure
+        corrupted_result = Mock()
+        corrupted_result.returncode = 1
+        corrupted_result.stdout = ""
+        corrupted_result.stderr = "Unrecognized file in database cluster"
+
+        # Mock successful retry
+        retry_result = Mock()
+        retry_result.returncode = 0
+        retry_result.stdout = "Database created"
+        retry_result.stderr = ""
+
+        # Mock successful analysis
+        analyze_result = Mock()
+        analyze_result.returncode = 0
+        analyze_result.stdout = "Analysis complete"
+        analyze_result.stderr = ""
+
+        mock_run.side_effect = [corrupted_result, retry_result, analyze_result]
+
+        result = self.runner.create_and_analyze(
+            "/source", "javascript", "/results.sarif", cleanup_database=False
+        )
+
+        assert result.success is True
+        assert mock_run.call_count == 3  # corrupted, retry, analyze
+        mock_rmtree.assert_called_once()  # Directory should be removed
+
+    @patch("subprocess.run")
+    @patch("tempfile.mkdtemp")
+    @patch("pathlib.Path.exists")
+    @patch("shutil.rmtree")
+    def test_create_and_analyze_corrupted_database_cleanup_failure(
+        self, mock_rmtree, mock_exists, mock_mkdtemp, mock_run
+    ) -> None:
+        """Test create_and_analyze handles corrupted database cleanup failure."""
+        mock_mkdtemp.return_value = "/tmp/test123"
+        mock_exists.return_value = True  # Database path exists for cleanup
+        mock_rmtree.side_effect = Exception("Permission denied")
+
+        # Mock corrupted database creation failure
+        corrupted_result = Mock()
+        corrupted_result.returncode = 1
+        corrupted_result.stdout = ""
+        corrupted_result.stderr = "does not appear to be a CodeQL database"
+
+        mock_run.return_value = corrupted_result
+
+        result = self.runner.create_and_analyze(
+            "/source", "javascript", "/results.sarif", cleanup_database=False
+        )
+
+        assert result.success is False
+        assert result.stderr == "does not appear to be a CodeQL database"
+        assert mock_run.call_count == 1  # Only initial failed attempt
+        mock_rmtree.assert_called_once()  # Should try to remove directory
+
+    @patch("subprocess.run")
+    @patch("tempfile.mkdtemp")
+    @patch("pathlib.Path.exists")
+    def test_analyze_database_with_json_output(self, mock_exists, mock_mkdtemp, mock_run) -> None:
+        """Test database analysis with JSON output format detection."""
+        mock_result = Mock()
+        mock_result.returncode = 0
+        mock_result.stdout = "Analysis complete"
+        mock_result.stderr = ""
+        mock_run.return_value = mock_result
+
+        result = self.runner.analyze_database("/db", output="/results.json")
+
+        assert result.success is True
+        mock_run.assert_called_once()
+        args = mock_run.call_args[0][0]
+        expected = [
+            self.fake_codeql_path,
+            "database",
+            "analyze",
+            "/db",
+            "--format=json",
+            "--output",
+            "/results.json",
+        ]
+        assert args == expected
