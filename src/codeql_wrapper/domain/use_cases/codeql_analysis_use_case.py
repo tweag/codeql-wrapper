@@ -98,7 +98,8 @@ class CodeQLAnalysisUseCase:
         all_analysis_results = []
         error_messages = []
 
-        with ProcessPoolExecutor(max_workers=os.cpu_count()) as executor:
+        max_workers = min(os.cpu_count() or 1, self._max_workers)
+        with ProcessPoolExecutor(max_workers=max_workers) as executor:
             futures = [
                 executor.submit(self._process_monorepo_project, project_path, request)
                 for project_path in project_paths
