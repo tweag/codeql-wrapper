@@ -1,6 +1,7 @@
 """CodeQL analysis use case implementation."""
 
 import json
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
 from typing import Any, List, Optional, Set
@@ -55,14 +56,14 @@ class CodeQLAnalysisUseCase:
         self, request: CodeQLAnalysisRequest
     ) -> RepositoryAnalysisSummary:
         """
-        Execute CodeQL analysis on a monorepo by analyzing each project.
+        Execute CodeQL analysis on a monorepo by analyzing each project (folder) in parallel.
         """
-        self._logger.info("Starting monorepo analysis...")
+        self._logger.info("Starting monorepo analysis (parallelized)...")
 
         # Find all 1st-level folders inside the monorepo path
-        sub_project_paths = [p for p in request.repository_path.iterdir() if p.is_dir()]
+        project_paths = [p for p in request.repository_path.iterdir() if p.is_dir()]
 
-        if not sub_project_paths:
+        if not project_paths:
             self._logger.warning("No projects found in the monorepo path.")
             return RepositoryAnalysisSummary(
                 repository_path=request.repository_path,
@@ -73,10 +74,8 @@ class CodeQLAnalysisUseCase:
         all_detected_projects = []
         all_analysis_results = []
 
-        for sub_path in sub_project_paths:
+        def process_project(sub_path):
             self._logger.info(f"Processing project: {sub_path}")
-
-            # Create a new request object for the project
             sub_request = CodeQLAnalysisRequest(
                 repository_path=sub_path,
                 force_install=request.force_install,
@@ -84,13 +83,29 @@ class CodeQLAnalysisUseCase:
                 verbose=request.verbose,
                 output_directory=request.output_directory,
             )
-
             try:
                 summary = self._execute_single_repo_analysis(sub_request)
-                all_detected_projects.extend(summary.detected_projects)
-                all_analysis_results.extend(summary.analysis_results)
+                return summary
             except Exception as e:
                 self._logger.error(f"Analysis failed for {sub_path}: {e}")
+                # Return empty summary on error
+                return RepositoryAnalysisSummary(
+                    repository_path=sub_path,
+                    detected_projects=[],
+                    analysis_results=[],
+                )
+
+        max_workers = min(10, len(project_paths))  # E.g., use up to 10 threads
+        with ThreadPoolExecutor() as executor:
+            # Submit all projects in parallel
+            futures = [
+                executor.submit(process_project, sub_path) for sub_path in project_paths
+            ]
+
+            for future in as_completed(futures):
+                summary = future.result()
+                all_detected_projects.extend(summary.detected_projects)
+                all_analysis_results.extend(summary.analysis_results)
 
         return RepositoryAnalysisSummary(
             repository_path=request.repository_path,
