@@ -1,7 +1,7 @@
 """CodeQL analysis use case implementation."""
 
-import json
-from concurrent.futures import ThreadPoolExecutor, as_completed
+import json, os
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
 from typing import Any, List, Optional, Set
@@ -95,8 +95,7 @@ class CodeQLAnalysisUseCase:
         all_detected_projects = []
         all_analysis_results = []
 
-        max_workers = min(self.DEFAULT_MAX_WORKERS, len(project_paths))
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        with ProcessPoolExecutor(max_workers=os.cpu_count()) as executor:
             futures = [
                 executor.submit(self._process_monorepo_project, project_path, request)
                 for project_path in project_paths
