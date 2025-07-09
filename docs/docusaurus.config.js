@@ -12,7 +12,6 @@ import { themes as prismThemes } from 'prism-react-renderer';
 const config = {
   title: 'CodeQL Wrapper',
   tagline: 'Universal Python CLI wrapper for CodeQL analysis',
-  favicon: 'img/favicon.ico',
 
   // Future flags, see https://docusaurus.io/docs/api/docusaurus-config#future
   future: {
@@ -83,10 +82,6 @@ const config = {
       image: 'img/docusaurus-social-card.jpg',
       navbar: {
         title: 'CodeQL Wrapper',
-        logo: {
-          alt: 'CodeQL Wrapper Logo',
-          src: 'img/logo.svg',
-        },
         items: [
           {
             type: 'docSidebar',
@@ -94,7 +89,7 @@ const config = {
             position: 'left',
             label: 'Documentation',
           },
-          { to: '/blog', label: 'Blog', position: 'left' },
+          //{ to: '/blog', label: 'Blog', position: 'left' },
           {
             href: 'https://github.com/ModusCreate-Perdigao-GHAS-Playground/codeql-wrapper',
             label: 'GitHub',

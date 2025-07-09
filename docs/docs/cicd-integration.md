@@ -367,27 +367,6 @@ workflows:
 1. **Set appropriate timeouts** for long-running analyses
 2. **Archive results** even on failure for debugging
 3. **Use verbose logging** for troubleshooting
-4. **Implement retry logic** for network-related failures
-
-### Example with Error Handling
-
-```yaml
-- name: Run CodeQL Analysis with Retry
-  run: |
-    for attempt in 1 2 3; do
-      if codeql-wrapper analyze . --upload-sarif --verbose; then
-        echo "Analysis successful on attempt $attempt"
-        break
-      else
-        echo "Analysis failed on attempt $attempt"
-        if [ $attempt -eq 3 ]; then
-          echo "All attempts failed"
-          exit 1
-        fi
-        sleep 30
-      fi
-    done
-```
 
 ## Troubleshooting
 
