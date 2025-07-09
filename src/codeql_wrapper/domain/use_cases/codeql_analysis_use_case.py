@@ -98,7 +98,7 @@ class CodeQLAnalysisUseCase:
         all_analysis_results = []
         error_messages = []
 
-        max_workers = min(os.cpu_count() or 1, self._max_workers)
+        max_workers = min(os.cpu_count() or 1, self.DEFAULT_MAX_WORKERS)
         with ProcessPoolExecutor(max_workers=max_workers) as executor:
             futures = [
                 executor.submit(self._process_monorepo_project, project_path, request)
