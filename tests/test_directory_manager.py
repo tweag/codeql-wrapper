@@ -304,33 +304,56 @@ class TestDirectoryManager:
                 assert result == "HEAD^"
 
     def test_list_changed_directories_git_command_error(self) -> None:
-        """Test list_changed_directories when git command fails."""
-        import tempfile
-        from unittest.mock import patch
-        import subprocess
+        """Test list_changed_directories handles Git command errors in determine_base_commit."""
+        # Create a directory that looks like a Git repo but isn't
+        fake_git_dir = Path(self.temp_dir) / "fake_git"
+        fake_git_dir.mkdir()
+        (fake_git_dir / ".git").mkdir()
 
-        with tempfile.TemporaryDirectory() as temp_dir:
-            # Create a git repo structure
-            repo_path = Path(temp_dir)
-            (repo_path / ".git").mkdir()
+        dm = DirectoryManager(str(fake_git_dir))
 
-            manager = DirectoryManager(base_path=str(repo_path))
-
-            # Mock _is_git_repository to return True and _run_git_command to raise error
+        # Mock _is_git_repository to return True so we can test the git command error
+        with patch.object(dm, "_is_git_repository", return_value=True):
+            # Mock the specific git command that should raise CalledProcessError
             with patch.object(
-                manager, "_is_git_repository", return_value=True
-            ), patch.object(manager, "_run_git_command") as mock_run_git:
-                from unittest.mock import Mock
+                dm,
+                "_get_changed_files",
+                side_effect=subprocess.CalledProcessError(1, "git"),
+            ):
+                with pytest.raises(subprocess.CalledProcessError):
+                    dm.list_changed_directories()
 
-                # First call (for determining base commit) succeeds
-                # Second call (for getting changed files) fails
-                mock_run_git.side_effect = [
-                    Mock(stdout="main\n", returncode=0),  # base commit determination
-                    subprocess.CalledProcessError(
-                        1, "git", "Git diff command failed"
-                    ),  # diff command
-                ]
+    def test_list_changed_directories_subprocess_error_propagation(self) -> None:
+        """Test that subprocess errors are properly propagated."""
+        dm = DirectoryManager(str(Path(self.temp_dir)))
 
-                # The method should handle the error gracefully and return an empty list
-                result = manager.list_changed_directories()
-                assert result == []
+        # Mock _is_git_repository to return True so we can test the subprocess error
+        with patch.object(dm, "_is_git_repository", return_value=True):
+            # Mock the specific method that should raise CalledProcessError
+            with patch.object(
+                dm,
+                "_get_changed_files",
+                side_effect=subprocess.CalledProcessError(128, "git diff"),
+            ):
+                with pytest.raises(subprocess.CalledProcessError):
+                    dm.list_changed_directories()
+
+    def test_initialization_state(self) -> None:
+        """Test the initialization state of the DirectoryManager."""
+        assert self.manager.base_path == Path(self.temp_dir)
+
+        # Test that it correctly identifies as not a git repository
+        assert self.manager._is_git_repository() is False
+
+        # Test that calling list_changed_directories on non-git repo raises FileNotFoundError
+        with pytest.raises(FileNotFoundError, match="Not in a git repository"):
+            self.manager.list_changed_directories()
+
+        # Test get_directory_info without changed_directories key for non-git repo
+        info = self.manager.get_directory_info()
+        expected = {
+            "base_path": str(self.temp_dir),
+            "all_directories": [],
+            "is_git_repository": False,
+        }
+        assert info == expected

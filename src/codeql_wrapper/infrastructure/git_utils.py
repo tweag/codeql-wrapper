@@ -52,6 +52,22 @@ class GitUtils:
         return git_info
 
     @staticmethod
+    def is_git_repository(path: Path) -> bool:
+        """Check if the given path is a Git repository."""
+        try:
+            result = subprocess.run(
+                ["git", "rev-parse", "--git-dir"],
+                cwd=path,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            return result.returncode == 0
+        except Exception:
+            return False
+
+    # Private methods
+    @staticmethod
     def _get_commit_sha(repository_path: Path) -> Optional[str]:
         """Get the current commit SHA."""
         try:
@@ -161,18 +177,3 @@ class GitUtils:
             pass
 
         return None
-
-    @staticmethod
-    def is_git_repository(path: Path) -> bool:
-        """Check if the given path is a Git repository."""
-        try:
-            result = subprocess.run(
-                ["git", "rev-parse", "--git-dir"],
-                cwd=path,
-                capture_output=True,
-                text=True,
-                check=False,
-            )
-            return result.returncode == 0
-        except Exception:
-            return False

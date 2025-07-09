@@ -18,6 +18,7 @@ from codeql_wrapper.domain.entities.codeql_analysis import (
     ProjectInfo,
     AnalysisStatus,
     CodeQLInstallationInfo,
+    RepositoryAnalysisSummary,
 )
 
 
@@ -94,8 +95,11 @@ class TestCodeQLAnalysisUseCase:
                     error_message=None,
                 )
 
-            # Execute the use case
-            result = self.use_case.execute(request)
+            # Execute the use case with path validation mocked
+            with patch("pathlib.Path.exists", return_value=True), patch(
+                "pathlib.Path.is_dir", return_value=True
+            ):
+                result = self.use_case.execute(request)
 
             # Verify results
             assert result is not None
@@ -107,15 +111,28 @@ class TestCodeQLAnalysisUseCase:
 
     def test_request_validation_in_constructor(self) -> None:
         """Test request validation happens in constructor."""
-        # Test that invalid paths are caught during object creation
+        # Test with non-existent path
         with pytest.raises(ValueError, match="Repository path does not exist"):
             CodeQLAnalysisRequest(
-                repository_path=Path("/nonexistent/path"),
-                target_languages={CodeQLLanguage.PYTHON},
+                repository_path=Path("/non/existent/path"),
+                target_languages=None,
                 output_directory=Path("/test/output"),
                 verbose=False,
                 force_install=False,
             )
+
+        # Test with file instead of directory
+        import tempfile
+
+        with tempfile.NamedTemporaryFile() as tmp_file:
+            with pytest.raises(ValueError, match="Repository path must be a directory"):
+                CodeQLAnalysisRequest(
+                    repository_path=Path(tmp_file.name),
+                    target_languages=None,
+                    output_directory=Path("/test/output"),
+                    verbose=False,
+                    force_install=False,
+                )
 
     @patch("codeql_wrapper.domain.use_cases.codeql_analysis_use_case.CodeQLInstaller")
     @patch("codeql_wrapper.domain.use_cases.codeql_analysis_use_case.CodeQLRunner")
@@ -330,8 +347,14 @@ class TestCodeQLAnalysisUseCase:
 
     @patch("builtins.open")
     @patch("json.load")
-    def test_count_sarif_findings(self, mock_json_load: Mock, mock_open: Mock) -> None:
+    @patch("pathlib.Path.exists")
+    def test_count_sarif_findings(
+        self, mock_exists: Mock, mock_json_load: Mock, mock_open: Mock
+    ) -> None:
         """Test SARIF findings counting."""
+        # Mock file existence check
+        mock_exists.return_value = True
+
         # Mock SARIF content
         mock_sarif_data = {
             "runs": [
@@ -350,21 +373,19 @@ class TestCodeQLAnalysisUseCase:
 
         # Verify
         assert count == 2
-        mock_open.assert_called_once_with(Path("/test/results.sarif"), "r")
+        mock_open.assert_called_once_with(
+            Path("/test/results.sarif"), "r", encoding="utf-8"
+        )
 
-    @patch("builtins.open")
-    @patch("json.load")
-    def test_count_sarif_findings_file_error(
-        self, mock_json_load: Mock, mock_open: Mock
-    ) -> None:
-        """Test counting SARIF findings when file read fails."""
-        # Mock file operations to raise an exception
-        mock_open.side_effect = FileNotFoundError("File not found")
+    @patch("pathlib.Path.exists")
+    def test_count_sarif_findings_file_error(self, mock_exists: Mock) -> None:
+        """Test counting SARIF findings when file doesn't exist."""
+        # Mock file existence check to return False
+        mock_exists.return_value = False
 
         findings_count = self.use_case._count_sarif_findings(Path("/nonexistent.sarif"))
 
         assert findings_count == 0
-        mock_open.assert_called_once()
 
     def test_analyze_project_full_workflow(self) -> None:
         """Test the complete _analyze_project workflow."""
@@ -749,3 +770,125 @@ class TestCodeQLAnalysisUseCase:
         result = self.use_case._determine_primary_language(languages)
         # Python has higher priority than Go in the implementation
         assert result == CodeQLLanguage.PYTHON
+
+    def test_execute_exception_handling(self) -> None:
+        """Test exception handling in execute method."""
+        # Create a request that will pass validation
+        with patch("pathlib.Path.exists", return_value=True), patch(
+            "pathlib.Path.is_dir", return_value=True
+        ):
+            request = CodeQLAnalysisRequest(
+                repository_path=Path("/test/repo"),
+                target_languages=None,
+                output_directory=Path("/test/output"),
+                verbose=False,
+                force_install=False,
+            )
+
+            # Mock _execute_single_repo_analysis to raise an exception
+            with patch.object(
+                self.use_case, "_execute_single_repo_analysis"
+            ) as mock_single_repo:
+                mock_single_repo.side_effect = Exception("Analysis failed")
+
+                with pytest.raises(Exception, match="Analysis failed"):
+                    self.use_case.execute(request)
+
+    def test_execute_monorepo_analysis_empty_directory(self) -> None:
+        """Test monorepo analysis with empty directory."""
+        # Mock empty directory
+        with patch.object(Path, "exists", return_value=True), patch.object(
+            Path, "is_dir", return_value=True
+        ), patch.object(Path, "iterdir", return_value=[]):
+
+            # Create request for monorepo analysis
+            request = CodeQLAnalysisRequest(
+                repository_path=Path("/test/repo"),
+                target_languages=None,
+                output_directory=Path("/test/output"),
+                verbose=False,
+                force_install=False,
+                monorepo=True,
+            )
+
+            with patch.object(
+                self.use_case, "_verify_codeql_installation"
+            ) as mock_verify:
+                mock_verify.return_value = CodeQLInstallationInfo(
+                    is_installed=True, version="2.22.1", path=Path("/path/to/codeql")
+                )
+
+                result = self.use_case.execute(request)
+
+                # Should return empty results
+                assert result.repository_path == Path("/test/repo")
+                assert result.analysis_results == []
+                assert result.total_findings == 0
+
+    def test_execute_monorepo_analysis_with_hidden_directories(self) -> None:
+        """Test monorepo analysis skips hidden directories."""
+        # Mock directory with hidden and regular directories
+        mock_hidden_dir = Mock()
+        mock_hidden_dir.is_dir.return_value = True
+        mock_hidden_dir.name = ".hidden"
+
+        mock_regular_dir = Mock()
+        mock_regular_dir.is_dir.return_value = True
+        mock_regular_dir.name = "regular"
+
+        with patch.object(Path, "exists", return_value=True), patch.object(
+            Path, "is_dir", return_value=True
+        ), patch.object(
+            Path, "iterdir", return_value=[mock_hidden_dir, mock_regular_dir]
+        ):
+
+            # Create request for monorepo analysis
+            request = CodeQLAnalysisRequest(
+                repository_path=Path("/test/repo"),
+                target_languages=None,
+                output_directory=Path("/test/output"),
+                verbose=False,
+                force_install=False,
+                monorepo=True,
+            )
+
+            # Mock the ProcessPoolExecutor to avoid multiprocessing complications
+            with patch(
+                "codeql_wrapper.domain.use_cases.codeql_analysis_use_case.ProcessPoolExecutor"
+            ) as mock_executor_class:
+                mock_executor = Mock()
+                mock_executor_class.return_value.__enter__.return_value = mock_executor
+
+                # Mock the future that will be returned
+                mock_future = Mock()
+                mock_summary = RepositoryAnalysisSummary(
+                    repository_path=mock_regular_dir,
+                    detected_projects=[],
+                    analysis_results=[],
+                )
+                mock_future.result.return_value = mock_summary
+
+                # Mock the submit method to return our mock future
+                mock_executor.submit.return_value = mock_future
+
+                # Mock as_completed to return our single future
+                with patch(
+                    "codeql_wrapper.domain.use_cases.codeql_analysis_use_case.as_completed",
+                    return_value=[mock_future],
+                ):
+                    result = self.use_case.execute(request)
+
+                    # Verify that only the regular directory was submitted for processing
+                    # (hidden directory should be filtered out)
+                    mock_executor.submit.assert_called_once()
+                    # Get the first argument of the submit call (the project_path)
+                    call_args = mock_executor.submit.call_args[0]
+                    submitted_project_path = call_args[
+                        1
+                    ]  # Second argument is project_path
+                    assert submitted_project_path == mock_regular_dir
+
+                    # Verify the result structure
+                    assert result.repository_path == Path("/test/repo")
+                    assert len(result.detected_projects) == 0
+                    assert len(result.analysis_results) == 0

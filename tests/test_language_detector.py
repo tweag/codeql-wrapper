@@ -156,42 +156,6 @@ class TestLanguageDetector:
             )
             assert result == "typescript", f"Extension .{ext} should map to typescript"
 
-    def test_get_supported_languages(self):
-        """Test getting supported languages."""
-        # Test non-compiled languages
-        non_compiled = self.detector.get_supported_languages(LanguageType.NON_COMPILED)
-        assert "py" in non_compiled
-        assert non_compiled["py"] == "python"
-        assert "java" not in non_compiled
-
-        # Test compiled languages
-        compiled = self.detector.get_supported_languages(LanguageType.COMPILED)
-        assert "java" in compiled
-        assert compiled["java"] == "java"
-        assert "py" not in compiled
-
-        # Test all languages
-        all_langs = self.detector.get_supported_languages()
-        assert "py" in all_langs
-        assert "java" in all_langs
-
-    def test_format_languages_as_string(self):
-        """Test formatting languages as string."""
-        # Test with multiple languages
-        languages = ["python", "java", "javascript"]
-        result = self.detector.format_languages_as_string(languages)
-        assert result == "python,java,javascript"
-
-        # Test with single language
-        languages = ["python"]
-        result = self.detector.format_languages_as_string(languages)
-        assert result == "python"
-
-        # Test with empty list
-        languages = []
-        result = self.detector.format_languages_as_string(languages)
-        assert result == ""
-
     def test_subdirectory_scanning(self):
         """Test that subdirectories are scanned correctly."""
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -626,23 +590,6 @@ class TestLanguageDetector:
                     mock_logger.info.call_count >= 2
                 )  # At least start and end logging
                 assert "python" in result
-
-    def test_format_languages_edge_cases(self) -> None:
-        """Test edge cases for format_languages_as_string method."""
-        # Test with mixed case languages
-        languages = ["Python", "JAVA", "javaScript"]
-        result = self.detector.format_languages_as_string(languages)
-        assert result == "Python,JAVA,javaScript"
-
-        # Test with duplicate languages
-        languages = ["python", "java", "python", "java"]
-        result = self.detector.format_languages_as_string(languages)
-        assert result == "python,java,python,java"  # Should preserve duplicates
-
-        # Test with languages containing special characters
-        languages = ["c++", "c#"]
-        result = self.detector.format_languages_as_string(languages)
-        assert result == "c++,c#"
 
     def test_initialization_state(self) -> None:
         """Test that initialization creates the expected internal state."""

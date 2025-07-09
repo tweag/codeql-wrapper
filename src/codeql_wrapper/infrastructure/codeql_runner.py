@@ -24,17 +24,19 @@ class CodeQLResult:
 class CodeQLRunner:
     """Handles running CodeQL commands and analysis."""
 
-    def __init__(self, codeql_path: Optional[str] = None):
+    def __init__(self, codeql_path: Optional[str] = None, timeout: int = 300):
         """
         Initialize CodeQL runner.
 
         Args:
             codeql_path: Path to CodeQL binary. If None, will try to find it
                 automatically.
+            timeout: Timeout in seconds for CodeQL commands (default: 300)
         """
         self.logger = get_logger(__name__)
         self._codeql_path = codeql_path
         self._installer = CodeQLInstaller()
+        self._timeout = timeout
 
     @property
     def codeql_path(self) -> str:
@@ -60,62 +62,6 @@ class CodeQLRunner:
             "the path to the binary."
         )
 
-    def _run_command(self, args: List[str], cwd: Optional[str] = None) -> CodeQLResult:
-        """
-        Run a CodeQL command.
-
-        Args:
-            args: Command arguments (without the codeql binary path)
-            cwd: Working directory for the command
-
-        Returns:
-            CodeQLResult object with command execution details
-        """
-        command = [self.codeql_path] + args
-        self.logger.debug(f"Running command: {' '.join(command)}")
-
-        try:
-            result = subprocess.run(
-                command,
-                capture_output=True,
-                text=True,
-                cwd=cwd,
-                timeout=300,  # 5 minute timeout
-            )
-
-            codeql_result = CodeQLResult(
-                success=result.returncode == 0,
-                stdout=result.stdout,
-                stderr=result.stderr,
-                exit_code=result.returncode,
-                command=command,
-            )
-
-            if codeql_result.success:
-                self.logger.debug(f"Command succeeded: {' '.join(command)}")
-            else:
-                self.logger.warning(
-                    f"Command failed: {' '.join(command)}, "
-                    f"exit code: {result.returncode}"
-                )
-
-            return codeql_result
-
-        except subprocess.TimeoutExpired:
-            self.logger.error(f"Command timed out: {' '.join(command)}")
-            return CodeQLResult(
-                success=False,
-                stdout="",
-                stderr="Command timed out after 5 minutes",
-                exit_code=-1,
-                command=command,
-            )
-        except Exception as e:
-            self.logger.error(f"Failed to run command: {e}")
-            return CodeQLResult(
-                success=False, stdout="", stderr=str(e), exit_code=-1, command=command
-            )
-
     def version(self) -> CodeQLResult:
         """
         Get CodeQL version information.
@@ -124,18 +70,6 @@ class CodeQLRunner:
             CodeQLResult with version information
         """
         return self._run_command(["version", "--format=json"])
-
-    def resolve_languages(self, source_root: str) -> CodeQLResult:
-        """
-        Resolve languages in a source code directory.
-
-        Args:
-            source_root: Path to the source code directory
-
-        Returns:
-            CodeQLResult with language resolution information
-        """
-        return self._run_command(["resolve", "languages", "--source-root", source_root])
 
     def create_database(
         self,
@@ -211,108 +145,6 @@ class CodeQLRunner:
             args.extend(["--output", output])
 
         return self._run_command(args)
-
-    def run_query(
-        self,
-        database_path: str,
-        query_path: str,
-        output_format: str = "table",
-        output: Optional[str] = None,
-    ) -> CodeQLResult:
-        """
-        Run a specific query against a database.
-
-        Args:
-            database_path: Path to the CodeQL database
-            query_path: Path to the query file (.ql)
-            output_format: Output format ('table', 'csv', 'json')
-            output: Output file path
-
-        Returns:
-            CodeQLResult with query execution information
-        """
-        args = [
-            "query",
-            "run",
-            query_path,
-            "--database",
-            database_path,
-            f"--format={output_format}",
-        ]
-
-        if output:
-            args.extend(["--output", output])
-
-        return self._run_command(args)
-
-    def pack_download(
-        self, pack_name: str, target_dir: Optional[str] = None
-    ) -> CodeQLResult:
-        """
-        Download a CodeQL pack.
-
-        Args:
-            pack_name: Name of the pack to download
-            target_dir: Directory to download the pack to
-
-        Returns:
-            CodeQLResult with download information
-        """
-        args = ["pack", "download", pack_name]
-
-        if target_dir:
-            args.extend(["--dir", target_dir])
-
-        return self._run_command(args)
-
-    def database_finalize(self, database_path: str) -> CodeQLResult:
-        """
-        Finalize a CodeQL database.
-
-        Args:
-            database_path: Path to the database to finalize
-
-        Returns:
-            CodeQLResult with finalization information
-        """
-        return self._run_command(["database", "finalize", database_path])
-
-    def database_cleanup(self, database_path: str) -> CodeQLResult:
-        """
-        Clean up a CodeQL database.
-
-        Args:
-            database_path: Path to the database to clean up
-
-        Returns:
-            CodeQLResult with cleanup information
-        """
-        return self._run_command(["database", "cleanup", database_path])
-
-    def get_supported_languages(self) -> List[str]:
-        """
-        Get list of supported languages.
-
-        Returns:
-            List of supported language names
-        """
-        result = self.resolve_languages(".")
-        if not result.success:
-            self.logger.warning("Failed to get supported languages")
-            return []
-
-        try:
-            # Parse the output to extract languages
-            # This is a simplified approach - actual parsing may need refinement
-            languages = []
-            for line in result.stdout.split("\n"):
-                if "language:" in line:
-                    lang = line.split("language:")[1].strip()
-                    languages.append(lang)
-            return languages
-        except Exception as e:
-            self.logger.error(f"Failed to parse supported languages: {e}")
-            return []
 
     def create_and_analyze(
         self,
@@ -417,3 +249,62 @@ class CodeQLRunner:
             # Cleanup database if requested
             if cleanup_database and database_path.exists():
                 self.logger.info(f"Cleaning up database at {database_path}")
+
+    # Private methods
+    def _run_command(self, args: List[str], cwd: Optional[str] = None) -> CodeQLResult:
+        """
+        Run a CodeQL command.
+
+        Args:
+            args: Command arguments (without the codeql binary path)
+            cwd: Working directory for the command
+
+        Returns:
+            CodeQLResult object with command execution details
+        """
+        command = [self.codeql_path] + args
+        self.logger.debug(f"Running command: {' '.join(command)}")
+
+        try:
+            result = subprocess.run(
+                command,
+                capture_output=True,
+                text=True,
+                cwd=cwd,
+                timeout=self._timeout,
+            )
+
+            codeql_result = CodeQLResult(
+                success=result.returncode == 0,
+                stdout=result.stdout,
+                stderr=result.stderr,
+                exit_code=result.returncode,
+                command=command,
+            )
+
+            if codeql_result.success:
+                self.logger.debug(f"Command succeeded: {' '.join(command)}")
+            else:
+                self.logger.warning(
+                    f"Command failed: {' '.join(command)}, "
+                    f"exit code: {result.returncode}"
+                )
+
+            return codeql_result
+
+        except subprocess.TimeoutExpired:
+            self.logger.error(
+                f"Command timed out after {self._timeout} seconds: {' '.join(command)}"
+            )
+            return CodeQLResult(
+                success=False,
+                stdout="",
+                stderr=f"Command timed out after {self._timeout} seconds",
+                exit_code=-1,
+                command=command,
+            )
+        except Exception as e:
+            self.logger.error(f"Failed to run command: {e}")
+            return CodeQLResult(
+                success=False, stdout="", stderr=str(e), exit_code=-1, command=command
+            )

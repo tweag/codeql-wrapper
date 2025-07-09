@@ -7,8 +7,8 @@ from unittest.mock import patch
 
 import pytest
 
-from src.codeql_wrapper.domain.entities import SarifUploadRequest
-from src.codeql_wrapper.domain.use_cases import SarifUploadUseCase
+from codeql_wrapper.domain.entities.codeql_analysis import SarifUploadRequest
+from codeql_wrapper.domain.use_cases.sarif_upload_use_case import SarifUploadUseCase
 
 
 class TestSarifUploadUseCase:
@@ -91,12 +91,72 @@ class TestSarifUploadUseCase:
                 github_token="test-token",
             )
 
+    def test_request_validation_missing_fields(self):
+        """Test request validation with missing required fields."""
+        sarif_file = self._create_sample_sarif_file()
+
+        # Missing repository
+        with pytest.raises(
+            ValueError, match="Repository must be in 'owner/name' format"
+        ):
+            request = SarifUploadRequest(
+                sarif_files=[sarif_file],
+                repository="",
+                commit_sha="a1b2c3d4e5f6789012345678901234567890abcd",
+                github_token="test-token",
+            )
+            self.use_case.execute(request)
+
+        # Missing commit SHA
+        with pytest.raises(ValueError, match="Commit SHA is required"):
+            request = SarifUploadRequest(
+                sarif_files=[sarif_file],
+                repository="octocat/Hello-World",
+                commit_sha="",
+                github_token="test-token",
+            )
+            self.use_case.execute(request)
+
+        # Missing GitHub token
+        with pytest.raises(ValueError, match="GitHub token is required"):
+            request = SarifUploadRequest(
+                sarif_files=[sarif_file],
+                repository="octocat/Hello-World",
+                commit_sha="a1b2c3d4e5f6789012345678901234567890abcd",
+                github_token="",
+            )
+            self.use_case.execute(request)
+
+    def test_sarif_file_validation(self):
+        """Test SARIF file validation."""
+        # Non-existent file
+        non_existent = self.temp_dir / "non_existent.sarif"
+        with pytest.raises(ValueError, match="SARIF file does not exist"):
+            request = SarifUploadRequest(
+                sarif_files=[non_existent],
+                repository="octocat/Hello-World",
+                commit_sha="a1b2c3d4e5f6789012345678901234567890abcd",
+                github_token="test-token",
+            )
+            self.use_case.execute(request)
+
+        # Directory instead of file
+        dir_path = self.temp_dir / "sarif_dir"
+        dir_path.mkdir()
+        with pytest.raises(ValueError, match="File is not a SARIF file"):
+            request = SarifUploadRequest(
+                sarif_files=[dir_path],
+                repository="octocat/Hello-World",
+                commit_sha="a1b2c3d4e5f6789012345678901234567890abcd",
+                github_token="test-token",
+            )
+            self.use_case.execute(request)
+
     @patch(
-        "src.codeql_wrapper.infrastructure.codeql_installer."
-        "CodeQLInstaller.is_installed"
+        "codeql_wrapper.infrastructure.codeql_installer." "CodeQLInstaller.is_installed"
     )
     @patch(
-        "src.codeql_wrapper.infrastructure.codeql_installer."
+        "codeql_wrapper.infrastructure.codeql_installer."
         "CodeQLInstaller.get_binary_path"
     )
     @patch("subprocess.run")
@@ -132,8 +192,7 @@ class TestSarifUploadUseCase:
         assert result.errors is None
 
     @patch(
-        "src.codeql_wrapper.infrastructure.codeql_installer."
-        "CodeQLInstaller.is_installed"
+        "codeql_wrapper.infrastructure.codeql_installer." "CodeQLInstaller.is_installed"
     )
     def test_codeql_not_installed(self, mock_is_installed):
         """Test error when CodeQL is not installed."""
@@ -157,3 +216,102 @@ class TestSarifUploadUseCase:
         assert result.failed_uploads == 1
         assert result.errors is not None
         assert "CodeQL CLI is not installed" in result.errors[0]
+
+    @patch(
+        "codeql_wrapper.infrastructure.codeql_installer." "CodeQLInstaller.is_installed"
+    )
+    @patch(
+        "codeql_wrapper.infrastructure.codeql_installer."
+        "CodeQLInstaller.get_binary_path"
+    )
+    @patch("subprocess.run")
+    def test_upload_failure(self, mock_subprocess, mock_get_binary, mock_is_installed):
+        """Test upload failure handling."""
+        # Setup mocks
+        mock_is_installed.return_value = True
+        mock_get_binary.return_value = Path("/usr/local/bin/codeql")
+        mock_subprocess.return_value.returncode = 1
+        mock_subprocess.return_value.stdout = ""
+        mock_subprocess.return_value.stderr = "Upload failed"
+
+        # Create request
+        sarif_file = self._create_sample_sarif_file()
+        request = SarifUploadRequest(
+            sarif_files=[sarif_file],
+            repository="octocat/Hello-World",
+            commit_sha="a1b2c3d4e5f6789012345678901234567890abcd",
+            github_token="test-token",
+        )
+
+        # Execute
+        result = self.use_case.execute(request)
+
+        # Verify failure
+        assert result.success is False
+        assert result.successful_uploads == 0
+        assert result.failed_uploads == 1
+        assert result.total_files == 1
+        assert result.errors is not None
+        assert len(result.errors) == 1
+        assert "Upload failed" in result.errors[0]
+
+    @patch(
+        "codeql_wrapper.infrastructure.codeql_installer." "CodeQLInstaller.is_installed"
+    )
+    @patch(
+        "codeql_wrapper.infrastructure.codeql_installer."
+        "CodeQLInstaller.get_binary_path"
+    )
+    @patch("subprocess.run")
+    def test_mixed_upload_results(
+        self, mock_subprocess, mock_get_binary, mock_is_installed
+    ):
+        """Test mixed upload results (some success, some failure)."""
+        # Setup mocks
+        mock_is_installed.return_value = True
+        mock_get_binary.return_value = Path("/usr/local/bin/codeql")
+
+        # First call succeeds, second fails
+        success_result = type(
+            "", (), {"returncode": 0, "stdout": "Upload successful", "stderr": ""}
+        )()
+        failure_result = type(
+            "", (), {"returncode": 1, "stdout": "", "stderr": "Upload failed"}
+        )()
+
+        mock_subprocess.side_effect = [success_result, failure_result]
+
+        # Create request with multiple files
+        sarif_file1 = self._create_sample_sarif_file("test1.sarif")
+        sarif_file2 = self._create_sample_sarif_file("test2.sarif")
+        request = SarifUploadRequest(
+            sarif_files=[sarif_file1, sarif_file2],
+            repository="octocat/Hello-World",
+            commit_sha="a1b2c3d4e5f6789012345678901234567890abcd",
+            github_token="test-token",
+        )
+
+        # Execute
+        result = self.use_case.execute(request)
+
+        # Verify mixed results
+        assert result.success is False  # Overall failure since not all succeeded
+        assert result.successful_uploads == 1
+        assert result.failed_uploads == 1
+        assert result.total_files == 2
+        assert result.errors is not None
+        assert len(result.errors) == 1
+
+    def test_use_case_initialization(self):
+        """Test use case initialization."""
+        # Test with default logger
+        use_case = SarifUploadUseCase()
+        assert use_case._installer is not None
+        assert use_case._logger is not None
+
+        # Test with custom logger
+        import logging
+
+        custom_logger = logging.getLogger("test")
+        use_case = SarifUploadUseCase(custom_logger)
+        assert use_case._logger is custom_logger

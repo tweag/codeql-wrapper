@@ -1,4 +1,4 @@
-"""Logging infrastructure for the hello world application."""
+"""Logging infrastructure for the CodeQL wrapper application."""
 
 import logging
 import sys
