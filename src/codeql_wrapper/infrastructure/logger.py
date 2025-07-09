@@ -50,7 +50,7 @@ def get_logger(
     if format_string is not None:
         # Create console handler
         handler = logging.StreamHandler(sys.stdout)
-        handler_level = level if level is not None else logging.getLogger().level
+        handler_level = level if level is not None else logger.getEffectiveLevel()
         handler.setLevel(handler_level)
 
         # Create formatter with our custom short name formatter
