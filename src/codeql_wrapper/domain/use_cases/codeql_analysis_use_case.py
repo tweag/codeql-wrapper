@@ -96,7 +96,7 @@ class CodeQLAnalysisUseCase:
                 )
 
         max_workers = min(10, len(project_paths))  # E.g., use up to 10 threads
-        with ThreadPoolExecutor() as executor:
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
             # Submit all projects in parallel
             futures = [
                 executor.submit(process_project, sub_path) for sub_path in project_paths
