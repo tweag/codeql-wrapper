@@ -23,8 +23,8 @@ const config = {
   url: 'https://moduscreate-perdigao-ghas-playground.github.io',
   // Set the /<baseUrl>/ pathname under which your site is served
   // For GitHub pages deployment, it is often '/<projectName>/'
-  // Use '/' for local development, '/codeql-wrapper/' for GitHub Pages
-  baseUrl: process.env.NODE_ENV === 'development' ? '/' : '/codeql-wrapper/',
+  // Use '/' for local development, '/' for GitHub Pages
+  baseUrl: process.env.NODE_ENV === 'development' ? '/' : '/',
 
   // GitHub pages deployment config.
   // If you aren't using GitHub pages, you don't need these.
