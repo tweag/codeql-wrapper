@@ -134,6 +134,7 @@ class RepositoryAnalysisSummary:
     total_findings: int = 0
     successful_analyses: int = 0
     failed_analyses: int = 0
+    error: Optional[str] = None
 
     def __post_init__(self) -> None:
         """Calculate summary statistics."""
