@@ -5,8 +5,13 @@
 [![Build](https://github.com/ModusCreate-Perdigao-GHAS-Playground/codeql-wrapper/actions/workflows/build.yml/badge.svg)](https://github.com/ModusCreate-Perdigao-GHAS-Playground/codeql-wrapper/actions/workflows/build.yml)
 [![PyPI version](https://badge.fury.io/py/codeql-wrapper.svg)](https://badge.fury.io/py/codeql-wrapper)
 [![Python versions](https://img.shields.io/pypi/pyversions/codeql-wrapper.svg)](https://pypi.org/project/codeql-wrapper/)
+[![Documentation](https://img.shields.io/badge/docs-available-brightgreen.svg)](https://moduscreate-perdigao-ghas-playground.github.io/codeql-wrapper/)
 
 A universal Python CLI wrapper for running CodeQL analysis on any type of project (monorepo or single repository) across different CI/CD platforms including Jenkins, GitHub Actions, Harness, and any environment where Python scripts can be executed.
+
+## 📚 Documentation
+
+Complete documentation is available at: **https://moduscreate-perdigao-ghas-playground.github.io/codeql-wrapper/**
 
 ## Features
 
