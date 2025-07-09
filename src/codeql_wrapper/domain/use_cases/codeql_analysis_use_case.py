@@ -74,7 +74,7 @@ class CodeQLAnalysisUseCase:
         all_detected_projects = []
         all_analysis_results = []
 
-        def process_project(sub_path):
+        def process_project(sub_path: Path) -> RepositoryAnalysisSummary:
             self._logger.info(f"Processing project: {sub_path}")
             sub_request = CodeQLAnalysisRequest(
                 repository_path=sub_path,
