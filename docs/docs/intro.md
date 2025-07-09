@@ -10,9 +10,9 @@ Welcome to **CodeQL Wrapper** - a universal Python CLI wrapper for running CodeQ
 
 CodeQL Wrapper is a Python-based tool that simplifies running CodeQL security analysis on your projects. It provides:
 
-- **Monorepo Support**: Automatically detect and analyze multiple projects within monorepos
+- **Smart Project Detection**: Automatically identifies single-project repositories or monorepos with multiple projects, detecting languages and structure
+- **Auto-Managed CodeQL Installation**: Automatically downloads, installs, and manages CodeQL CLI and query packs
 - **Multi-Platform CI/CD**: Works seamlessly with Jenkins, GitHub Actions, Harness, and other CI/CD tools
-- **Smart Project Detection**: Automatically identifies project types and languages
 - **Parallel Processing**: Run analysis on multiple projects concurrently
 - **SARIF Upload**: Built-in integration with GitHub Code Scanning
 

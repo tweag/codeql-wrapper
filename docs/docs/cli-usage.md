@@ -23,7 +23,7 @@ codeql-wrapper analyze [OPTIONS] REPOSITORY_PATH
 | `--languages` | `-l` | Comma-separated list of languages to analyze | All detected |
 | `--output-dir` | `-o` | Output directory for results | `./codeql-results` |
 | `--monorepo` | | Treat as monorepo (analyze sub-projects) | `false` |
-| `--force-install` | | Force CodeQL reinstallation | `false` |
+| `--force-install` | | Force CodeQL reinstallation using the latest version| `false` |
 | `--upload-sarif` | | Upload SARIF results to GitHub | `false` |
 | `--repository` | | GitHub repository (owner/repo) | Auto-detected |
 | `--commit-sha` | | Git commit SHA | Auto-detected |
@@ -45,7 +45,7 @@ codeql-wrapper analyze /path/to/repo --languages python,javascript
 # Custom output directory
 codeql-wrapper analyze /path/to/repo --output-dir /path/to/results
 
-# Force CodeQL reinstallation
+# Force CodeQL reinstallation using the latest CodeQL version before runing the analyze 
 codeql-wrapper analyze /path/to/repo --force-install
 
 # Verbose output
@@ -58,8 +58,6 @@ codeql-wrapper analyze /path/to/repo --verbose
 # Analyze all sub-projects in a monorepo
 codeql-wrapper analyze /path/to/monorepo --monorepo
 
-# Monorepo with specific languages
-codeql-wrapper analyze /path/to/monorepo --monorepo --languages java,python
 ```
 
 #### SARIF Upload

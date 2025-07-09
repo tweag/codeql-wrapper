@@ -69,19 +69,18 @@ For contributing to the project:
 poetry install --with dev
 ```
 
-### 2. Install Pre-commit Hooks
-
-```bash
-poetry run pre-commit install
-```
-
-### 3. Run Tests
+### 2. Run Tests
 
 ```bash
 poetry run pytest
 ```
 
-### 4. Run Quality Checks
+```
+# Run tests with coverage
+poetry run pytest --cov=src/codeql_wrapper --cov-report=term-missing
+```
+
+### 3. Run Quality Checks
 
 ```bash
 # Format code
@@ -97,7 +96,27 @@ poetry run flake8 src/ tests/
 poetry run pytest && poetry run black src/ tests/ && poetry run mypy src/ && poetry run flake8 src/ tests/
 ```
 
+### 4. Building and Publishing
+
+```bash
+# Build the package
+poetry build
+
+# Publish to PyPI (requires authentication)
+poetry config pypi-token.pypi <your-token>
+poetry publish
+
+# Or publish to test PyPI first
+poetry config repositories.testpypi https://test.pypi.org/legacy/
+poetry publish -r testpypi
+
+# Or run the release workflow on Github
+```
+
+
 ## Docker Installation
+
+> **Note**: Docker installation is not supported on ARM-based Macs (Apple Silicon) since CodeQL CLI does not work properly through Docker on macOS ARM.
 
 CodeQL Wrapper can also be run in a Docker container:
 
