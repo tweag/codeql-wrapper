@@ -1,4 +1,9 @@
-"""Directory manager infrastructure module."""
+"""Directory manager infrastructure module.
+
+WARNING: This module is currently only used in tests and not in the main application.
+It was designed for potential future use with monorepo directory detection but is not
+currently integrated into the main codeql-wrapper functionality.
+"""
 
 import json
 import subprocess
@@ -9,7 +14,10 @@ from .logger import get_logger
 
 
 class DirectoryManager:
-    """Manages directory operations including listing and git-based change detection."""
+    """Manages directory operations including listing and git-based change detection.
+
+    WARNING: This class is currently only used in tests and not in the main application.
+    """
 
     def __init__(self, base_path: Optional[Union[str, Path]] = None):
         """

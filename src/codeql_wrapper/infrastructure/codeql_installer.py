@@ -23,9 +23,20 @@ class CodeQLInstaller:
 
         Args:
             install_dir: Directory to install CodeQL. Defaults to ~/.codeql
+            
+        Raises:
+            ValueError: If install_dir is provided but invalid
         """
         self.logger = get_logger(__name__)
-        self.install_dir = Path(install_dir or Path.home() / ".codeql")
+        
+        # Validate and set install directory
+        if install_dir:
+            install_path = Path(install_dir)
+            if install_path.exists() and install_path.is_file():
+                raise ValueError(f"Install directory cannot be a file: {install_dir}")
+            self.install_dir = install_path
+        else:
+            self.install_dir = Path.home() / ".codeql"
 
         # Set binary name based on platform
         binary_name = (
@@ -190,43 +201,6 @@ class CodeQLInstaller:
             shutil.rmtree(temp_dir, ignore_errors=True)
             raise Exception(f"Failed to download CodeQL from {download_url}: {e}")
 
-    def _safe_extract(self, tar: tarfile.TarFile, extract_path: Path) -> None:
-        """
-        Safely extract tar file members, preventing path traversal attacks.
-
-        Args:
-            tar: The tarfile object to extract from
-            extract_path: The base path to extract to
-
-        Raises:
-            Exception: If a member has an unsafe path
-        """
-        for member in tar.getmembers():
-            # Resolve the full path where the member would be extracted
-            member_path = extract_path / member.name
-
-            # Normalize and resolve the path to handle any '..' components
-            try:
-                resolved_path = member_path.resolve()
-                extract_path_resolved = extract_path.resolve()
-            except OSError:
-                # If we can't resolve the path, it's potentially dangerous
-                raise Exception(f"Unsafe path in archive: {member.name}")
-
-            # Check if the resolved path is within the extraction directory
-            try:
-                resolved_path.relative_to(extract_path_resolved)
-            except ValueError:
-                # The path escapes the extraction directory
-                raise Exception(f"Path traversal attempt detected: {member.name}")
-
-            # Additional checks for suspicious characters and patterns
-            if ".." in member.name or member.name.startswith("/"):
-                raise Exception(f"Unsafe path in archive: {member.name}")
-
-            # Extract this member safely
-            tar.extract(member, path=extract_path)
-
     def extract_codeql(self, tar_path: Path) -> None:
         """
         Extract CodeQL bundle to installation directory.
@@ -325,25 +299,6 @@ class CodeQLInstaller:
             self.logger.error(f"CodeQL installation failed: {e}")
             raise
 
-    def uninstall(self) -> None:
-        """
-        Uninstall CodeQL by removing the installation directory.
-
-        Raises:
-            Exception: If uninstallation fails
-        """
-        if not self.install_dir.exists():
-            self.logger.info("CodeQL is not installed")
-            return
-
-        try:
-            self.logger.info(f"Uninstalling CodeQL from {self.install_dir}")
-            shutil.rmtree(self.install_dir)
-            self.logger.info("CodeQL uninstalled successfully")
-        except Exception as e:
-            self.logger.error(f"Failed to uninstall CodeQL: {e}")
-            raise Exception(f"Failed to uninstall CodeQL: {e}")
-
     def get_binary_path(self) -> Optional[str]:
         """
         Get the path to the CodeQL binary.
@@ -354,3 +309,41 @@ class CodeQLInstaller:
         if self.is_installed():
             return str(self.codeql_binary)
         return None
+
+    # Private methods
+    def _safe_extract(self, tar: tarfile.TarFile, extract_path: Path) -> None:
+        """
+        Safely extract tar file members, preventing path traversal attacks.
+
+        Args:
+            tar: The tarfile object to extract from
+            extract_path: The base path to extract to
+
+        Raises:
+            Exception: If a member has an unsafe path
+        """
+        for member in tar.getmembers():
+            # Resolve the full path where the member would be extracted
+            member_path = extract_path / member.name
+
+            # Normalize and resolve the path to handle any '..' components
+            try:
+                resolved_path = member_path.resolve()
+                extract_path_resolved = extract_path.resolve()
+            except OSError:
+                # If we can't resolve the path, it's potentially dangerous
+                raise Exception(f"Unsafe path in archive: {member.name}")
+
+            # Check if the resolved path is within the extraction directory
+            try:
+                resolved_path.relative_to(extract_path_resolved)
+            except ValueError:
+                # The path escapes the extraction directory
+                raise Exception(f"Path traversal attempt detected: {member.name}")
+
+            # Additional checks for suspicious characters and patterns
+            if ".." in member.name or member.name.startswith("/"):
+                raise Exception(f"Unsafe path in archive: {member.name}")
+
+            # Extract this member safely
+            tar.extract(member, path=extract_path)
