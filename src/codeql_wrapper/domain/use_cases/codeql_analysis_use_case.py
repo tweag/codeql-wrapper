@@ -54,15 +54,34 @@ class CodeQLAnalysisUseCase:
             self._logger.error(f"CodeQL analysis failed: {e}")
             raise
 
+    def _process_monorepo_project(
+        self, project_path: Path, request: CodeQLAnalysisRequest
+    ) -> RepositoryAnalysisSummary:
+        """Process a single project inside a monorepo."""
+        self._logger.info(f"Processing project: {project_path}")
+        sub_request = CodeQLAnalysisRequest(
+            repository_path=project_path,
+            force_install=request.force_install,
+            target_languages=request.target_languages,
+            verbose=request.verbose,
+            output_directory=request.output_directory,
+        )
+        try:
+            return self._execute_single_repo_analysis(sub_request)
+        except Exception as e:
+            self._logger.exception(f"Analysis failed for {project_path}: {e}")
+            return RepositoryAnalysisSummary(
+                repository_path=project_path,
+                detected_projects=[],
+                analysis_results=[],
+                error=str(e),
+            )
+
     def _execute_monorepo_analysis(
         self, request: CodeQLAnalysisRequest
     ) -> RepositoryAnalysisSummary:
-        """
-        Execute CodeQL analysis on a monorepo by analyzing each project (folder) in parallel.
-        """
         self._logger.info("Starting monorepo analysis (parallelized)...")
 
-        # Find all 1st-level folders inside the monorepo path
         project_paths = [p for p in request.repository_path.iterdir() if p.is_dir()]
 
         if not project_paths:
@@ -76,34 +95,10 @@ class CodeQLAnalysisUseCase:
         all_detected_projects = []
         all_analysis_results = []
 
-        def process_project(project_path: Path) -> RepositoryAnalysisSummary:
-            self._logger.info(f"Processing project: {project_path}")
-            sub_request = CodeQLAnalysisRequest(
-                repository_path=project_path,
-                force_install=request.force_install,
-                target_languages=request.target_languages,
-                verbose=request.verbose,
-                output_directory=request.output_directory,
-            )
-            try:
-                summary = self._execute_single_repo_analysis(sub_request)
-                return summary
-            except Exception as e:
-                self._logger.exception(f"Analysis failed for {project_path}: {e}")
-                # Return empty summary on error
-                return RepositoryAnalysisSummary(
-                    repository_path=project_path,
-                    detected_projects=[],
-                    analysis_results=[],
-                )
-
-        max_workers = min(
-            self.DEFAULT_MAX_WORKERS, len(project_paths)
-        )  # Use up to DEFAULT_MAX_WORKERS threads
+        max_workers = min(self.DEFAULT_MAX_WORKERS, len(project_paths))
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            # Submit all projects in parallel
             futures = [
-                executor.submit(process_project, project_path)
+                executor.submit(self._process_monorepo_project, project_path, request)
                 for project_path in project_paths
             ]
 
@@ -114,7 +109,6 @@ class CodeQLAnalysisUseCase:
                     all_analysis_results.extend(summary.analysis_results)
                 except Exception as e:
                     self._logger.error(f"Failed to retrieve future result: {e}")
-                    # Continue processing other futures
 
         return RepositoryAnalysisSummary(
             repository_path=request.repository_path,
