@@ -87,7 +87,7 @@ class CodeQLAnalysisUseCase:
                 summary = self._execute_single_repo_analysis(sub_request)
                 return summary
             except Exception as e:
-                self._logger.error(f"Analysis failed for {project_path}: {e}")
+                self._logger.exception(f"Analysis failed for {project_path}: {e}")
                 # Return empty summary on error
                 return RepositoryAnalysisSummary(
                     repository_path=project_path,
