@@ -95,7 +95,7 @@ class CodeQLAnalysisUseCase:
                     analysis_results=[],
                 )
 
-        max_workers = min(10, len(project_paths))  # E.g., use up to 10 threads
+        max_workers = min(self.DEFAULT_MAX_WORKERS, len(project_paths))  # Use up to DEFAULT_MAX_WORKERS threads
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             # Submit all projects in parallel
             futures = [
