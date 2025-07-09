@@ -23,6 +23,8 @@ from ...infrastructure.codeql_runner import CodeQLRunner
 class CodeQLAnalysisUseCase:
     """Use case for running CodeQL analysis on repositories."""
 
+    DEFAULT_MAX_WORKERS: int = 10
+
     def __init__(self, logger: Any) -> None:
         """Initialize the use case with dependencies."""
         self._logger = logger
@@ -95,7 +97,9 @@ class CodeQLAnalysisUseCase:
                     analysis_results=[],
                 )
 
-        max_workers = min(self.DEFAULT_MAX_WORKERS, len(project_paths))  # Use up to DEFAULT_MAX_WORKERS threads
+        max_workers = min(
+            self.DEFAULT_MAX_WORKERS, len(project_paths)
+        )  # Use up to DEFAULT_MAX_WORKERS threads
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             # Submit all projects in parallel
             futures = [
