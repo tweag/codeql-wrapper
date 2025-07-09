@@ -104,7 +104,11 @@ class CodeQLAnalysisUseCase:
     ) -> RepositoryAnalysisSummary:
         self._logger.info("Starting monorepo analysis (parallelized)...")
 
-        project_paths = [p for p in request.repository_path.iterdir() if p.is_dir()]
+        project_paths = [
+            p
+            for p in request.repository_path.iterdir()
+            if p.is_dir() and not p.name.startswith(".")
+        ]
 
         if not project_paths:
             self._logger.warning("No projects found in the monorepo path.")

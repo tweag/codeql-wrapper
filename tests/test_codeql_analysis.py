@@ -18,6 +18,7 @@ from codeql_wrapper.domain.entities.codeql_analysis import (
     ProjectInfo,
     AnalysisStatus,
     CodeQLInstallationInfo,
+    RepositoryAnalysisSummary,
 )
 
 
@@ -851,23 +852,43 @@ class TestCodeQLAnalysisUseCase:
                 monorepo=True,
             )
 
-            with patch.object(
-                self.use_case, "_verify_codeql_installation"
-            ) as mock_verify:
-                with patch.object(self.use_case, "_detect_projects") as mock_detect:
-                    with patch.object(
-                        self.use_case, "_filter_projects_by_language"
-                    ) as mock_filter:
-                        with patch.object(self.use_case, "_analyze_project"):
-                            mock_verify.return_value = CodeQLInstallationInfo(
-                                is_installed=True,
-                                version="2.22.1",
-                                path=Path("/path/to/codeql"),
-                            )
-                            mock_detect.return_value = []
-                            mock_filter.return_value = []
+            # Mock the ProcessPoolExecutor to avoid multiprocessing complications
+            with patch(
+                "codeql_wrapper.domain.use_cases.codeql_analysis_use_case.ProcessPoolExecutor"
+            ) as mock_executor_class:
+                mock_executor = Mock()
+                mock_executor_class.return_value.__enter__.return_value = mock_executor
 
-                            self.use_case.execute(request)
+                # Mock the future that will be returned
+                mock_future = Mock()
+                mock_summary = RepositoryAnalysisSummary(
+                    repository_path=mock_regular_dir,
+                    detected_projects=[],
+                    analysis_results=[],
+                )
+                mock_future.result.return_value = mock_summary
 
-                            # Should only process regular directory, not hidden
-                            mock_detect.assert_called_once_with(mock_regular_dir)
+                # Mock the submit method to return our mock future
+                mock_executor.submit.return_value = mock_future
+
+                # Mock as_completed to return our single future
+                with patch(
+                    "codeql_wrapper.domain.use_cases.codeql_analysis_use_case.as_completed",
+                    return_value=[mock_future],
+                ):
+                    result = self.use_case.execute(request)
+
+                    # Verify that only the regular directory was submitted for processing
+                    # (hidden directory should be filtered out)
+                    mock_executor.submit.assert_called_once()
+                    # Get the first argument of the submit call (the project_path)
+                    call_args = mock_executor.submit.call_args[0]
+                    submitted_project_path = call_args[
+                        1
+                    ]  # Second argument is project_path
+                    assert submitted_project_path == mock_regular_dir
+
+                    # Verify the result structure
+                    assert result.repository_path == Path("/test/repo")
+                    assert len(result.detected_projects) == 0
+                    assert len(result.analysis_results) == 0
