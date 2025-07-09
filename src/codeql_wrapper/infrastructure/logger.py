@@ -16,14 +16,14 @@ class ShortNameFormatter(logging.Formatter):
 
 
 def get_logger(
-    name: str, level: int = logging.INFO, format_string: Optional[str] = None
+    name: str, level: Optional[int] = None, format_string: Optional[str] = None
 ) -> logging.Logger:
     """
     Get a configured logger instance.
 
     Args:
         name: Logger name (usually __name__)
-        level: Logging level
+        level: Logging level (if None, inherits from root logger)
         format_string: Custom format string
 
     Returns:
@@ -35,8 +35,12 @@ def get_logger(
     if logger.handlers:
         return logger
 
-    # Set level
-    logger.setLevel(level)
+    # Set level - if not specified, inherit from root logger
+    if level is not None:
+        logger.setLevel(level)
+    else:
+        # Let the logger inherit from root logger (which is configured by configure_logging)
+        logger.setLevel(logging.NOTSET)
 
     # Propagate to parent loggers (root logger) to use basicConfig
     # since we're using basicConfig for root logging
@@ -46,7 +50,8 @@ def get_logger(
     if format_string is not None:
         # Create console handler
         handler = logging.StreamHandler(sys.stdout)
-        handler.setLevel(level)
+        handler_level = level if level is not None else logging.getLogger().level
+        handler.setLevel(handler_level)
 
         # Create formatter with our custom short name formatter
         formatter = ShortNameFormatter(format_string)
