@@ -90,10 +90,12 @@ class CodeQLAnalysisUseCase:
                 repository_path=request.repository_path,
                 detected_projects=[],
                 analysis_results=[],
+                error="No subprojects found in monorepo.",
             )
 
         all_detected_projects = []
         all_analysis_results = []
+        error_messages = []
 
         with ProcessPoolExecutor(max_workers=os.cpu_count()) as executor:
             futures = [
@@ -106,13 +108,22 @@ class CodeQLAnalysisUseCase:
                     summary = future.result()
                     all_detected_projects.extend(summary.detected_projects)
                     all_analysis_results.extend(summary.analysis_results)
+                    if summary.error:
+                        error_messages.append(
+                            f"{summary.repository_path.name}: {summary.error}"
+                        )
                 except Exception as e:
                     self._logger.exception(f"Failed to retrieve future result: {e}")
+                    error_messages.append(f"Unknown error in one of the projects: {e}")
+
+        # Compose aggregated error string, if any
+        aggregated_error = "\n".join(error_messages) if error_messages else None
 
         return RepositoryAnalysisSummary(
             repository_path=request.repository_path,
             detected_projects=all_detected_projects,
             analysis_results=all_analysis_results,
+            error=aggregated_error,
         )
 
     def _execute_single_repo_analysis(
