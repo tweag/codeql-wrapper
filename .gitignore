@@ -171,6 +171,8 @@ htmlcov/
 # Temporary files
 *.tmp
 *.temp
+tmp/
+tests_projects/
 
 # OS generated files
 .DS_Store

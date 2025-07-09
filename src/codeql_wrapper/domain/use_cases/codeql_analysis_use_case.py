@@ -1,6 +1,8 @@
 """CodeQL analysis use case implementation."""
 
 import json
+import os
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
 from typing import Any, List, Optional, Set
@@ -21,6 +23,8 @@ from ...infrastructure.codeql_runner import CodeQLRunner
 
 class CodeQLAnalysisUseCase:
     """Use case for running CodeQL analysis on repositories."""
+
+    DEFAULT_MAX_WORKERS: int = 10
 
     def __init__(self, logger: Any) -> None:
         """Initialize the use case with dependencies."""
@@ -51,51 +55,77 @@ class CodeQLAnalysisUseCase:
             self._logger.error(f"CodeQL analysis failed: {e}")
             raise
 
+    def _process_monorepo_project(
+        self, project_path: Path, request: CodeQLAnalysisRequest
+    ) -> RepositoryAnalysisSummary:
+        """Process a single project inside a monorepo."""
+        self._logger.info(f"Processing project: {project_path}")
+        sub_request = CodeQLAnalysisRequest(
+            repository_path=project_path,
+            force_install=request.force_install,
+            target_languages=request.target_languages,
+            verbose=request.verbose,
+            output_directory=request.output_directory,
+        )
+        try:
+            return self._execute_single_repo_analysis(sub_request)
+        except Exception as e:
+            self._logger.exception(f"Analysis failed for {project_path}: {e}")
+            return RepositoryAnalysisSummary(
+                repository_path=project_path,
+                detected_projects=[],
+                analysis_results=[],
+                error=str(e),
+            )
+
     def _execute_monorepo_analysis(
         self, request: CodeQLAnalysisRequest
     ) -> RepositoryAnalysisSummary:
-        """
-        Execute CodeQL analysis on a monorepo by analyzing each project.
-        """
-        self._logger.info("Starting monorepo analysis...")
+        self._logger.info("Starting monorepo analysis (parallelized)...")
 
-        # Find all 1st-level folders inside the monorepo path
-        sub_project_paths = [p for p in request.repository_path.iterdir() if p.is_dir()]
+        project_paths = [p for p in request.repository_path.iterdir() if p.is_dir()]
 
-        if not sub_project_paths:
+        if not project_paths:
             self._logger.warning("No projects found in the monorepo path.")
             return RepositoryAnalysisSummary(
                 repository_path=request.repository_path,
                 detected_projects=[],
                 analysis_results=[],
+                error="No subprojects found in monorepo.",
             )
 
         all_detected_projects = []
         all_analysis_results = []
+        error_messages = []
 
-        for sub_path in sub_project_paths:
-            self._logger.info(f"Processing project: {sub_path}")
+        max_workers = min(os.cpu_count() or 1, self.DEFAULT_MAX_WORKERS)
+        with ProcessPoolExecutor(max_workers=max_workers) as executor:
+            futures = [
+                executor.submit(self._process_monorepo_project, project_path, request)
+                for project_path in project_paths
+            ]
 
-            # Create a new request object for the project
-            sub_request = CodeQLAnalysisRequest(
-                repository_path=sub_path,
-                force_install=request.force_install,
-                target_languages=request.target_languages,
-                verbose=request.verbose,
-                output_directory=request.output_directory,
-            )
+            for future in as_completed(futures):
+                try:
+                    summary = future.result()
+                    all_detected_projects.extend(summary.detected_projects)
+                    all_analysis_results.extend(summary.analysis_results)
+                    if summary.error:
+                        error_messages.append(
+                            f"{summary.repository_path.name}: {summary.error}"
+                        )
+                except Exception as e:
+                    self._logger.exception(f"Failed to retrieve future result: {e}")
+                    error_messages.append(f"Unknown error in one of the projects: {e}")
 
-            try:
-                summary = self._execute_single_repo_analysis(sub_request)
-                all_detected_projects.extend(summary.detected_projects)
-                all_analysis_results.extend(summary.analysis_results)
-            except Exception as e:
-                self._logger.error(f"Analysis failed for {sub_path}: {e}")
+        # Compose aggregated error string, if any
+        aggregated_error = "\n".join(error_messages) if error_messages else None
 
         return RepositoryAnalysisSummary(
             repository_path=request.repository_path,
             detected_projects=all_detected_projects,
             analysis_results=all_analysis_results,
+            error=aggregated_error,
         )
 
     def _execute_single_repo_analysis(
