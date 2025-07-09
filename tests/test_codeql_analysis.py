@@ -858,9 +858,7 @@ class TestCodeQLAnalysisUseCase:
                     with patch.object(
                         self.use_case, "_filter_projects_by_language"
                     ) as mock_filter:
-                        with patch.object(
-                            self.use_case, "_analyze_project"
-                        ):
+                        with patch.object(self.use_case, "_analyze_project"):
                             mock_verify.return_value = CodeQLInstallationInfo(
                                 is_installed=True,
                                 version="2.22.1",
