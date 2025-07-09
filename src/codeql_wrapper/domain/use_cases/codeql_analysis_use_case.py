@@ -104,9 +104,13 @@ class CodeQLAnalysisUseCase:
             ]
 
             for future in as_completed(futures):
-                summary = future.result()
-                all_detected_projects.extend(summary.detected_projects)
-                all_analysis_results.extend(summary.analysis_results)
+                try:
+                    summary = future.result()
+                    all_detected_projects.extend(summary.detected_projects)
+                    all_analysis_results.extend(summary.analysis_results)
+                except Exception as e:
+                    self._logger.error(f"Failed to retrieve future result: {e}")
+                    # Continue processing other futures
 
         return RepositoryAnalysisSummary(
             repository_path=request.repository_path,
