@@ -96,7 +96,9 @@ class TestSarifUploadUseCase:
         sarif_file = self._create_sample_sarif_file()
 
         # Missing repository
-        with pytest.raises(ValueError, match="Repository must be in 'owner/name' format"):
+        with pytest.raises(
+            ValueError, match="Repository must be in 'owner/name' format"
+        ):
             request = SarifUploadRequest(
                 sarif_files=[sarif_file],
                 repository="",
@@ -151,8 +153,7 @@ class TestSarifUploadUseCase:
             self.use_case.execute(request)
 
     @patch(
-        "codeql_wrapper.infrastructure.codeql_installer."
-        "CodeQLInstaller.is_installed"
+        "codeql_wrapper.infrastructure.codeql_installer." "CodeQLInstaller.is_installed"
     )
     @patch(
         "codeql_wrapper.infrastructure.codeql_installer."
@@ -191,8 +192,7 @@ class TestSarifUploadUseCase:
         assert result.errors is None
 
     @patch(
-        "codeql_wrapper.infrastructure.codeql_installer."
-        "CodeQLInstaller.is_installed"
+        "codeql_wrapper.infrastructure.codeql_installer." "CodeQLInstaller.is_installed"
     )
     def test_codeql_not_installed(self, mock_is_installed):
         """Test error when CodeQL is not installed."""
@@ -218,17 +218,14 @@ class TestSarifUploadUseCase:
         assert "CodeQL CLI is not installed" in result.errors[0]
 
     @patch(
-        "codeql_wrapper.infrastructure.codeql_installer."
-        "CodeQLInstaller.is_installed"
+        "codeql_wrapper.infrastructure.codeql_installer." "CodeQLInstaller.is_installed"
     )
     @patch(
         "codeql_wrapper.infrastructure.codeql_installer."
         "CodeQLInstaller.get_binary_path"
     )
     @patch("subprocess.run")
-    def test_upload_failure(
-        self, mock_subprocess, mock_get_binary, mock_is_installed
-    ):
+    def test_upload_failure(self, mock_subprocess, mock_get_binary, mock_is_installed):
         """Test upload failure handling."""
         # Setup mocks
         mock_is_installed.return_value = True
@@ -259,8 +256,7 @@ class TestSarifUploadUseCase:
         assert "Upload failed" in result.errors[0]
 
     @patch(
-        "codeql_wrapper.infrastructure.codeql_installer."
-        "CodeQLInstaller.is_installed"
+        "codeql_wrapper.infrastructure.codeql_installer." "CodeQLInstaller.is_installed"
     )
     @patch(
         "codeql_wrapper.infrastructure.codeql_installer."
@@ -276,8 +272,12 @@ class TestSarifUploadUseCase:
         mock_get_binary.return_value = Path("/usr/local/bin/codeql")
 
         # First call succeeds, second fails
-        success_result = type("", (), {"returncode": 0, "stdout": "Upload successful", "stderr": ""})()
-        failure_result = type("", (), {"returncode": 1, "stdout": "", "stderr": "Upload failed"})()
+        success_result = type(
+            "", (), {"returncode": 0, "stdout": "Upload successful", "stderr": ""}
+        )()
+        failure_result = type(
+            "", (), {"returncode": 1, "stdout": "", "stderr": "Upload failed"}
+        )()
 
         mock_subprocess.side_effect = [success_result, failure_result]
 

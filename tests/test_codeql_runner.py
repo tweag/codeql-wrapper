@@ -477,7 +477,9 @@ class TestCodeQLRunner:
     @patch("subprocess.run")
     @patch("tempfile.mkdtemp")
     @patch("pathlib.Path.exists")
-    def test_analyze_database_with_json_output(self, mock_exists, mock_mkdtemp, mock_run) -> None:
+    def test_analyze_database_with_json_output(
+        self, mock_exists, mock_mkdtemp, mock_run
+    ) -> None:
         """Test database analysis with JSON output format detection."""
         mock_result = Mock()
         mock_result.returncode = 0

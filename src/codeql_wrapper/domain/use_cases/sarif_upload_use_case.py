@@ -12,7 +12,7 @@ from ...infrastructure.logger import get_logger
 
 class SarifUploadUseCase:
     """Use case for uploading SARIF files to GitHub Code Scanning using CodeQL CLI."""
-    
+
     # Constants
     UPLOAD_TIMEOUT_SECONDS = 300  # 5 minutes
 
@@ -35,34 +35,34 @@ class SarifUploadUseCase:
 
         Returns:
             SarifUploadResult with upload status and details
-            
+
         Raises:
             ValueError: If request is invalid
         """
         # Input validation
         if not request.sarif_files:
             raise ValueError("No SARIF files provided for upload")
-            
+
         if not request.repository:
             raise ValueError("Repository is required for SARIF upload")
-            
+
         # Validate repository format (should be owner/repo)
         if "/" not in request.repository or len(request.repository.split("/")) != 2:
             raise ValueError("Repository must be in 'owner/repo' format")
-            
+
         if not request.commit_sha:
             raise ValueError("Commit SHA is required for SARIF upload")
-            
+
         if not request.github_token:
             raise ValueError("GitHub token is required for SARIF upload")
-        
+
         # Validate that all SARIF files exist
         for sarif_file in request.sarif_files:
             if not sarif_file.exists():
                 raise ValueError(f"SARIF file does not exist: {sarif_file}")
             if not sarif_file.is_file():
                 raise ValueError(f"SARIF path is not a file: {sarif_file}")
-                
+
         try:
             self._logger.info(
                 f"Starting SARIF upload for {request.repository} "
@@ -165,14 +165,18 @@ class SarifUploadUseCase:
                 timeout=self.UPLOAD_TIMEOUT_SECONDS,
             )
         except subprocess.TimeoutExpired:
-            raise Exception(f"SARIF upload timed out after {self.UPLOAD_TIMEOUT_SECONDS} seconds")
+            raise Exception(
+                f"SARIF upload timed out after {self.UPLOAD_TIMEOUT_SECONDS} seconds"
+            )
 
         if result.returncode != 0:
             error_msg = result.stderr.strip() if result.stderr else "Unknown error"
             self._logger.error(f"CodeQL upload stderr: {error_msg}")
             if result.stdout:
                 self._logger.debug(f"CodeQL upload stdout: {result.stdout}")
-            raise Exception(f"CodeQL upload failed (exit code {result.returncode}): {error_msg}")
+            raise Exception(
+                f"CodeQL upload failed (exit code {result.returncode}): {error_msg}"
+            )
 
         if result.stdout:
             self._logger.debug(f"CodeQL output: {result.stdout}")

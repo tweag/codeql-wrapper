@@ -177,7 +177,7 @@ class TestGitUtils:
     def test_get_git_info_with_invalid_path(self) -> None:
         """Test get_git_info handles invalid paths gracefully."""
         test_path = Path("/nonexistent/path")
-        
+
         # Should return GitInfo with None values when path doesn't exist
         result = GitUtils.get_git_info(test_path)
         assert result.repository is None

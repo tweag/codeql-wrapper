@@ -461,8 +461,8 @@ def upload_sarif(
         if not final_repository:
             click.echo(
                 click.style("ERROR:", fg="red", bold=True)
-                + " Repository is required. Provide --repository or ensure you're in a Git repository "
-                "with a GitHub remote configured.",
+                + " Repository is required. Provide --repository or ensure you're in a Git "
+                "repository with a GitHub remote configured.",
                 err=True,
             )
             sys.exit(1)
@@ -470,7 +470,8 @@ def upload_sarif(
         if not final_commit_sha:
             click.echo(
                 click.style("ERROR:", fg="red", bold=True)
-                + " Commit SHA is required. Provide --commit-sha or ensure you're in a Git repository.",
+                + " Commit SHA is required. Provide --commit-sha or ensure you're in a Git "
+                "repository.",
                 err=True,
             )
             sys.exit(1)

@@ -32,24 +32,28 @@ class CodeQLAnalysisUseCase:
     def execute(self, request: CodeQLAnalysisRequest) -> RepositoryAnalysisSummary:
         """
         Execute CodeQL analysis on a repo or monorepo.
-        
+
         Args:
             request: CodeQL analysis request
-            
+
         Returns:
             RepositoryAnalysisSummary with analysis results
-            
+
         Raises:
             ValueError: If request is invalid
             Exception: If analysis fails
         """
         # Input validation
         if not request.repository_path or not request.repository_path.exists():
-            raise ValueError(f"Repository path does not exist: {request.repository_path}")
-            
+            raise ValueError(
+                f"Repository path does not exist: {request.repository_path}"
+            )
+
         if not request.repository_path.is_dir():
-            raise ValueError(f"Repository path is not a directory: {request.repository_path}")
-        
+            raise ValueError(
+                f"Repository path is not a directory: {request.repository_path}"
+            )
+
         try:
             if request.monorepo:
                 self._logger.info(
@@ -78,8 +82,9 @@ class CodeQLAnalysisUseCase:
 
         # Find all 1st-level folders inside the monorepo path (skip hidden directories)
         sub_project_paths = [
-            p for p in request.repository_path.iterdir() 
-            if p.is_dir() and not p.name.startswith('.')
+            p
+            for p in request.repository_path.iterdir()
+            if p.is_dir() and not p.name.startswith(".")
         ]
 
         if not sub_project_paths:
@@ -470,7 +475,7 @@ class CodeQLAnalysisUseCase:
         if not sarif_file.exists():
             self._logger.warning(f"SARIF file does not exist: {sarif_file}")
             return 0
-            
+
         try:
             with open(sarif_file, "r", encoding="utf-8") as f:
                 sarif_data = json.load(f)
@@ -485,7 +490,9 @@ class CodeQLAnalysisUseCase:
             self._logger.warning(f"Failed to parse SARIF file {sarif_file}: {e}")
             return 0
         except Exception as e:
-            self._logger.warning(f"Unexpected error reading SARIF file {sarif_file}: {e}")
+            self._logger.warning(
+                f"Unexpected error reading SARIF file {sarif_file}: {e}"
+            )
             return 0
 
     def _export_codeql_suites_path(self) -> None:

@@ -293,7 +293,9 @@ class CodeQLRunner:
             return codeql_result
 
         except subprocess.TimeoutExpired:
-            self.logger.error(f"Command timed out after {self._timeout} seconds: {' '.join(command)}")
+            self.logger.error(
+                f"Command timed out after {self._timeout} seconds: {' '.join(command)}"
+            )
             return CodeQLResult(
                 success=False,
                 stdout="",

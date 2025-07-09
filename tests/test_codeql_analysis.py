@@ -95,8 +95,9 @@ class TestCodeQLAnalysisUseCase:
                 )
 
             # Execute the use case with path validation mocked
-            with patch("pathlib.Path.exists", return_value=True), \
-                 patch("pathlib.Path.is_dir", return_value=True):
+            with patch("pathlib.Path.exists", return_value=True), patch(
+                "pathlib.Path.is_dir", return_value=True
+            ):
                 result = self.use_case.execute(request)
 
             # Verify results
@@ -111,7 +112,7 @@ class TestCodeQLAnalysisUseCase:
         """Test request validation happens in constructor."""
         # Test with non-existent path
         with pytest.raises(ValueError, match="Repository path does not exist"):
-            request = CodeQLAnalysisRequest(
+            CodeQLAnalysisRequest(
                 repository_path=Path("/non/existent/path"),
                 target_languages=None,
                 output_directory=Path("/test/output"),
@@ -121,9 +122,10 @@ class TestCodeQLAnalysisUseCase:
 
         # Test with file instead of directory
         import tempfile
+
         with tempfile.NamedTemporaryFile() as tmp_file:
             with pytest.raises(ValueError, match="Repository path must be a directory"):
-                request = CodeQLAnalysisRequest(
+                CodeQLAnalysisRequest(
                     repository_path=Path(tmp_file.name),
                     target_languages=None,
                     output_directory=Path("/test/output"),
@@ -351,7 +353,7 @@ class TestCodeQLAnalysisUseCase:
         """Test SARIF findings counting."""
         # Mock file existence check
         mock_exists.return_value = True
-        
+
         # Mock SARIF content
         mock_sarif_data = {
             "runs": [
@@ -370,7 +372,9 @@ class TestCodeQLAnalysisUseCase:
 
         # Verify
         assert count == 2
-        mock_open.assert_called_once_with(Path("/test/results.sarif"), "r", encoding="utf-8")
+        mock_open.assert_called_once_with(
+            Path("/test/results.sarif"), "r", encoding="utf-8"
+        )
 
     @patch("pathlib.Path.exists")
     def test_count_sarif_findings_file_error(self, mock_exists: Mock) -> None:
@@ -785,17 +789,17 @@ class TestCodeQLAnalysisUseCase:
                 self.use_case, "_execute_single_repo_analysis"
             ) as mock_single_repo:
                 mock_single_repo.side_effect = Exception("Analysis failed")
-                
+
                 with pytest.raises(Exception, match="Analysis failed"):
                     self.use_case.execute(request)
 
     def test_execute_monorepo_analysis_empty_directory(self) -> None:
         """Test monorepo analysis with empty directory."""
         # Mock empty directory
-        with patch.object(Path, "exists", return_value=True), \
-             patch.object(Path, "is_dir", return_value=True), \
-             patch.object(Path, "iterdir", return_value=[]):
-            
+        with patch.object(Path, "exists", return_value=True), patch.object(
+            Path, "is_dir", return_value=True
+        ), patch.object(Path, "iterdir", return_value=[]):
+
             # Create request for monorepo analysis
             request = CodeQLAnalysisRequest(
                 repository_path=Path("/test/repo"),
@@ -814,7 +818,7 @@ class TestCodeQLAnalysisUseCase:
                 )
 
                 result = self.use_case.execute(request)
-                
+
                 # Should return empty results
                 assert result.repository_path == Path("/test/repo")
                 assert result.analysis_results == []
@@ -831,10 +835,12 @@ class TestCodeQLAnalysisUseCase:
         mock_regular_dir.is_dir.return_value = True
         mock_regular_dir.name = "regular"
 
-        with patch.object(Path, "exists", return_value=True), \
-             patch.object(Path, "is_dir", return_value=True), \
-             patch.object(Path, "iterdir", return_value=[mock_hidden_dir, mock_regular_dir]):
-            
+        with patch.object(Path, "exists", return_value=True), patch.object(
+            Path, "is_dir", return_value=True
+        ), patch.object(
+            Path, "iterdir", return_value=[mock_hidden_dir, mock_regular_dir]
+        ):
+
             # Create request for monorepo analysis
             request = CodeQLAnalysisRequest(
                 repository_path=Path("/test/repo"),
@@ -848,22 +854,22 @@ class TestCodeQLAnalysisUseCase:
             with patch.object(
                 self.use_case, "_verify_codeql_installation"
             ) as mock_verify:
-                with patch.object(
-                    self.use_case, "_detect_projects"
-                ) as mock_detect:
+                with patch.object(self.use_case, "_detect_projects") as mock_detect:
                     with patch.object(
                         self.use_case, "_filter_projects_by_language"
                     ) as mock_filter:
                         with patch.object(
                             self.use_case, "_analyze_project"
-                        ) as mock_analyze:
+                        ):
                             mock_verify.return_value = CodeQLInstallationInfo(
-                                is_installed=True, version="2.22.1", path=Path("/path/to/codeql")
+                                is_installed=True,
+                                version="2.22.1",
+                                path=Path("/path/to/codeql"),
                             )
                             mock_detect.return_value = []
                             mock_filter.return_value = []
 
-                            result = self.use_case.execute(request)
-                            
+                            self.use_case.execute(request)
+
                             # Should only process regular directory, not hidden
                             mock_detect.assert_called_once_with(mock_regular_dir)

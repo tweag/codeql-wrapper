@@ -313,34 +313,42 @@ class TestDirectoryManager:
         dm = DirectoryManager(str(fake_git_dir))
 
         # Mock _is_git_repository to return True so we can test the git command error
-        with patch.object(dm, '_is_git_repository', return_value=True):
+        with patch.object(dm, "_is_git_repository", return_value=True):
             # Mock the specific git command that should raise CalledProcessError
-            with patch.object(dm, '_get_changed_files', side_effect=subprocess.CalledProcessError(1, "git")):
+            with patch.object(
+                dm,
+                "_get_changed_files",
+                side_effect=subprocess.CalledProcessError(1, "git"),
+            ):
                 with pytest.raises(subprocess.CalledProcessError):
                     dm.list_changed_directories()
 
     def test_list_changed_directories_subprocess_error_propagation(self) -> None:
         """Test that subprocess errors are properly propagated."""
         dm = DirectoryManager(str(Path(self.temp_dir)))
-        
+
         # Mock _is_git_repository to return True so we can test the subprocess error
-        with patch.object(dm, '_is_git_repository', return_value=True):
+        with patch.object(dm, "_is_git_repository", return_value=True):
             # Mock the specific method that should raise CalledProcessError
-            with patch.object(dm, '_get_changed_files', side_effect=subprocess.CalledProcessError(128, "git diff")):
+            with patch.object(
+                dm,
+                "_get_changed_files",
+                side_effect=subprocess.CalledProcessError(128, "git diff"),
+            ):
                 with pytest.raises(subprocess.CalledProcessError):
                     dm.list_changed_directories()
 
     def test_initialization_state(self) -> None:
         """Test the initialization state of the DirectoryManager."""
         assert self.manager.base_path == Path(self.temp_dir)
-        
+
         # Test that it correctly identifies as not a git repository
         assert self.manager._is_git_repository() is False
-        
+
         # Test that calling list_changed_directories on non-git repo raises FileNotFoundError
         with pytest.raises(FileNotFoundError, match="Not in a git repository"):
             self.manager.list_changed_directories()
-            
+
         # Test get_directory_info without changed_directories key for non-git repo
         info = self.manager.get_directory_info()
         expected = {

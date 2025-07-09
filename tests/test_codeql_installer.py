@@ -276,7 +276,9 @@ class TestCodeQLInstaller:
         installer = CodeQLInstaller()
 
         # Test version without 'v' prefix
-        with patch.object(installer, "get_platform_bundle_name", return_value="linux64"):
+        with patch.object(
+            installer, "get_platform_bundle_name", return_value="linux64"
+        ):
             url = installer.get_download_url("2.22.1")
             assert "codeql-bundle-v2.22.1" in url
             assert "codeql-bundle-linux64.tar.gz" in url

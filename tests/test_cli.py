@@ -5,7 +5,6 @@ import os
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-import pytest
 from click.testing import CliRunner
 
 from src.codeql_wrapper.cli import cli
@@ -167,7 +166,7 @@ class TestCLI:
         with tempfile.TemporaryDirectory() as temp_dir:
             output_dir = Path(temp_dir) / "output"
             output_dir.mkdir()
-            
+
             # Mock the use case
             mock_use_case = Mock()
             mock_summary = Mock()
@@ -207,9 +206,7 @@ class TestCLI:
             mock_use_case.execute.return_value = mock_summary
             mock_use_case_class.return_value = mock_use_case
 
-            result = self.runner.invoke(
-                cli, ["analyze", temp_dir, "--monorepo"]
-            )
+            result = self.runner.invoke(cli, ["analyze", temp_dir, "--monorepo"])
 
             assert result.exit_code == 0
             # Check that the request was created with monorepo flag
@@ -233,9 +230,7 @@ class TestCLI:
             mock_use_case.execute.return_value = mock_summary
             mock_use_case_class.return_value = mock_use_case
 
-            result = self.runner.invoke(
-                cli, ["analyze", temp_dir, "--force-install"]
-            )
+            result = self.runner.invoke(cli, ["analyze", temp_dir, "--force-install"])
 
             assert result.exit_code == 0
             # Check that the request was created with force install flag
@@ -327,7 +322,7 @@ class TestCLI:
             # Create a mock SARIF file
             sarif_file = Path(temp_dir) / "results.sarif"
             sarif_file.write_text('{"version": "2.1.0", "runs": []}')
-            
+
             # Mock the use case
             mock_use_case = Mock()
             mock_summary = Mock()
@@ -413,7 +408,9 @@ class TestCLI:
         mock_installer.install.assert_called_once_with(version="v2.20.0", force=False)
 
     @patch("src.codeql_wrapper.infrastructure.codeql_installer.CodeQLInstaller")
-    def test_install_command_custom_version_short_flag(self, mock_installer_class) -> None:
+    def test_install_command_custom_version_short_flag(
+        self, mock_installer_class
+    ) -> None:
         """Test install command with custom version using short flag."""
         mock_installer = Mock()
         mock_installer.is_installed.return_value = False
@@ -458,7 +455,9 @@ class TestCLI:
 
     @patch("src.codeql_wrapper.cli.GitUtils")
     @patch("src.codeql_wrapper.cli.SarifUploadUseCase")
-    def test_upload_sarif_command_success(self, mock_use_case_class, mock_git_utils) -> None:
+    def test_upload_sarif_command_success(
+        self, mock_use_case_class, mock_git_utils
+    ) -> None:
         """Test upload-sarif command success."""
         # Create a temporary SARIF file
         with tempfile.NamedTemporaryFile(mode="w", suffix=".sarif", delete=False) as f:
@@ -506,7 +505,9 @@ class TestCLI:
 
     @patch("src.codeql_wrapper.cli.GitUtils")
     @patch("src.codeql_wrapper.cli.SarifUploadUseCase")
-    def test_upload_sarif_command_auto_detect_git_info(self, mock_use_case_class, mock_git_utils) -> None:
+    def test_upload_sarif_command_auto_detect_git_info(
+        self, mock_use_case_class, mock_git_utils
+    ) -> None:
         """Test upload-sarif command auto-detects git information."""
         # Create a temporary SARIF file
         with tempfile.NamedTemporaryFile(mode="w", suffix=".sarif", delete=False) as f:
@@ -534,10 +535,7 @@ class TestCLI:
 
             # Set environment variable for GitHub token
             with patch.dict(os.environ, {"GITHUB_TOKEN": "auto-token"}):
-                result = self.runner.invoke(
-                    cli,
-                    ["upload-sarif", sarif_file]
-                )
+                result = self.runner.invoke(cli, ["upload-sarif", sarif_file])
 
             assert result.exit_code == 0
             assert "SUCCESS: Successfully uploaded SARIF file" in result.output
@@ -565,8 +563,7 @@ class TestCLI:
             mock_git_utils.is_git_repository.return_value = False
 
             result = self.runner.invoke(
-                cli,
-                ["upload-sarif", sarif_file, "--github-token", "token"]
+                cli, ["upload-sarif", sarif_file, "--github-token", "token"]
             )
 
             assert result.exit_code == 1
@@ -592,8 +589,7 @@ class TestCLI:
             mock_git_utils.get_git_info.return_value = mock_git_info
 
             result = self.runner.invoke(
-                cli,
-                ["upload-sarif", sarif_file, "--github-token", "token"]
+                cli, ["upload-sarif", sarif_file, "--github-token", "token"]
             )
 
             assert result.exit_code == 1
@@ -620,7 +616,14 @@ class TestCLI:
 
             result = self.runner.invoke(
                 cli,
-                ["upload-sarif", sarif_file, "--repository", "owner/repo", "--commit-sha", "abc123"]
+                [
+                    "upload-sarif",
+                    sarif_file,
+                    "--repository",
+                    "owner/repo",
+                    "--commit-sha",
+                    "abc123",
+                ],
             )
 
             assert result.exit_code == 1
@@ -630,7 +633,9 @@ class TestCLI:
             os.unlink(sarif_file)
 
     @patch("src.codeql_wrapper.cli.GitUtils")
-    def test_upload_sarif_command_invalid_repository_format(self, mock_git_utils) -> None:
+    def test_upload_sarif_command_invalid_repository_format(
+        self, mock_git_utils
+    ) -> None:
         """Test upload-sarif command handles invalid repository format."""
         # Create a temporary SARIF file
         with tempfile.NamedTemporaryFile(mode="w", suffix=".sarif", delete=False) as f:
@@ -646,8 +651,7 @@ class TestCLI:
             mock_git_utils.get_git_info.return_value = mock_git_info
 
             result = self.runner.invoke(
-                cli,
-                ["upload-sarif", sarif_file, "--github-token", "token"]
+                cli, ["upload-sarif", sarif_file, "--github-token", "token"]
             )
 
             assert result.exit_code == 1
@@ -658,7 +662,9 @@ class TestCLI:
 
     @patch("src.codeql_wrapper.cli.GitUtils")
     @patch("src.codeql_wrapper.cli.SarifUploadUseCase")
-    def test_upload_sarif_command_upload_failure(self, mock_use_case_class, mock_git_utils) -> None:
+    def test_upload_sarif_command_upload_failure(
+        self, mock_use_case_class, mock_git_utils
+    ) -> None:
         """Test upload-sarif command handles upload failure."""
         # Create a temporary SARIF file
         with tempfile.NamedTemporaryFile(mode="w", suffix=".sarif", delete=False) as f:
@@ -703,7 +709,9 @@ class TestCLI:
 
     @patch("src.codeql_wrapper.cli.GitUtils")
     @patch("src.codeql_wrapper.cli.SarifUploadUseCase")
-    def test_upload_sarif_command_exception_handling(self, mock_use_case_class, mock_git_utils) -> None:
+    def test_upload_sarif_command_exception_handling(
+        self, mock_use_case_class, mock_git_utils
+    ) -> None:
         """Test upload-sarif command handles exceptions."""
         # Create a temporary SARIF file
         with tempfile.NamedTemporaryFile(mode="w", suffix=".sarif", delete=False) as f:
@@ -880,7 +888,9 @@ class TestCLI:
 
     @patch("src.codeql_wrapper.cli.GitUtils")
     @patch("src.codeql_wrapper.cli.CodeQLAnalysisUseCase")
-    def test_analyze_command_upload_sarif_no_files(self, mock_analysis_use_case_class, mock_git_utils) -> None:
+    def test_analyze_command_upload_sarif_no_files(
+        self, mock_analysis_use_case_class, mock_git_utils
+    ) -> None:
         """Test analyze command with upload-sarif when no SARIF files are generated."""
         with tempfile.TemporaryDirectory() as temp_dir:
             # Mock git utils

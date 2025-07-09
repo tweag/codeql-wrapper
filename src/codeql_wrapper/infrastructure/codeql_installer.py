@@ -23,12 +23,12 @@ class CodeQLInstaller:
 
         Args:
             install_dir: Directory to install CodeQL. Defaults to ~/.codeql
-            
+
         Raises:
             ValueError: If install_dir is provided but invalid
         """
         self.logger = get_logger(__name__)
-        
+
         # Validate and set install directory
         if install_dir:
             install_path = Path(install_dir)
