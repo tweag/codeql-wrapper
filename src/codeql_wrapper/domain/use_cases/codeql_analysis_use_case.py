@@ -1,6 +1,7 @@
 """CodeQL analysis use case implementation."""
 
-import json, os
+import json
+import os
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
