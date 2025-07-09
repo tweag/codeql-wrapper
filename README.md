@@ -9,7 +9,7 @@
 
 A universal Python CLI wrapper for running CodeQL analysis on any type of project (monorepo or single repository) across different CI/CD platforms including Jenkins, GitHub Actions, Harness, and any environment where Python scripts can be executed.
 
-## 📚 Documentation
+## Documentation
 
 Complete documentation is available at: **https://moduscreate-perdigao-ghas-playground.github.io/codeql-wrapper/**
 
