@@ -108,7 +108,7 @@ class CodeQLAnalysisUseCase:
                     all_detected_projects.extend(summary.detected_projects)
                     all_analysis_results.extend(summary.analysis_results)
                 except Exception as e:
-                    self._logger.error(f"Failed to retrieve future result: {e}")
+                    self._logger.exception(f"Failed to retrieve future result: {e}")
 
         return RepositoryAnalysisSummary(
             repository_path=request.repository_path,
