@@ -190,3 +190,4 @@ Thumbs.db
 # codeql
 results/
 codeql-results/
+.codeql.json
