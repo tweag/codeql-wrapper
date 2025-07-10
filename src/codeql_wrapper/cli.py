@@ -82,6 +82,11 @@ def cli(ctx: click.Context, verbose: bool = False) -> None:
     "--monorepo", is_flag=True, help="Treat as monorepo and analyze sub-projects"
 )
 @click.option(
+    "--json",
+    is_flag=True,
+    help="Use .codeql.json configuration file for monorepo analysis",
+)
+@click.option(
     "--force-install",
     is_flag=True,
     help="Force reinstallation of the latest CodeQL even if already installed",
@@ -115,6 +120,7 @@ def analyze(
     languages: Optional[str],
     output_dir: Optional[str],
     monorepo: bool,
+    json: bool,  # Added --json option
     force_install: bool,
     upload_sarif: bool,
     repository: Optional[str],
@@ -131,18 +137,29 @@ def analyze(
         logger = get_logger(__name__)
         verbose = ctx.obj.get("verbose", False)
 
-        # If monorepo mode and .codeql.json exists, default repository_path to current directory
+        # Check for .codeql.json in monorepo mode
         root_config_path = Path(".") / ".codeql.json"
-        if monorepo and root_config_path.exists() and repository_path is None:
+        if monorepo and json and root_config_path.exists() and repository_path is None:
             repository_path = "."
             logger.info(
                 "Detected .codeql.json in root. Using current directory as repository path."
             )
+        elif (
+            monorepo
+            and not json
+            and not root_config_path.exists()
+            and repository_path is None
+        ):
+            click.echo(
+                click.style("ERROR:", fg="red", bold=True)
+                + " you must specify a path or use the --json parameter to use the .codeql.json configuration file",
+                err=True,
+            )
+            sys.exit(1)
         elif repository_path is None:
             click.echo(
                 click.style("ERROR:", fg="red", bold=True)
-                + " REPOSITORY_PATH is required unless --monorepo is used with .codeql.json"
-                + " in the root folder.",
+                + " REPOSITORY_PATH is required unless --monorepo and --json are used with .codeql.json in the root folder.",
                 err=True,
             )
             sys.exit(1)
