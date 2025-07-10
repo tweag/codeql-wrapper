@@ -797,9 +797,13 @@ class TestCodeQLAnalysisUseCase:
     def test_execute_monorepo_analysis_empty_directory(self) -> None:
         """Test monorepo analysis with empty directory."""
         # Mock empty directory
-        with patch.object(Path, "exists", return_value=True), patch.object(
+        with patch.object(Path, "exists") as mock_exists, patch.object(
             Path, "is_dir", return_value=True
         ), patch.object(Path, "iterdir", return_value=[]):
+            # Mock .codeql.json to not exist
+            mock_exists.side_effect = lambda p: (
+                False if p.name == ".codeql.json" else True
+            )
 
             # Create request for monorepo analysis
             request = CodeQLAnalysisRequest(
@@ -836,11 +840,15 @@ class TestCodeQLAnalysisUseCase:
         mock_regular_dir.is_dir.return_value = True
         mock_regular_dir.name = "regular"
 
-        with patch.object(Path, "exists", return_value=True), patch.object(
+        with patch.object(Path, "exists") as mock_exists, patch.object(
             Path, "is_dir", return_value=True
         ), patch.object(
             Path, "iterdir", return_value=[mock_hidden_dir, mock_regular_dir]
         ):
+            # Mock .codeql.json to not exist
+            mock_exists.side_effect = lambda p: (
+                False if p.name == ".codeql.json" else True
+            )
 
             # Create request for monorepo analysis
             request = CodeQLAnalysisRequest(
@@ -879,7 +887,6 @@ class TestCodeQLAnalysisUseCase:
                     result = self.use_case.execute(request)
 
                     # Verify that only the regular directory was submitted for processing
-                    # (hidden directory should be filtered out)
                     mock_executor.submit.assert_called_once()
                     # Get the first argument of the submit call (the project_path)
                     call_args = mock_executor.submit.call_args[0]

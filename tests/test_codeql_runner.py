@@ -194,6 +194,9 @@ class TestCodeQLRunner:
             "/source",
             "--language",
             "javascript",
+            "--build-mode",
+            "none",
+            "--overwrite",
         ]
         assert args == expected
 
@@ -222,6 +225,9 @@ class TestCodeQLRunner:
             "/source",
             "--language",
             "java",
+            "--command",
+            "mvn compile",
+            "--overwrite",
             "--command",
             "mvn compile",
             "--overwrite",

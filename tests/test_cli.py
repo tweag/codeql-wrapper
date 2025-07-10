@@ -86,8 +86,11 @@ class TestCLI:
         """Test analyze command requires repository path."""
         result = self.runner.invoke(cli, ["analyze"])
 
-        assert result.exit_code == 2  # Click usage error
-        assert "Missing argument" in result.output
+        assert result.exit_code == 1  # Expect exit code 1 as per cli.py logic
+        assert (
+            "REPOSITORY_PATH is required unless --monorepo is used with .codeql.json"
+            in result.output
+        )
 
     def test_analyze_with_nonexistent_path(self) -> None:
         """Test analyze command with non-existent path."""
