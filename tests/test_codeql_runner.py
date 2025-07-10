@@ -228,9 +228,6 @@ class TestCodeQLRunner:
             "--command",
             "mvn compile",
             "--overwrite",
-            "--command",
-            "mvn compile",
-            "--overwrite",
         ]
         assert args == expected
 
