@@ -453,7 +453,8 @@ class CodeQLAnalysisUseCase:
             # Analyze each language in the project
             for language in project.languages:
                 self._logger.debug(
-                    f"Running CodeQL analysis for {language.value} with build_mode={request.build_mode}, build_script={request.build_script}"
+                    f"Running CodeQL analysis for {language.value} with build_mode={request.build_mode}"
+                    f", build_script={request.build_script}"
                 )
 
                 # Create database and run analysis using the robust method

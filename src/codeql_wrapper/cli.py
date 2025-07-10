@@ -141,7 +141,8 @@ def analyze(
         elif repository_path is None:
             click.echo(
                 click.style("ERROR:", fg="red", bold=True)
-                + " REPOSITORY_PATH is required unless --monorepo is used with .codeql.json in the root directory.",
+                + " REPOSITORY_PATH is required unless --monorepo is used with .codeql.json"
+                + " in the root folder.",
                 err=True,
             )
             sys.exit(1)

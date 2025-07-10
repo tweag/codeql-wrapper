@@ -66,9 +66,9 @@ class CodeQLAnalysisRequest:
     verbose: bool = False
     output_directory: Optional[Path] = None
     monorepo: bool = False
-    build_mode: Optional[str] = None  # Add this
-    build_script: Optional[str] = None  # Add this
-    queries: Optional[List[str]] = None  # Add this if not already present
+    build_mode: Optional[str] = None
+    build_script: Optional[str] = None
+    queries: Optional[List[str]] = None
 
     def __post_init__(self) -> None:
         """Validate analysis request."""
