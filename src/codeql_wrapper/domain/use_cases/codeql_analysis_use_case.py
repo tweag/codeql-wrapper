@@ -47,24 +47,23 @@ class CodeQLAnalysisUseCase:
             ValueError: If request is invalid
             Exception: If analysis fails
         """
-        # Input validation
-        if not request.repository_path or not request.repository_path.exists():
-            raise ValueError(
-                f"Repository path does not exist: {request.repository_path}"
-            )
-
-        if not request.repository_path.is_dir():
-            raise ValueError(
-                f"Repository path is not a directory: {request.repository_path}"
-            )
-
         try:
             if request.monorepo:
-                self._logger.info(
-                    f"Starting monorepo CodeQL analysis for: "
-                    f"{request.repository_path}"
-                )
-                return self._execute_monorepo_analysis(request)
+                # Run scan based on .codeql.json if it exists
+                root_config_path = request.repository_path / ".codeql.json"
+                if root_config_path.exists():
+                    self._logger.info(
+                        "Detected .codeql.json. Using project config mode."
+                    )
+                    with open(root_config_path, "r", encoding="utf-8") as f:
+                        config_data = json.load(f)
+                    return self._execute_monorepo_analysis(request, config_data)
+                else:
+                    self._logger.info(
+                        "Starting monorepo CodeQL analysis for: %s",
+                        request.repository_path,
+                    )
+                    return self._execute_monorepo_analysis(request)
             else:
                 self._logger.info(
                     f"Starting single repository CodeQL analysis for: "
@@ -100,23 +99,28 @@ class CodeQLAnalysisUseCase:
             )
 
     def _execute_monorepo_analysis(
-        self, request: CodeQLAnalysisRequest
+        self, request: CodeQLAnalysisRequest, config_data: Optional[dict] = None
     ) -> RepositoryAnalysisSummary:
         self._logger.info("Starting monorepo analysis (parallelized)...")
 
-        project_paths = [
-            p
-            for p in request.repository_path.iterdir()
-            if p.is_dir() and not p.name.startswith(".")
-        ]
+        if config_data:
+            projects_config = config_data.get("projects", [])
+            use_config_mode = True
+        else:
+            use_config_mode = False
+            projects_config = [
+                {"path": str(p), "build-mode": "none"}
+                for p in request.repository_path.iterdir()
+                if p.is_dir() and not p.name.startswith(".")
+            ]
 
-        if not project_paths:
-            self._logger.warning("No projects found in the monorepo path.")
+        if not projects_config:
+            self._logger.warning("No projects found.")
             return RepositoryAnalysisSummary(
                 repository_path=request.repository_path,
                 detected_projects=[],
                 analysis_results=[],
-                error="No subprojects found in monorepo.",
+                error="No projects found.",
             )
 
         all_detected_projects = []
@@ -125,23 +129,36 @@ class CodeQLAnalysisUseCase:
 
         max_workers = min(os.cpu_count() or 1, self.DEFAULT_MAX_WORKERS)
         with ProcessPoolExecutor(max_workers=max_workers) as executor:
-            futures = [
-                executor.submit(self._process_monorepo_project, project_path, request)
-                for project_path in project_paths
-            ]
+            futures = []
+            for project_cfg in projects_config:
+                if use_config_mode:
+                    futures.append(
+                        executor.submit(
+                            self._process_monorepo_project_from_config,
+                            project_cfg,
+                            request,
+                        )
+                    )
+                else:
+                    futures.append(
+                        executor.submit(
+                            self._process_monorepo_project,
+                            Path(project_cfg["path"]),
+                            request,
+                        )
+                    )
 
+            # Collect results from futures
             for future in as_completed(futures):
                 try:
-                    summary = future.result()
-                    all_detected_projects.extend(summary.detected_projects)
-                    all_analysis_results.extend(summary.analysis_results)
-                    if summary.error:
-                        error_messages.append(
-                            f"{summary.repository_path.name}: {summary.error}"
-                        )
+                    result = future.result()
+                    all_detected_projects.extend(result.detected_projects)
+                    all_analysis_results.extend(result.analysis_results)
+                    if result.error:
+                        error_messages.append(result.error)
                 except Exception as e:
-                    self._logger.exception(f"Failed to retrieve future result: {e}")
-                    error_messages.append(f"Unknown error in one of the projects: {e}")
+                    self._logger.exception(f"Processing failed: {e}")
+                    error_messages.append(str(e))
 
         # Compose aggregated error string, if any
         aggregated_error = "\n".join(error_messages) if error_messages else None
@@ -152,6 +169,49 @@ class CodeQLAnalysisUseCase:
             analysis_results=all_analysis_results,
             error=aggregated_error,
         )
+
+    def _process_monorepo_project_from_config(
+        self, project_cfg: dict, request: CodeQLAnalysisRequest
+    ) -> RepositoryAnalysisSummary:
+        try:
+            project_path = Path(project_cfg["path"])
+            build_mode = project_cfg.get("build-mode", "none")
+            build_script = project_cfg.get("build-script")
+            queries = project_cfg.get("queries", [])
+
+            if build_script:
+                root_path = (
+                    request.repository_path.resolve()
+                )  # Resolve current working directory
+                build_script = str(root_path / build_script)
+                self._logger.debug(f"Resolved build_script path: {build_script}")
+
+            self._logger.info(
+                f"Processing project from config: {project_path} (build-mode: {build_mode})"
+            )
+
+            sub_request = CodeQLAnalysisRequest(
+                repository_path=project_path,
+                force_install=request.force_install,
+                target_languages=request.target_languages,
+                verbose=request.verbose,
+                output_directory=request.output_directory,
+                build_mode=build_mode,
+                build_script=build_script,
+                queries=queries,
+            )
+            return self._execute_single_repo_analysis(sub_request)
+
+        except Exception as e:
+            self._logger.exception(
+                f"Analysis failed for {project_cfg.get('path')}: {e}"
+            )
+            return RepositoryAnalysisSummary(
+                repository_path=Path(project_cfg.get("path", ".")),
+                detected_projects=[],
+                analysis_results=[],
+                error=str(e),
+            )
 
     def _execute_single_repo_analysis(
         self, request: CodeQLAnalysisRequest
@@ -394,7 +454,10 @@ class CodeQLAnalysisUseCase:
 
             # Analyze each language in the project
             for language in project.languages:
-                self._logger.debug(f"Running CodeQL analysis for {language.value}")
+                self._logger.debug(
+                    f"Running CodeQL analysis for {language.value} with build_mode={request.build_mode}"
+                    f", build_script={request.build_script}"
+                )
 
                 # Create database and run analysis using the robust method
                 if self._codeql_runner is None:
@@ -417,13 +480,26 @@ class CodeQLAnalysisUseCase:
                 file_extension = format_to_extension.get(output_format, ".sarif")
                 output_file = output_dir / f"results-{language.value}{file_extension}"
 
+                # Explicitly set build_command to None if build_mode is "none"
+                build_command = None
+                if request.build_mode != "none" and request.build_script:
+                    build_command = request.build_script
+                    self._logger.debug(f"Using build command: {build_command}")
+                else:
+                    self._logger.debug(
+                        f"No build command used (build_mode={request.build_mode})"
+                    )
+
                 # Use the robust create_and_analyze method that handles corrupted databases
                 analysis_result = self._codeql_runner.create_and_analyze(
                     source_root=str(project.path),
                     language=language.value,
                     output_file=str(output_file),
                     database_name=str(output_dir / f"db-{language.value}"),
+                    build_command=build_command,  # Use conditional build_command
                     cleanup_database=False,  # Keep database for debugging
+                    build_mode=request.build_mode,  # Pass build_mode
+                    queries=request.queries,
                 )
 
                 if not analysis_result.success:

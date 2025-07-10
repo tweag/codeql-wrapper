@@ -194,6 +194,9 @@ class TestCodeQLRunner:
             "/source",
             "--language",
             "javascript",
+            "--build-mode",
+            "none",
+            "--overwrite",
         ]
         assert args == expected
 
@@ -207,7 +210,7 @@ class TestCodeQLRunner:
         mock_run.return_value = mock_result
 
         result = self.runner.create_database(
-            "/db", "/source", "java", command="mvn compile", overwrite=True
+            "/db", "/source", "java", command="mvn compile"
         )
 
         assert result.success is True
@@ -222,6 +225,8 @@ class TestCodeQLRunner:
             "/source",
             "--language",
             "java",
+            "--build-mode",
+            "none",
             "--command",
             "mvn compile",
             "--overwrite",

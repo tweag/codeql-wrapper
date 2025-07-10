@@ -86,7 +86,9 @@ class TestCLI:
         """Test analyze command requires repository path."""
         result = self.runner.invoke(cli, ["analyze"])
 
-        assert result.exit_code == 2  # Click usage error
+        assert (
+            result.exit_code == 2
+        )  # Click's default exit code for missing required arguments
         assert "Missing argument" in result.output
 
     def test_analyze_with_nonexistent_path(self) -> None:
