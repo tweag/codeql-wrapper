@@ -65,7 +65,7 @@ def cli(ctx: click.Context, verbose: bool = False) -> None:
 @click.argument(
     "repository_path",
     type=click.Path(exists=True, file_okay=False, dir_okay=True),
-    required=False,
+    required=True,
 )
 @click.option(
     "--languages",
@@ -80,11 +80,6 @@ def cli(ctx: click.Context, verbose: bool = False) -> None:
 )
 @click.option(
     "--monorepo", is_flag=True, help="Treat as monorepo and analyze sub-projects"
-)
-@click.option(
-    "--json",
-    is_flag=True,
-    help="Use .codeql.json configuration file for monorepo analysis",
 )
 @click.option(
     "--force-install",
@@ -120,7 +115,6 @@ def analyze(
     languages: Optional[str],
     output_dir: Optional[str],
     monorepo: bool,
-    json: bool,  # Added --json option
     force_install: bool,
     upload_sarif: bool,
     repository: Optional[str],
@@ -137,33 +131,12 @@ def analyze(
         logger = get_logger(__name__)
         verbose = ctx.obj.get("verbose", False)
 
-        # Check for .codeql.json in monorepo mode
-        root_config_path = Path(".") / ".codeql.json"
-        if monorepo and json and root_config_path.exists() and repository_path is None:
-            repository_path = "."
+        # If monorepo mode and .codeql.json exists, default repository_path to current directory
+        root_config_path = Path(repository_path) / ".codeql.json"
+        if monorepo and root_config_path.exists():
             logger.info(
                 "Detected .codeql.json in root. Using current directory as repository path."
             )
-        elif (
-            monorepo
-            and not json
-            and not root_config_path.exists()
-            and repository_path is None
-        ):
-            click.echo(
-                click.style("ERROR:", fg="red", bold=True) + " you must specify a path",
-                +" or use the --json parameter to use the .codeql.json configuration file",
-                err=True,
-            )
-            sys.exit(1)
-        elif repository_path is None:
-            click.echo(
-                click.style("ERROR:", fg="red", bold=True)
-                + " REPOSITORY_PATH is required unless --monorepo and",
-                +" --json are used with .codeql.json in the root folder.",
-                err=True,
-            )
-            sys.exit(1)
 
         logger.info(f"Starting CodeQL analysis for: {repository_path}")
 

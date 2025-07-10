@@ -50,7 +50,7 @@ class CodeQLAnalysisUseCase:
         try:
             if request.monorepo:
                 # Run scan based on .codeql.json if it exists
-                root_config_path = Path(".") / ".codeql.json"
+                root_config_path = request.repository_path / ".codeql.json"
                 if root_config_path.exists():
                     self._logger.info(
                         "Detected .codeql.json. Using project config mode."
@@ -180,7 +180,9 @@ class CodeQLAnalysisUseCase:
             queries = project_cfg.get("queries", [])
 
             if build_script:
-                root_path = Path(".").resolve()  # Resolve current working directory
+                root_path = (
+                    request.repository_path.resolve()
+                )  # Resolve current working directory
                 build_script = str(root_path / build_script)
                 self._logger.debug(f"Resolved build_script path: {build_script}")
 
