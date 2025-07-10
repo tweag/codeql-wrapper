@@ -111,7 +111,7 @@ def cli(ctx: click.Context, verbose: bool = False) -> None:
 @click.pass_context
 def analyze(
     ctx: click.Context,
-    repository_path: Optional[str],
+    repository_path: str,
     languages: Optional[str],
     output_dir: Optional[str],
     monorepo: bool,
