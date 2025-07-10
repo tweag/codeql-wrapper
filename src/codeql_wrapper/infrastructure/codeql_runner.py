@@ -79,7 +79,6 @@ class CodeQLRunner:
         source_root: str,
         language: str,
         command: Optional[str] = None,
-        overwrite: bool = False,
         build_mode: Optional[str] = None,
     ) -> CodeQLResult:
         """
@@ -90,7 +89,6 @@ class CodeQLRunner:
             source_root: Path to the source code
             language: Programming language to analyze
             command: Build command (required for compiled languages)
-            overwrite: Whether to overwrite existing database
             build_mode: Build mode for the database creation
 
         Returns:
@@ -223,7 +221,6 @@ class CodeQLRunner:
                 source_root,
                 language,
                 build_command,
-                overwrite=True,
                 build_mode=build_mode,
             )
 
@@ -257,7 +254,6 @@ class CodeQLRunner:
                         source_root,
                         language,
                         build_command,
-                        overwrite=True,
                         build_mode=build_mode,
                     )
 

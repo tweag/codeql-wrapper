@@ -207,7 +207,7 @@ class TestCodeQLRunner:
         mock_run.return_value = mock_result
 
         result = self.runner.create_database(
-            "/db", "/source", "java", command="mvn compile", overwrite=True
+            "/db", "/source", "java", command="mvn compile"
         )
 
         assert result.success is True
