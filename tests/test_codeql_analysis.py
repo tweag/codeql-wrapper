@@ -801,8 +801,8 @@ class TestCodeQLAnalysisUseCase:
             Path, "is_dir", return_value=True
         ), patch.object(Path, "iterdir", return_value=[]):
             # Mock .codeql.json to not exist
-            mock_exists.side_effect = lambda p: (
-                False if p.name == ".codeql.json" else True
+            mock_exists.side_effect = lambda self: (
+                False if self.name == ".codeql.json" else True
             )
 
             # Create request for monorepo analysis
@@ -846,8 +846,8 @@ class TestCodeQLAnalysisUseCase:
             Path, "iterdir", return_value=[mock_hidden_dir, mock_regular_dir]
         ):
             # Mock .codeql.json to not exist
-            mock_exists.side_effect = lambda p: (
-                False if p.name == ".codeql.json" else True
+            mock_exists.side_effect = lambda self: (
+                False if self.name == ".codeql.json" else True
             )
 
             # Create request for monorepo analysis
