@@ -2,6 +2,8 @@
 
 import subprocess
 import shutil
+import os  # Added for chmod
+import click
 from pathlib import Path
 from typing import List, Optional
 from dataclasses import dataclass
@@ -78,6 +80,7 @@ class CodeQLRunner:
         language: str,
         command: Optional[str] = None,
         overwrite: bool = False,
+        build_mode: Optional[str] = None,
     ) -> CodeQLResult:
         """
         Create a CodeQL database.
@@ -88,6 +91,7 @@ class CodeQLRunner:
             language: Programming language to analyze
             command: Build command (required for compiled languages)
             overwrite: Whether to overwrite existing database
+            build_mode: Build mode for the database creation
 
         Returns:
             CodeQLResult with database creation information
@@ -102,11 +106,16 @@ class CodeQLRunner:
             language,
         ]
 
+        # Only add build-mode if specified and not "none"
+        if build_mode:
+            args.extend(["--build-mode", build_mode])
+        else:
+            args.extend(["--build-mode", "none"])
+
         if command:
             args.extend(["--command", command])
 
-        if overwrite:
-            args.append("--overwrite")
+        args.append("--overwrite")
 
         return self._run_command(args)
 
@@ -115,6 +124,7 @@ class CodeQLRunner:
         database_path: str,
         output_format: str = "sarif-latest",
         output: Optional[str] = None,
+        queries: Optional[List[str]] = None,
     ) -> CodeQLResult:
         """
         Analyze a CodeQL database.
@@ -134,15 +144,13 @@ class CodeQLRunner:
             elif output.endswith(".json"):
                 output_format = "json"
 
-        args = [
-            "database",
-            "analyze",
-            database_path,
-            f"--format={output_format}",
-        ]
+        args = ["database", "analyze", database_path, f"--format={output_format}"]
 
         if output:
             args.extend(["--output", output])
+
+        if queries:
+            args.extend(queries)
 
         return self._run_command(args)
 
@@ -154,6 +162,8 @@ class CodeQLRunner:
         database_name: Optional[str] = None,
         build_command: Optional[str] = None,
         cleanup_database: bool = True,
+        build_mode: Optional[str] = None,
+        queries: Optional[List[str]] = None,
     ) -> CodeQLResult:
         """
         High-level method to create database and run analysis in one step.
@@ -182,9 +192,39 @@ class CodeQLRunner:
                 f"Creating CodeQL database for {language} at {database_path}"
             )
 
+            # Ensure build_command script is executable if provided
+            if build_command:
+                build_script_path = Path(build_command)
+                if build_script_path.exists():
+                    try:
+                        os.chmod(build_script_path, 0o755)  # Make script executable
+                        self.logger.debug(
+                            f"Set executable permissions for {build_script_path}"
+                        )
+                    except Exception as e:
+                        self.logger.warning(
+                            f"Failed to set executable permissions for {build_script_path}: {e}"
+                        )
+                else:
+                    self.logger.error(
+                        f"Build script does not exist: {build_script_path}"
+                    )
+                    return CodeQLResult(
+                        success=False,
+                        stdout="",
+                        stderr=f"Build script does not exist: {build_script_path}",
+                        exit_code=-1,
+                        command=[],
+                    )
+
             # Create database
             create_result = self.create_database(
-                str(database_path), source_root, language, build_command, overwrite=True
+                str(database_path),
+                source_root,
+                language,
+                build_command,
+                overwrite=True,
+                build_mode=build_mode,
             )
 
             if not create_result.success:
@@ -218,6 +258,7 @@ class CodeQLRunner:
                         language,
                         build_command,
                         overwrite=True,
+                        build_mode=build_mode,
                     )
 
                 if not create_result.success:
@@ -234,6 +275,7 @@ class CodeQLRunner:
                 str(database_path),
                 output_format="sarif-latest",
                 output=output_file,
+                queries=queries,
             )
 
             if not analyze_result.success:
@@ -252,19 +294,13 @@ class CodeQLRunner:
 
     # Private methods
     def _run_command(self, args: List[str], cwd: Optional[str] = None) -> CodeQLResult:
-        """
-        Run a CodeQL command.
-
-        Args:
-            args: Command arguments (without the codeql binary path)
-            cwd: Working directory for the command
-
-        Returns:
-            CodeQLResult object with command execution details
-        """
         command = [self.codeql_path] + args
         self.logger.debug(f"Running command: {' '.join(command)}")
 
+        click.echo(f"Executing CodeQL command: {' '.join(command)}")
+
+        if "--command" in args:
+            self.logger.debug(f"Build command: {args[args.index('--command') + 1]}")
         try:
             result = subprocess.run(
                 command,
@@ -273,7 +309,6 @@ class CodeQLRunner:
                 cwd=cwd,
                 timeout=self._timeout,
             )
-
             codeql_result = CodeQLResult(
                 success=result.returncode == 0,
                 stdout=result.stdout,
@@ -281,17 +316,11 @@ class CodeQLRunner:
                 exit_code=result.returncode,
                 command=command,
             )
-
-            if codeql_result.success:
-                self.logger.debug(f"Command succeeded: {' '.join(command)}")
-            else:
-                self.logger.warning(
-                    f"Command failed: {' '.join(command)}, "
-                    f"exit code: {result.returncode}"
+            if not codeql_result.success:
+                self.logger.error(
+                    f"Command failed with exit code {result.returncode}: {result.stderr}"
                 )
-
             return codeql_result
-
         except subprocess.TimeoutExpired:
             self.logger.error(
                 f"Command timed out after {self._timeout} seconds: {' '.join(command)}"

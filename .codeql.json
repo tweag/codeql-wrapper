@@ -1,0 +1,20 @@
+{
+    "projects": [
+        {
+            "path": "./tests_projects/project-java-1",
+            "build-mode": "manual",
+            "build-script": "./.github/build/project-java-1.sh",
+            "queries": [
+                "java-security-extended"
+            ]
+        },
+        {
+            "path": "./tests_projects/project-python-1",
+            "build-mode": "none"
+        },
+        {
+            "path": "./tests_projects/project-csharp-1",
+            "build-mode": "none"
+        }
+    ]
+}

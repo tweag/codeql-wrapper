@@ -63,7 +63,9 @@ def cli(ctx: click.Context, verbose: bool = False) -> None:
 
 @cli.command()
 @click.argument(
-    "repository_path", type=click.Path(exists=True, file_okay=False, dir_okay=True)
+    "repository_path",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True),
+    required=False,
 )
 @click.option(
     "--languages",
@@ -128,6 +130,21 @@ def analyze(
     try:
         logger = get_logger(__name__)
         verbose = ctx.obj.get("verbose", False)
+
+        # If monorepo mode and .codeql.json exists, default repository_path to current directory
+        root_config_path = Path(".") / ".codeql.json"
+        if monorepo and root_config_path.exists() and repository_path is None:
+            repository_path = "."
+            logger.info(
+                "Detected .codeql.json in root. Using current directory as repository path."
+            )
+        elif repository_path is None:
+            click.echo(
+                click.style("ERROR:", fg="red", bold=True)
+                + " REPOSITORY_PATH is required unless --monorepo is used with .codeql.json in the root directory.",
+                err=True,
+            )
+            sys.exit(1)
 
         logger.info(f"Starting CodeQL analysis for: {repository_path}")
 

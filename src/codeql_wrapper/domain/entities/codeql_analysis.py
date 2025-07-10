@@ -56,17 +56,19 @@ class ProjectInfo:
             raise ValueError("At least one language must be detected")
 
 
-@dataclass(frozen=True)
+@dataclass
 class CodeQLAnalysisRequest:
     """Request for CodeQL analysis."""
 
     repository_path: Path
-    target_languages: Optional[Set[CodeQLLanguage]] = None
-    custom_queries: Optional[List[str]] = None
-    output_directory: Optional[Path] = None
-    verbose: bool = False
     force_install: bool = False
+    target_languages: Optional[Set[CodeQLLanguage]] = None
+    verbose: bool = False
+    output_directory: Optional[Path] = None
     monorepo: bool = False
+    build_mode: Optional[str] = None  # Add this
+    build_script: Optional[str] = None  # Add this
+    queries: Optional[List[str]] = None  # Add this if not already present
 
     def __post_init__(self) -> None:
         """Validate analysis request."""
