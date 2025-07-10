@@ -87,10 +87,7 @@ class TestCLI:
         result = self.runner.invoke(cli, ["analyze"])
 
         assert result.exit_code == 1  # Expect exit code 1 as per cli.py logic
-        assert (
-            "REPOSITORY_PATH is required unless --monorepo is used with .codeql.json"
-            in result.output
-        )
+        assert "REPOSITORY_PATH is required" in result.output
 
     def test_analyze_with_nonexistent_path(self) -> None:
         """Test analyze command with non-existent path."""
