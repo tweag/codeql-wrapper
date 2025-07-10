@@ -131,15 +131,6 @@ def analyze(
         logger = get_logger(__name__)
         verbose = ctx.obj.get("verbose", False)
 
-        # Custom validation for repository_path
-        if not repository_path:
-            click.echo(
-                click.style("ERROR:", fg="red", bold=True)
-                + " REPOSITORY_PATH is required",
-                err=True,
-            )
-            sys.exit(1)
-
         # If monorepo mode and .codeql.json exists, default repository_path to current directory
         root_config_path = Path(repository_path) / ".codeql.json"
         if monorepo and root_config_path.exists():
