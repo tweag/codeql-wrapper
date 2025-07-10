@@ -90,28 +90,6 @@ When you have a `.codeql.json` file, CodeQL Wrapper will:
 3. Generate individual reports for each project
 4. Combine results for comprehensive coverage
 
-Example monorepo analysis with configuration:
-
-```bash
-# The wrapper will automatically use .codeql.json if present
-codeql-wrapper analyze . --monorepo
-
-# Output structure:
-# codeql-results/
-# ├── backend-api/
-# │   ├── python-results.sarif
-# │   └── javascript-results.sarif
-# ├── frontend-app/
-# │   ├── javascript-results.sarif
-# │   └── typescript-results.sarif
-# ├── mobile-app/
-# │   ├── java-results.sarif
-# │   └── swift-results.sarif
-# └── shared-libs/
-#     ├── typescript-results.sarif
-#     └── python-results.sarif
-```
-
 ## Requirements
 
 - **Python**: 3.8.1 or higher
