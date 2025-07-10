@@ -47,17 +47,6 @@ class CodeQLAnalysisUseCase:
             ValueError: If request is invalid
             Exception: If analysis fails
         """
-        # # Input validation
-        # if not request.repository_path or not request.repository_path.exists():
-        #     raise ValueError(
-        #         f"Repository path does not exist: {request.repository_path}"
-        #     )
-
-        # if not request.repository_path.is_dir():
-        #     raise ValueError(
-        #         f"Repository path is not a directory: {request.repository_path}"
-        #     )
-
         try:
             if request.monorepo:
                 # Run scan based on .codeql.json if it exists
