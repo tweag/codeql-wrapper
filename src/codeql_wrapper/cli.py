@@ -151,15 +151,16 @@ def analyze(
             and repository_path is None
         ):
             click.echo(
-                click.style("ERROR:", fg="red", bold=True)
-                + " you must specify a path or use the --json parameter to use the .codeql.json configuration file",
+                click.style("ERROR:", fg="red", bold=True) + " you must specify a path",
+                +" or use the --json parameter to use the .codeql.json configuration file",
                 err=True,
             )
             sys.exit(1)
         elif repository_path is None:
             click.echo(
                 click.style("ERROR:", fg="red", bold=True)
-                + " REPOSITORY_PATH is required unless --monorepo and --json are used with .codeql.json in the root folder.",
+                + " REPOSITORY_PATH is required unless --monorepo and",
+                +" --json are used with .codeql.json in the root folder.",
                 err=True,
             )
             sys.exit(1)
