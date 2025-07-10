@@ -794,108 +794,100 @@ class TestCodeQLAnalysisUseCase:
                 with pytest.raises(Exception, match="Analysis failed"):
                     self.use_case.execute(request)
 
-    def test_execute_monorepo_analysis_empty_directory(self) -> None:
-        """Test monorepo analysis with empty directory."""
-        # Mock empty directory
-        with patch.object(Path, "exists") as mock_exists, patch.object(
-            Path, "is_dir", return_value=True
-        ), patch.object(Path, "iterdir", return_value=[]):
-            # Mock .codeql.json to not exist
-            mock_exists.side_effect = lambda p: (
-                False if p.name == ".codeql.json" else True
+
+def test_execute_monorepo_analysis_empty_directory(self) -> None:
+    """Test monorepo analysis with empty directory."""
+    # Mock empty directory
+    with patch.object(Path, "exists") as mock_exists, patch.object(
+        Path, "is_dir", return_value=True
+    ), patch.object(Path, "iterdir", return_value=[]):
+        # Mock .codeql.json to not exist
+        mock_exists.side_effect = lambda p: False if p.name == ".codeql.json" else True
+
+        # Create request for monorepo analysis
+        request = CodeQLAnalysisRequest(
+            repository_path=Path("/test/repo"),
+            target_languages=None,
+            output_directory=Path("/test/output"),
+            verbose=False,
+            force_install=False,
+            monorepo=True,
+        )
+
+        with patch.object(self.use_case, "_verify_codeql_installation") as mock_verify:
+            mock_verify.return_value = CodeQLInstallationInfo(
+                is_installed=True, version="2.22.1", path=Path("/path/to/codeql")
             )
 
-            # Create request for monorepo analysis
-            request = CodeQLAnalysisRequest(
-                repository_path=Path("/test/repo"),
-                target_languages=None,
-                output_directory=Path("/test/output"),
-                verbose=False,
-                force_install=False,
-                monorepo=True,
+            result = self.use_case.execute(request)
+
+            # Should return empty results
+            assert result.repository_path == Path("/test/repo")
+            assert result.analysis_results == []
+            assert result.total_findings == 0
+
+
+def test_execute_monorepo_analysis_with_hidden_directories(self) -> None:
+    """Test monorepo analysis skips hidden directories."""
+    # Mock directory with hidden and regular directories
+    mock_hidden_dir = Mock()
+    mock_hidden_dir.is_dir.return_value = True
+    mock_hidden_dir.name = ".hidden"
+
+    mock_regular_dir = Mock()
+    mock_regular_dir.is_dir.return_value = True
+    mock_regular_dir.name = "regular"
+
+    with patch.object(Path, "exists") as mock_exists, patch.object(
+        Path, "is_dir", return_value=True
+    ), patch.object(Path, "iterdir", return_value=[mock_hidden_dir, mock_regular_dir]):
+        # Mock .codeql.json to not exist
+        mock_exists.side_effect = lambda p: False if p.name == ".codeql.json" else True
+
+        # Create request for monorepo analysis
+        request = CodeQLAnalysisRequest(
+            repository_path=Path("/test/repo"),
+            target_languages=None,
+            output_directory=Path("/test/output"),
+            verbose=False,
+            force_install=False,
+            monorepo=True,
+        )
+
+        # Mock the ProcessPoolExecutor to avoid multiprocessing complications
+        with patch(
+            "codeql_wrapper.domain.use_cases.codeql_analysis_use_case.ProcessPoolExecutor"
+        ) as mock_executor_class:
+            mock_executor = Mock()
+            mock_executor_class.return_value.__enter__.return_value = mock_executor
+
+            # Mock the future that will be returned
+            mock_future = Mock()
+            mock_summary = RepositoryAnalysisSummary(
+                repository_path=mock_regular_dir,
+                detected_projects=[],
+                analysis_results=[],
             )
+            mock_future.result.return_value = mock_summary
 
-            with patch.object(
-                self.use_case, "_verify_codeql_installation"
-            ) as mock_verify:
-                mock_verify.return_value = CodeQLInstallationInfo(
-                    is_installed=True, version="2.22.1", path=Path("/path/to/codeql")
-                )
+            # Mock the submit method to return our mock future
+            mock_executor.submit.return_value = mock_future
 
+            # Mock as_completed to return our single future
+            with patch(
+                "codeql_wrapper.domain.use_cases.codeql_analysis_use_case.as_completed",
+                return_value=[mock_future],
+            ):
                 result = self.use_case.execute(request)
 
-                # Should return empty results
+                # Verify that only the regular directory was submitted for processing
+                mock_executor.submit.assert_called_once()
+                # Get the first argument of the submit call (the project_path)
+                call_args = mock_executor.submit.call_args[0]
+                submitted_project_path = call_args[1]  # Second argument is project_path
+                assert submitted_project_path == mock_regular_dir
+
+                # Verify the result structure
                 assert result.repository_path == Path("/test/repo")
-                assert result.analysis_results == []
-                assert result.total_findings == 0
-
-    def test_execute_monorepo_analysis_with_hidden_directories(self) -> None:
-        """Test monorepo analysis skips hidden directories."""
-        # Mock directory with hidden and regular directories
-        mock_hidden_dir = Mock()
-        mock_hidden_dir.is_dir.return_value = True
-        mock_hidden_dir.name = ".hidden"
-
-        mock_regular_dir = Mock()
-        mock_regular_dir.is_dir.return_value = True
-        mock_regular_dir.name = "regular"
-
-        with patch.object(Path, "exists") as mock_exists, patch.object(
-            Path, "is_dir", return_value=True
-        ), patch.object(
-            Path, "iterdir", return_value=[mock_hidden_dir, mock_regular_dir]
-        ):
-            # Mock .codeql.json to not exist
-            mock_exists.side_effect = lambda p: (
-                False if p.name == ".codeql.json" else True
-            )
-
-            # Create request for monorepo analysis
-            request = CodeQLAnalysisRequest(
-                repository_path=Path("/test/repo"),
-                target_languages=None,
-                output_directory=Path("/test/output"),
-                verbose=False,
-                force_install=False,
-                monorepo=True,
-            )
-
-            # Mock the ProcessPoolExecutor to avoid multiprocessing complications
-            with patch(
-                "codeql_wrapper.domain.use_cases.codeql_analysis_use_case.ProcessPoolExecutor"
-            ) as mock_executor_class:
-                mock_executor = Mock()
-                mock_executor_class.return_value.__enter__.return_value = mock_executor
-
-                # Mock the future that will be returned
-                mock_future = Mock()
-                mock_summary = RepositoryAnalysisSummary(
-                    repository_path=mock_regular_dir,
-                    detected_projects=[],
-                    analysis_results=[],
-                )
-                mock_future.result.return_value = mock_summary
-
-                # Mock the submit method to return our mock future
-                mock_executor.submit.return_value = mock_future
-
-                # Mock as_completed to return our single future
-                with patch(
-                    "codeql_wrapper.domain.use_cases.codeql_analysis_use_case.as_completed",
-                    return_value=[mock_future],
-                ):
-                    result = self.use_case.execute(request)
-
-                    # Verify that only the regular directory was submitted for processing
-                    mock_executor.submit.assert_called_once()
-                    # Get the first argument of the submit call (the project_path)
-                    call_args = mock_executor.submit.call_args[0]
-                    submitted_project_path = call_args[
-                        1
-                    ]  # Second argument is project_path
-                    assert submitted_project_path == mock_regular_dir
-
-                    # Verify the result structure
-                    assert result.repository_path == Path("/test/repo")
-                    assert len(result.detected_projects) == 0
-                    assert len(result.analysis_results) == 0
+                assert len(result.detected_projects) == 0
+                assert len(result.analysis_results) == 0

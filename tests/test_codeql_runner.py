@@ -225,6 +225,8 @@ class TestCodeQLRunner:
             "/source",
             "--language",
             "java",
+            "--build-mode",
+            "none",
             "--command",
             "mvn compile",
             "--overwrite",
