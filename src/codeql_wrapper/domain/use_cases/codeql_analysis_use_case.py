@@ -7,6 +7,14 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, List, Optional, Set
 
+# Try to import psutil, fallback gracefully if not available
+try:
+    import psutil
+
+    PSUTIL_AVAILABLE = True
+except ImportError:
+    PSUTIL_AVAILABLE = False
+
 from ..entities.codeql_analysis import (
     CodeQLAnalysisRequest,
     CodeQLAnalysisResult,
@@ -24,14 +32,100 @@ from ...infrastructure.codeql_runner import CodeQLRunner
 class CodeQLAnalysisUseCase:
     """Use case for running CodeQL analysis on repositories."""
 
-    DEFAULT_MAX_WORKERS: int = 10
-
     def __init__(self, logger: Any) -> None:
         """Initialize the use case with dependencies."""
         self._logger = logger
         self._language_detector = LanguageDetector()
         self._codeql_installer = CodeQLInstaller()
         self._codeql_runner: Optional[CodeQLRunner] = None
+
+        # Calculate optimal workers based on system resources (default)
+        self._adaptive_max_workers = self._calculate_optimal_workers()
+        self._manual_max_workers: Optional[int] = None
+
+    def _calculate_optimal_workers(self) -> int:
+        """
+        Calculate optimal number of workers based on system resources.
+
+        Takes into account CPU cores and available memory to prevent
+        resource exhaustion, especially important for GitHub Actions runners.
+
+        Returns:
+            Optimal number of worker processes for CodeQL analysis
+        """
+        try:
+            # Get system specifications
+            cpu_count = os.cpu_count() or 2
+
+            # Try to get memory info, fallback to conservative estimate if psutil not available
+            try:
+                if PSUTIL_AVAILABLE:
+                    memory_gb = psutil.virtual_memory().total / (1024**3)
+                else:
+                    # Fallback: assume 7GB (GitHub Actions standard runner)
+                    memory_gb = 7.0
+                    self._logger.debug(
+                        "psutil not available, using conservative memory estimate"
+                    )
+            except (ImportError, AttributeError):
+                # Fallback: assume 7GB (GitHub Actions standard runner)
+                memory_gb = 7.0
+                self._logger.debug(
+                    "psutil not available, using conservative memory estimate"
+                )
+
+            # Conservative calculation for CodeQL analysis
+            # Each CodeQL worker typically needs:
+            # - 1+ CPU cores for optimal performance
+            # - 2-4GB RAM for database creation and analysis
+
+            # Calculate limits based on available resources
+            max_by_cpu = min(cpu_count, 8)  # Cap at 8 for efficiency
+            max_by_memory = max(
+                1, int(memory_gb / 2.5)
+            )  # 2.5GB per worker (conservative)
+
+            # Take the minimum to avoid resource exhaustion
+            # Also apply reasonable bounds: min 1, max 6
+            optimal = max(1, min(max_by_cpu, max_by_memory, 6))
+
+            self._logger.debug(
+                f"Calculated optimal workers: {optimal} "
+                f"(CPU: {cpu_count}, Memory: {memory_gb:.1f}GB, "
+                f"Limits - CPU: {max_by_cpu}, Memory: {max_by_memory})"
+            )
+
+            return optimal
+
+        except Exception as e:
+            self._logger.warning(f"Failed to calculate optimal workers: {e}")
+            return 4  # Safe fallback for most environments
+
+    @property
+    def max_workers(self) -> int:
+        """Get the maximum number of workers for this instance."""
+        return (
+            self._manual_max_workers
+            if self._manual_max_workers is not None
+            else self._adaptive_max_workers
+        )
+
+    def set_max_workers(self, max_workers: Optional[int]) -> None:
+        """Set the maximum number of workers manually."""
+        if max_workers is not None:
+            if max_workers < 1:
+                raise ValueError("max_workers must be at least 1")
+            if max_workers > 16:
+                self._logger.warning(
+                    f"Using {max_workers} workers may cause resource exhaustion"
+                )
+            self._logger.info(f"Using manual max_workers: {max_workers}")
+        else:
+            self._logger.info(
+                f"Using adaptive max_workers: {self._adaptive_max_workers}"
+            )
+
+        self._manual_max_workers = max_workers
 
     def execute(self, request: CodeQLAnalysisRequest) -> RepositoryAnalysisSummary:
         """
@@ -48,6 +142,24 @@ class CodeQLAnalysisUseCase:
             Exception: If analysis fails
         """
         try:
+            # Set max workers from request if provided
+            self.set_max_workers(request.max_workers)
+
+            # Step 1: Verify CodeQL installation once for all projects
+            self._logger.info("Verifying CodeQL installation...")
+            installation_info = self._verify_codeql_installation(request.force_install)
+            if not installation_info.is_valid:
+                raise Exception(
+                    f"CodeQL installation error: {installation_info.error_message}"
+                )
+
+            # Step 2: Initialize CodeQL runner once for all projects
+            self._codeql_runner = CodeQLRunner(str(installation_info.path))
+            self._logger.info(
+                f"CodeQL runner initialized with version {installation_info.version}"
+            )
+
+            # Step 3: Execute analysis based on repository type
             if request.monorepo:
                 # Run scan based on .codeql.json if it exists
                 root_config_path = request.repository_path / ".codeql.json"
@@ -127,7 +239,7 @@ class CodeQLAnalysisUseCase:
         all_analysis_results = []
         error_messages = []
 
-        max_workers = min(os.cpu_count() or 1, self.DEFAULT_MAX_WORKERS)
+        max_workers = self.max_workers
         with ProcessPoolExecutor(max_workers=max_workers) as executor:
             futures = []
             for project_cfg in projects_config:
@@ -235,32 +347,37 @@ class CodeQLAnalysisUseCase:
                 f"{request.repository_path}"
             )
 
-            # Step 1: Verify CodeQL installation
-            installation_info = self._verify_codeql_installation(request.force_install)
-            if not installation_info.is_valid:
-                raise Exception(
-                    f"CodeQL installation error: {installation_info.error_message}"
+            # Initialize CodeQL runner if not already done (for subprocess calls)
+            if self._codeql_runner is None:
+                self._logger.debug("CodeQL runner not initialized, initializing now...")
+                installation_info = self._verify_codeql_installation(
+                    request.force_install
+                )
+                if not installation_info.is_valid:
+                    raise Exception(
+                        f"CodeQL installation error: {installation_info.error_message}"
+                    )
+                self._codeql_runner = CodeQLRunner(str(installation_info.path))
+                self._logger.debug(
+                    f"CodeQL runner initialized with version {installation_info.version}"
                 )
 
-            # Step 2: Initialize CodeQL runner
-            self._codeql_runner = CodeQLRunner(str(installation_info.path))
-
-            # Step 3: Detect projects and languages
+            # Step 1: Detect projects and languages
             detected_projects = self._detect_projects(request.repository_path)
             self._logger.info(f"Detected {len(detected_projects)} project(s)")
 
-            # Step 4: Filter projects by target languages if specified
+            # Step 2: Filter projects by target languages if specified
             filtered_projects = self._filter_projects_by_language(
                 detected_projects, request.target_languages
             )
 
-            # Step 5: Run analysis on each project
+            # Step 3: Run analysis on each project
             analysis_results = []
             for project in filtered_projects:
                 result = self._analyze_project(project, request)
                 analysis_results.append(result)
 
-            # Step 6: Create summary
+            # Step 4: Create summary
             summary = RepositoryAnalysisSummary(
                 repository_path=request.repository_path,
                 detected_projects=detected_projects,

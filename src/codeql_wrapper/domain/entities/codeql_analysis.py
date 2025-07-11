@@ -69,6 +69,7 @@ class CodeQLAnalysisRequest:
     build_mode: Optional[str] = None
     build_script: Optional[str] = None
     queries: Optional[List[str]] = None
+    max_workers: Optional[int] = None
 
     def __post_init__(self) -> None:
         """Validate analysis request."""
