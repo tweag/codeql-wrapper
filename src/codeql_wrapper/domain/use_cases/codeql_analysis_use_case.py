@@ -284,10 +284,6 @@ class CodeQLAnalysisUseCase:
                 f"{request.repository_path}"
             )
 
-            # Initialize CodeQL runner if not already done (for subprocess calls)
-            if self._codeql_runner is None:
-                import os
-
             # Step 1: Detect projects and languages
             detected_projects = self._detect_projects(request.repository_path)
             self._logger.info(f"Detected {len(detected_projects)} project(s)")
