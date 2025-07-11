@@ -111,7 +111,8 @@ def cli(ctx: click.Context, verbose: bool = False) -> None:
 @click.option(
     "--max-workers",
     type=int,
-    help="Maximum number of worker processes for concurrent analysis (default: adaptive based on system resources)",
+    help="Maximum number of worker processes for concurrent analysis "
+    "(default: adaptive based on system resources)",
 )
 @click.pass_context
 def analyze(
