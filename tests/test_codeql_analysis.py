@@ -30,6 +30,31 @@ class TestCodeQLAnalysisUseCase:
         self.mock_logger = Mock()
         self.use_case = CodeQLAnalysisUseCase(self.mock_logger)
 
+    def _mock_codeql_installation_success(self) -> Mock:
+        """
+        Helper method to create a successful CodeQL installation mock.
+        
+        Returns:
+            Mock object for _verify_codeql_installation method
+        """
+        mock_verify = Mock()
+        mock_verify.return_value = CodeQLInstallationInfo(
+            is_installed=True, version="2.22.1", path=Path("/path/to/codeql")
+        )
+        return mock_verify
+
+    def _patch_codeql_installation_success(self):
+        """
+        Context manager helper to patch CodeQL installation verification with success.
+        
+        Returns:
+            Context manager that patches _verify_codeql_installation
+        """
+        return patch.object(
+            self.use_case, "_verify_codeql_installation",
+            return_value=self._mock_codeql_installation_success().return_value
+        )
+
     def test_init(self) -> None:
         """Test use case initialization."""
         assert self.use_case._logger == self.mock_logger
@@ -51,18 +76,11 @@ class TestCodeQLAnalysisUseCase:
             )
 
         # Mock all the internal methods to avoid complex setup
-        with patch.object(
-            self.use_case, "_verify_codeql_installation"
-        ) as mock_verify, patch.object(
+        with self._patch_codeql_installation_success(), patch.object(
             self.use_case, "_detect_projects"
         ) as mock_detect_projects, patch.object(
             self.use_case, "_analyze_project"
         ) as mock_analyze_project:
-
-            # Setup verification mock
-            mock_verify.return_value = CodeQLInstallationInfo(
-                is_installed=True, version="2.22.1", path=Path("/path/to/codeql")
-            )
 
             # Setup project detection mock with path validation
             with patch("pathlib.Path.exists", return_value=True):
@@ -810,11 +828,7 @@ class TestCodeQLAnalysisUseCase:
             )
 
         # Mock CodeQL installation verification
-        with patch.object(self.use_case, "_verify_codeql_installation") as mock_verify:
-            # Setup verification mock
-            mock_verify.return_value = CodeQLInstallationInfo(
-                is_installed=True, version="2.22.1", path=Path("/path/to/codeql")
-            )
+        with self._patch_codeql_installation_success():
 
             # Mock the Path operations needed for monorepo analysis
             with patch("pathlib.Path.iterdir") as mock_iterdir, patch(
@@ -851,11 +865,7 @@ class TestCodeQLAnalysisUseCase:
             )
 
         # Mock CodeQL installation verification
-        with patch.object(self.use_case, "_verify_codeql_installation") as mock_verify:
-            # Setup verification mock
-            mock_verify.return_value = CodeQLInstallationInfo(
-                is_installed=True, version="2.22.1", path=Path("/path/to/codeql")
-            )
+        with self._patch_codeql_installation_success():
 
             # Mock directory with hidden and regular directories
             mock_hidden_dir = Mock()
