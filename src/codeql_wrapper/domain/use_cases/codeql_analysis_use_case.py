@@ -46,7 +46,7 @@ class CodeQLAnalysisUseCase:
     def _get_available_memory_gb(self) -> float:
         """
         Get available system memory in GB.
-        
+
         Returns:
             Available memory in GB. Falls back to 7GB if psutil is unavailable.
         """
@@ -55,7 +55,7 @@ class CodeQLAnalysisUseCase:
                 "psutil not available, using conservative memory estimate"
             )
             return 7.0  # GitHub Actions standard runner
-        
+
         try:
             return psutil.virtual_memory().total / (1024**3)
         except Exception as e:
