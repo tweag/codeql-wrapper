@@ -810,9 +810,7 @@ class TestCodeQLAnalysisUseCase:
             )
 
         # Mock CodeQL installation verification
-        with patch.object(
-            self.use_case, "_verify_codeql_installation"
-        ) as mock_verify:
+        with patch.object(self.use_case, "_verify_codeql_installation") as mock_verify:
             # Setup verification mock
             mock_verify.return_value = CodeQLInstallationInfo(
                 is_installed=True, version="2.22.1", path=Path("/path/to/codeql")
@@ -853,9 +851,7 @@ class TestCodeQLAnalysisUseCase:
             )
 
         # Mock CodeQL installation verification
-        with patch.object(
-            self.use_case, "_verify_codeql_installation"
-        ) as mock_verify:
+        with patch.object(self.use_case, "_verify_codeql_installation") as mock_verify:
             # Setup verification mock
             mock_verify.return_value = CodeQLInstallationInfo(
                 is_installed=True, version="2.22.1", path=Path("/path/to/codeql")
@@ -886,7 +882,9 @@ class TestCodeQLAnalysisUseCase:
                     "codeql_wrapper.domain.use_cases.codeql_analysis_use_case.ProcessPoolExecutor"
                 ) as mock_executor_class:
                     mock_executor = Mock()
-                    mock_executor_class.return_value.__enter__.return_value = mock_executor
+                    mock_executor_class.return_value.__enter__.return_value = (
+                        mock_executor
+                    )
 
                     # Mock the future that will be returned
                     mock_future = Mock()
