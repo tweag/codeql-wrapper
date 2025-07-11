@@ -7,14 +7,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, List, Optional, Set
 
-# Try to import psutil, fallback gracefully if not available
-try:
-    import psutil
-
-    PSUTIL_AVAILABLE = True
-except ImportError:
-    PSUTIL_AVAILABLE = False
-
 from ..entities.codeql_analysis import (
     CodeQLAnalysisRequest,
     CodeQLAnalysisResult,
@@ -27,6 +19,7 @@ from ..entities.codeql_analysis import (
 from ...infrastructure.language_detector import LanguageDetector
 from ...infrastructure.codeql_installer import CodeQLInstaller
 from ...infrastructure.codeql_runner import CodeQLRunner
+from ...infrastructure.system_resource_manager import SystemResourceManager
 
 
 class CodeQLAnalysisUseCase:
@@ -38,74 +31,13 @@ class CodeQLAnalysisUseCase:
         self._language_detector = LanguageDetector()
         self._codeql_installer = CodeQLInstaller()
         self._codeql_runner: Optional[CodeQLRunner] = None
+        self._system_resource_manager = SystemResourceManager(logger)
 
         # Calculate optimal workers based on system resources (default)
-        self._adaptive_max_workers = self._calculate_optimal_workers()
+        self._adaptive_max_workers = (
+            self._system_resource_manager.calculate_optimal_workers()
+        )
         self._manual_max_workers: Optional[int] = None
-
-    def _get_available_memory_gb(self) -> float:
-        """
-        Get available system memory in GB.
-
-        Returns:
-            Available memory in GB. Falls back to 7GB if psutil is unavailable.
-        """
-        if not PSUTIL_AVAILABLE:
-            self._logger.debug(
-                "psutil not available, using conservative memory estimate"
-            )
-            return 7.0  # GitHub Actions standard runner
-
-        try:
-            return psutil.virtual_memory().total / (1024**3)
-        except Exception as e:
-            self._logger.debug(
-                f"Failed to get memory info from psutil: {e}, "
-                "using conservative memory estimate"
-            )
-            return 7.0  # Fallback to GitHub Actions standard runner
-
-    def _calculate_optimal_workers(self) -> int:
-        """
-        Calculate optimal number of workers based on system resources.
-
-        Takes into account CPU cores and available memory to prevent
-        resource exhaustion, especially important for GitHub Actions runners.
-
-        Returns:
-            Optimal number of worker processes for CodeQL analysis
-        """
-        try:
-            # Get system specifications
-            cpu_count = os.cpu_count() or 2
-            memory_gb = self._get_available_memory_gb()
-
-            # Conservative calculation for CodeQL analysis
-            # Each CodeQL worker typically needs:
-            # - 1+ CPU cores for optimal performance
-            # - 2-4GB RAM for database creation and analysis
-
-            # Calculate limits based on available resources
-            max_by_cpu = min(cpu_count, 8)  # Cap at 8 for efficiency
-            max_by_memory = max(
-                1, int(memory_gb / 2.5)
-            )  # 2.5GB per worker (conservative)
-
-            # Take the minimum to avoid resource exhaustion
-            # Also apply reasonable bounds: min 1, max 6
-            optimal = max(1, min(max_by_cpu, max_by_memory, 6))
-
-            self._logger.debug(
-                f"Calculated optimal workers: {optimal} "
-                f"(CPU: {cpu_count}, Memory: {memory_gb:.1f}GB, "
-                f"Limits - CPU: {max_by_cpu}, Memory: {max_by_memory})"
-            )
-
-            return optimal
-
-        except Exception as e:
-            self._logger.warning(f"Failed to calculate optimal workers: {e}")
-            return 4  # Safe fallback for most environments
 
     @property
     def max_workers(self) -> int:
@@ -119,8 +51,6 @@ class CodeQLAnalysisUseCase:
     def set_max_workers(self, max_workers: Optional[int]) -> None:
         """Set the maximum number of workers manually."""
         if max_workers is not None:
-            if max_workers < 1:
-                raise ValueError("max_workers must be at least 1")
             if max_workers > 16:
                 self._logger.warning(
                     f"Using {max_workers} workers may cause resource exhaustion"
@@ -245,25 +175,35 @@ class CodeQLAnalysisUseCase:
         all_analysis_results = []
         error_messages = []
 
-        # Process projects sequentially to avoid multiprocessing issues with CodeQL installation
-        for project_cfg in projects_config:
-            try:
+        # Process projects in parallel using ProcessPoolExecutor
+        # CodeQL installation is already verified at this point, so workers can reuse it
+        with ProcessPoolExecutor(max_workers=self.max_workers) as executor:
+            # Submit all projects for processing
+            futures = []
+            for project_cfg in projects_config:
                 if use_config_mode:
-                    result = self._process_monorepo_project_from_config(
-                        project_cfg, request
+                    future = executor.submit(
+                        self._process_monorepo_project_from_config, project_cfg, request
                     )
                 else:
-                    result = self._process_monorepo_project(
-                        Path(project_cfg["path"]), request
+                    future = executor.submit(
+                        self._process_monorepo_project,
+                        Path(project_cfg["path"]),
+                        request,
                     )
+                futures.append(future)
 
-                all_detected_projects.extend(result.detected_projects)
-                all_analysis_results.extend(result.analysis_results)
-                if result.error:
-                    error_messages.append(result.error)
-            except Exception as e:
-                self._logger.exception(f"Processing failed: {e}")
-                error_messages.append(str(e))
+            # Collect results as they complete
+            for future in as_completed(futures):
+                try:
+                    result = future.result()
+                    all_detected_projects.extend(result.detected_projects)
+                    all_analysis_results.extend(result.analysis_results)
+                    if result.error:
+                        error_messages.append(result.error)
+                except Exception as e:
+                    self._logger.exception(f"Processing failed: {e}")
+                    error_messages.append(str(e))
 
         # Compose aggregated error string, if any
         aggregated_error = "\n".join(error_messages) if error_messages else None

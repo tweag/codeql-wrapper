@@ -110,7 +110,7 @@ def cli(ctx: click.Context, verbose: bool = False) -> None:
 )
 @click.option(
     "--max-workers",
-    type=int,
+    type=click.IntRange(1),
     help="Maximum number of worker processes for concurrent analysis "
     "(default: adaptive based on system resources)",
 )
@@ -216,13 +216,6 @@ def analyze(
 
         # Validate max_workers parameter
         if max_workers is not None:
-            if max_workers < 1:
-                click.echo(
-                    click.style("ERROR:", fg="red", bold=True)
-                    + " --max-workers must be at least 1",
-                    err=True,
-                )
-                sys.exit(1)
             if max_workers > 16:
                 click.echo(
                     click.style("WARNING:", fg="yellow", bold=True)
