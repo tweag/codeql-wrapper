@@ -72,8 +72,8 @@ class SystemResourceManager:
             )  # 2.5GB per worker (conservative)
 
             # Take the minimum to avoid resource exhaustion
-            # Also apply reasonable bounds: min 1, max 6
-            optimal = max(1, min(max_by_cpu, max_by_memory, 6))
+            # Also apply reasonable bounds: min 1, max 10
+            optimal = max(1, min(max_by_cpu, max_by_memory, 10))
 
             self._logger.debug(
                 f"Calculated optimal workers: {optimal} "
