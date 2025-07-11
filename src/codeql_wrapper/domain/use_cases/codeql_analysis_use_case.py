@@ -288,29 +288,6 @@ class CodeQLAnalysisUseCase:
             if self._codeql_runner is None:
                 import os
 
-                # Check if CodeQL path was already verified by main process
-                verified_path = os.environ.get("CODEQL_WRAPPER_VERIFIED_PATH")
-                if verified_path:
-                    self._logger.debug(
-                        f"Using pre-verified CodeQL path from main process: {verified_path}"
-                    )
-                    self._codeql_runner = CodeQLRunner(verified_path)
-                else:
-                    self._logger.debug(
-                        "CodeQL runner not initialized, initializing now..."
-                    )
-                    installation_info = self._verify_codeql_installation(
-                        request.force_install
-                    )
-                    if not installation_info.is_valid:
-                        raise Exception(
-                            f"CodeQL installation error: {installation_info.error_message}"
-                        )
-                    self._codeql_runner = CodeQLRunner(str(installation_info.path))
-                    self._logger.debug(
-                        f"CodeQL runner initialized with version {installation_info.version}"
-                    )
-
             # Step 1: Detect projects and languages
             detected_projects = self._detect_projects(request.repository_path)
             self._logger.info(f"Detected {len(detected_projects)} project(s)")
