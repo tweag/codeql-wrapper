@@ -33,7 +33,7 @@ class TestCodeQLAnalysisUseCase:
     def _mock_codeql_installation_success(self) -> Mock:
         """
         Helper method to create a successful CodeQL installation mock.
-        
+
         Returns:
             Mock object for _verify_codeql_installation method
         """
@@ -46,13 +46,14 @@ class TestCodeQLAnalysisUseCase:
     def _patch_codeql_installation_success(self):
         """
         Context manager helper to patch CodeQL installation verification with success.
-        
+
         Returns:
             Context manager that patches _verify_codeql_installation
         """
         return patch.object(
-            self.use_case, "_verify_codeql_installation",
-            return_value=self._mock_codeql_installation_success().return_value
+            self.use_case,
+            "_verify_codeql_installation",
+            return_value=self._mock_codeql_installation_success().return_value,
         )
 
     def test_init(self) -> None:
