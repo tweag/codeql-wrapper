@@ -852,7 +852,9 @@ class TestCodeQLAnalysisUseCase:
     def test_execute_monorepo_analysis_with_hidden_directories(self) -> None:
         """Test monorepo analysis skips hidden directories."""
         # Test the directory filtering logic by creating a simpler, more focused test
-        with patch("pathlib.Path.exists", return_value=True), patch("pathlib.Path.is_dir", return_value=True):
+        with patch("pathlib.Path.exists", return_value=True), patch(
+            "pathlib.Path.is_dir", return_value=True
+        ):
             request = CodeQLAnalysisRequest(
                 repository_path=Path("/test/repo"),
                 target_languages=None,
@@ -897,5 +899,7 @@ class TestCodeQLAnalysisUseCase:
                 assert projects_config[0]["path"] == str(mock_regular_dir)
 
                 # Verify hidden directory is not included
-                hidden_paths = [cfg["path"] for cfg in projects_config if ".hidden" in cfg["path"]]
+                hidden_paths = [
+                    cfg["path"] for cfg in projects_config if ".hidden" in cfg["path"]
+                ]
                 assert len(hidden_paths) == 0
