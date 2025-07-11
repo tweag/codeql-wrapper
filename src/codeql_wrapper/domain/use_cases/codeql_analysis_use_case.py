@@ -43,6 +43,28 @@ class CodeQLAnalysisUseCase:
         self._adaptive_max_workers = self._calculate_optimal_workers()
         self._manual_max_workers: Optional[int] = None
 
+    def _get_available_memory_gb(self) -> float:
+        """
+        Get available system memory in GB.
+        
+        Returns:
+            Available memory in GB. Falls back to 7GB if psutil is unavailable.
+        """
+        if not PSUTIL_AVAILABLE:
+            self._logger.debug(
+                "psutil not available, using conservative memory estimate"
+            )
+            return 7.0  # GitHub Actions standard runner
+        
+        try:
+            return psutil.virtual_memory().total / (1024**3)
+        except Exception as e:
+            self._logger.debug(
+                f"Failed to get memory info from psutil: {e}, "
+                "using conservative memory estimate"
+            )
+            return 7.0  # Fallback to GitHub Actions standard runner
+
     def _calculate_optimal_workers(self) -> int:
         """
         Calculate optimal number of workers based on system resources.
@@ -56,23 +78,7 @@ class CodeQLAnalysisUseCase:
         try:
             # Get system specifications
             cpu_count = os.cpu_count() or 2
-
-            # Try to get memory info, fallback to conservative estimate if psutil not available
-            try:
-                if PSUTIL_AVAILABLE:
-                    memory_gb = psutil.virtual_memory().total / (1024**3)
-                else:
-                    # Fallback: assume 7GB (GitHub Actions standard runner)
-                    memory_gb = 7.0
-                    self._logger.debug(
-                        "psutil not available, using conservative memory estimate"
-                    )
-            except (ImportError, AttributeError):
-                # Fallback: assume 7GB (GitHub Actions standard runner)
-                memory_gb = 7.0
-                self._logger.debug(
-                    "psutil not available, using conservative memory estimate"
-                )
+            memory_gb = self._get_available_memory_gb()
 
             # Conservative calculation for CodeQL analysis
             # Each CodeQL worker typically needs:
