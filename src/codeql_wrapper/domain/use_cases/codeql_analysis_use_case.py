@@ -245,38 +245,25 @@ class CodeQLAnalysisUseCase:
         all_analysis_results = []
         error_messages = []
 
-        max_workers = self.max_workers
-        with ProcessPoolExecutor(max_workers=max_workers) as executor:
-            futures = []
-            for project_cfg in projects_config:
+        # Process projects sequentially to avoid multiprocessing issues with CodeQL installation
+        for project_cfg in projects_config:
+            try:
                 if use_config_mode:
-                    futures.append(
-                        executor.submit(
-                            self._process_monorepo_project_from_config,
-                            project_cfg,
-                            request,
-                        )
+                    result = self._process_monorepo_project_from_config(
+                        project_cfg, request
                     )
                 else:
-                    futures.append(
-                        executor.submit(
-                            self._process_monorepo_project,
-                            Path(project_cfg["path"]),
-                            request,
-                        )
+                    result = self._process_monorepo_project(
+                        Path(project_cfg["path"]), request
                     )
 
-            # Collect results from futures
-            for future in as_completed(futures):
-                try:
-                    result = future.result()
-                    all_detected_projects.extend(result.detected_projects)
-                    all_analysis_results.extend(result.analysis_results)
-                    if result.error:
-                        error_messages.append(result.error)
-                except Exception as e:
-                    self._logger.exception(f"Processing failed: {e}")
-                    error_messages.append(str(e))
+                all_detected_projects.extend(result.detected_projects)
+                all_analysis_results.extend(result.analysis_results)
+                if result.error:
+                    error_messages.append(result.error)
+            except Exception as e:
+                self._logger.exception(f"Processing failed: {e}")
+                error_messages.append(str(e))
 
         # Compose aggregated error string, if any
         aggregated_error = "\n".join(error_messages) if error_messages else None

@@ -869,18 +869,13 @@ class TestCodeQLAnalysisUseCase:
         with self._patch_codeql_installation_success():
 
             # Mock directory with hidden and regular directories
-            mock_hidden_dir = Mock()
-            mock_hidden_dir.is_dir.return_value = True
-            mock_hidden_dir.name = ".hidden"
-
-            mock_regular_dir = Mock()
-            mock_regular_dir.is_dir.return_value = True
-            mock_regular_dir.name = "regular"
+            mock_hidden_dir = Path(".hidden")
+            mock_regular_dir = Path("regular")
 
             # Mock the Path operations
             with patch("pathlib.Path.iterdir") as mock_iterdir, patch(
                 "pathlib.Path.exists"
-            ) as mock_exists:
+            ) as mock_exists, patch("pathlib.Path.is_dir") as mock_is_dir:
 
                 # Make the repository path return both directories
                 mock_iterdir.return_value = [mock_hidden_dir, mock_regular_dir]
@@ -888,39 +883,30 @@ class TestCodeQLAnalysisUseCase:
                 # Make .codeql.json not exist (return False for config file check)
                 mock_exists.return_value = False
 
-                # Mock the ProcessPoolExecutor to avoid multiprocessing complications
-                with patch(
-                    "codeql_wrapper.domain.use_cases.codeql_analysis_use_case.ProcessPoolExecutor"
-                ) as mock_executor_class:
-                    mock_executor = Mock()
-                    mock_executor_class.return_value.__enter__.return_value = (
-                        mock_executor
-                    )
+                # Make both paths return True for is_dir()
+                mock_is_dir.return_value = True
 
-                    # Mock the future that will be returned
-                    mock_future = Mock()
+                # Mock the _process_monorepo_project method to avoid actual processing
+                with patch.object(
+                    self.use_case, "_process_monorepo_project"
+                ) as mock_process:
                     mock_summary = RepositoryAnalysisSummary(
                         repository_path=Path("/test/regular"),
                         detected_projects=[],
                         analysis_results=[],
                     )
-                    mock_future.result.return_value = mock_summary
+                    mock_process.return_value = mock_summary
 
-                    # Mock the submit method to return our mock future
-                    mock_executor.submit.return_value = mock_future
+                    result = self.use_case.execute(request)
 
-                    # Mock as_completed to return our single future
-                    with patch(
-                        "codeql_wrapper.domain.use_cases.codeql_analysis_use_case.as_completed",
-                        return_value=[mock_future],
-                    ):
-                        result = self.use_case.execute(request)
+                    # Verify that only the regular directory was processed
+                    # (hidden directory should be filtered out)
+                    mock_process.assert_called_once()
+                    # Check that the call was made with the regular directory
+                    call_args = mock_process.call_args
+                    assert call_args[0][0] == mock_regular_dir  # First positional arg
 
-                        # Verify that only the regular directory was submitted for processing
-                        # (hidden directory should be filtered out)
-                        mock_executor.submit.assert_called_once()
-
-                        # Verify the result structure
-                        assert result.repository_path == request.repository_path
-                        assert len(result.detected_projects) == 0
-                        assert len(result.analysis_results) == 0
+                    # Verify the result structure
+                    assert result.repository_path == request.repository_path
+                    assert len(result.detected_projects) == 0
+                    assert len(result.analysis_results) == 0
