@@ -1,7 +1,6 @@
 """CodeQL runner infrastructure module."""
 
 import subprocess
-import shutil
 import os  # Added for chmod
 import click
 from pathlib import Path
