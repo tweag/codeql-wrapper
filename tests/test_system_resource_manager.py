@@ -26,9 +26,9 @@ class TestSystemResourceManager(unittest.TestCase):
             with patch(
                 "src.codeql_wrapper.infrastructure.system_resource_manager.psutil"
             ) as mock_psutil:
-                # Mock psutil to return 16GB (16 * 1024^3 bytes)
+                # Mock psutil to return 16GB available (16 * 1024^3 bytes)
                 mock_memory = MagicMock()
-                mock_memory.total = 16 * (1024**3)
+                mock_memory.available = 16 * (1024**3)
                 mock_psutil.virtual_memory.return_value = mock_memory
 
                 result = self.manager.get_available_memory_gb()

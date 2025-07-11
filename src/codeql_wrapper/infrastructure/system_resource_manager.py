@@ -23,6 +23,10 @@ class SystemResourceManager:
         """
         Get available system memory in GB.
 
+        Returns the amount of memory that can be given instantly to processes
+        without the system going into swap. This is more accurate for resource
+        planning than total memory as it accounts for memory already in use.
+
         Returns:
             Available memory in GB. Falls back to 7GB if psutil is unavailable.
         """
@@ -33,7 +37,7 @@ class SystemResourceManager:
             return 7.0  # GitHub Actions standard runner
 
         try:
-            return psutil.virtual_memory().total / (1024**3)
+            return psutil.virtual_memory().available / (1024**3)
         except Exception as e:
             self._logger.debug(
                 f"Failed to get memory info from psutil: {e}, "
