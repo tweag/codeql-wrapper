@@ -113,7 +113,7 @@ class CodeQLRunner:
         if command:
             args.extend(["--command", command])
 
-        args.append("--overwrite")
+        args.append("--force-overwrite")
 
         return self._run_command(args)
 
