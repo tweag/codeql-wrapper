@@ -94,6 +94,11 @@ class CodeQLAnalysisUseCase:
                 f"CodeQL runner initialized with version {installation_info.version}"
             )
 
+            # Step 2.1: Set environment variable for worker processes to use
+            import os
+
+            os.environ["CODEQL_WRAPPER_VERIFIED_PATH"] = str(installation_info.path)
+
             # Step 3: Execute analysis based on repository type
             if request.monorepo:
                 # Run scan based on .codeql.json if it exists
@@ -281,18 +286,30 @@ class CodeQLAnalysisUseCase:
 
             # Initialize CodeQL runner if not already done (for subprocess calls)
             if self._codeql_runner is None:
-                self._logger.debug("CodeQL runner not initialized, initializing now...")
-                installation_info = self._verify_codeql_installation(
-                    request.force_install
-                )
-                if not installation_info.is_valid:
-                    raise Exception(
-                        f"CodeQL installation error: {installation_info.error_message}"
+                import os
+
+                # Check if CodeQL path was already verified by main process
+                verified_path = os.environ.get("CODEQL_WRAPPER_VERIFIED_PATH")
+                if verified_path:
+                    self._logger.debug(
+                        f"Using pre-verified CodeQL path from main process: {verified_path}"
                     )
-                self._codeql_runner = CodeQLRunner(str(installation_info.path))
-                self._logger.debug(
-                    f"CodeQL runner initialized with version {installation_info.version}"
-                )
+                    self._codeql_runner = CodeQLRunner(verified_path)
+                else:
+                    self._logger.debug(
+                        "CodeQL runner not initialized, initializing now..."
+                    )
+                    installation_info = self._verify_codeql_installation(
+                        request.force_install
+                    )
+                    if not installation_info.is_valid:
+                        raise Exception(
+                            f"CodeQL installation error: {installation_info.error_message}"
+                        )
+                    self._codeql_runner = CodeQLRunner(str(installation_info.path))
+                    self._logger.debug(
+                        f"CodeQL runner initialized with version {installation_info.version}"
+                    )
 
             # Step 1: Detect projects and languages
             detected_projects = self._detect_projects(request.repository_path)
