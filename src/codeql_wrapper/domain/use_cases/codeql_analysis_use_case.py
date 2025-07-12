@@ -19,7 +19,11 @@ from ...infrastructure.language_detector import LanguageDetector
 from ...infrastructure.codeql_installer import CodeQLInstaller
 from ...infrastructure.codeql_runner import CodeQLRunner
 from ...infrastructure.system_resource_manager import SystemResourceManager
-from ...infrastructure.logger import log_with_project, set_project_context, clear_project_context
+from ...infrastructure.logger import (
+    log_with_project,
+    set_project_context,
+    clear_project_context,
+)
 import logging
 
 
@@ -135,7 +139,7 @@ class CodeQLAnalysisUseCase:
         """Process a single project inside a monorepo."""
         # Set project context for logging
         set_project_context(project_path)
-        
+
         self._logger.info(f"Processing project: {project_path}")
         sub_request = CodeQLAnalysisRequest(
             repository_path=project_path,
@@ -231,7 +235,7 @@ class CodeQLAnalysisUseCase:
             project_path = Path(project_cfg["path"])
             # Set project context for logging
             set_project_context(project_path)
-            
+
             build_mode = project_cfg.get("build-mode", "none")
             build_script = project_cfg.get("build-script")
             queries = project_cfg.get("queries", [])
@@ -488,7 +492,7 @@ class CodeQLAnalysisUseCase:
         """Analyze a single project with CodeQL."""
         # Set project context for this specific project
         set_project_context(project.path)
-        
+
         self._logger.info(f"Analyzing project: {project.name}")
 
         start_time = datetime.now()

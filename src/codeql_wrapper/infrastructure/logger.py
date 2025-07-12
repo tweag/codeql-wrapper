@@ -6,7 +6,9 @@ from typing import Optional
 from contextvars import ContextVar
 
 # Context variable to store the current project path
-current_project_context: ContextVar[Optional[str]] = ContextVar('current_project', default=None)
+current_project_context: ContextVar[Optional[str]] = ContextVar(
+    "current_project", default=None
+)
 
 
 class ShortNameFormatter(logging.Formatter):
@@ -16,11 +18,11 @@ class ShortNameFormatter(logging.Formatter):
         # Extract just the class name from the full module path
         if "." in record.name:
             record.name = record.name.split(".")[-1]
-        
+
         # Add project field - use context if not explicitly set
-        if not hasattr(record, 'project'):
+        if not hasattr(record, "project"):
             record.project = current_project_context.get() or ""
-            
+
         return super().format(record)
 
 
@@ -78,7 +80,7 @@ def get_logger(
 def set_project_context(project_path: Optional[str]) -> None:
     """
     Set the current project context for logging.
-    
+
     Args:
         project_path: The project path to set in context
     """
@@ -118,10 +120,12 @@ def configure_logging(verbose: bool = False) -> None:
     root_logger.addHandler(handler)
 
 
-def log_with_project(logger: logging.Logger, level: int, msg: str, project_path: Optional[str] = None) -> None:
+def log_with_project(
+    logger: logging.Logger, level: int, msg: str, project_path: Optional[str] = None
+) -> None:
     """
     Log a message with project information.
-    
+
     Args:
         logger: The logger instance
         level: Logging level (e.g., logging.INFO)
@@ -129,12 +133,10 @@ def log_with_project(logger: logging.Logger, level: int, msg: str, project_path:
         project_path: Optional project path to include in the log
     """
     # Create a log record
-    record = logger.makeRecord(
-        logger.name, level, "", 0, msg, (), None
-    )
-    
+    record = logger.makeRecord(logger.name, level, "", 0, msg, (), None)
+
     # Add project information
     record.project = str(project_path) if project_path else ""
-    
+
     # Handle the record
     logger.handle(record)
