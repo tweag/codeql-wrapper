@@ -19,6 +19,8 @@ from ...infrastructure.language_detector import LanguageDetector
 from ...infrastructure.codeql_installer import CodeQLInstaller
 from ...infrastructure.codeql_runner import CodeQLRunner
 from ...infrastructure.system_resource_manager import SystemResourceManager
+from ...infrastructure.logger import log_with_project, set_project_context, clear_project_context
+import logging
 
 
 class CodeQLAnalysisUseCase:
@@ -131,6 +133,9 @@ class CodeQLAnalysisUseCase:
         self, project_path: Path, request: CodeQLAnalysisRequest
     ) -> RepositoryAnalysisSummary:
         """Process a single project inside a monorepo."""
+        # Set project context for logging
+        set_project_context(project_path)
+        
         self._logger.info(f"Processing project: {project_path}")
         sub_request = CodeQLAnalysisRequest(
             repository_path=project_path,
@@ -224,6 +229,9 @@ class CodeQLAnalysisUseCase:
     ) -> RepositoryAnalysisSummary:
         try:
             project_path = Path(project_cfg["path"])
+            # Set project context for logging
+            set_project_context(project_path)
+            
             build_mode = project_cfg.get("build-mode", "none")
             build_script = project_cfg.get("build-script")
             queries = project_cfg.get("queries", [])
@@ -284,6 +292,9 @@ class CodeQLAnalysisUseCase:
                 f"{request.repository_path}"
             )
 
+            # Set project context for logging
+            set_project_context(request.repository_path)
+
             # Step 1: Detect projects and languages
             detected_projects = self._detect_projects(request.repository_path)
             self._logger.info(f"Detected {len(detected_projects)} project(s)")
@@ -316,6 +327,9 @@ class CodeQLAnalysisUseCase:
         except Exception as e:
             self._logger.error(f"CodeQL analysis failed: {e}")
             raise
+        finally:
+            # Clear project context when done
+            clear_project_context()
 
     def _verify_codeql_installation(
         self, force_install: bool = False
@@ -472,6 +486,9 @@ class CodeQLAnalysisUseCase:
         self, project: ProjectInfo, request: CodeQLAnalysisRequest
     ) -> CodeQLAnalysisResult:
         """Analyze a single project with CodeQL."""
+        # Set project context for this specific project
+        set_project_context(project.path)
+        
         self._logger.info(f"Analyzing project: {project.name}")
 
         start_time = datetime.now()

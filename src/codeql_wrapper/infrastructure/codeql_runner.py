@@ -257,8 +257,6 @@ class CodeQLRunner:
         command = [self.codeql_path] + args
         self.logger.debug(f"Running command: {' '.join(command)}")
 
-        click.echo(f"Executing CodeQL command: {' '.join(command)}")
-
         if "--command" in args:
             self.logger.debug(f"Build command: {args[args.index('--command') + 1]}")
         try:
