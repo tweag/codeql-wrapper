@@ -136,7 +136,7 @@ class CodeQLAnalysisUseCase:
     ) -> RepositoryAnalysisSummary:
         """Process a single project inside a monorepo."""
         # Set project context for logging
-        set_project_context(project_path)
+        set_project_context(str(project_path))
 
         self._logger.info(f"Processing project: {project_path}")
         sub_request = CodeQLAnalysisRequest(
@@ -232,7 +232,7 @@ class CodeQLAnalysisUseCase:
         try:
             project_path = Path(project_cfg["path"])
             # Set project context for logging
-            set_project_context(project_path)
+            set_project_context(str(project_path))
 
             build_mode = project_cfg.get("build-mode", "none")
             build_script = project_cfg.get("build-script")
@@ -295,7 +295,7 @@ class CodeQLAnalysisUseCase:
             )
 
             # Set project context for logging
-            set_project_context(request.repository_path)
+            set_project_context(str(request.repository_path))
 
             # Step 1: Detect projects and languages
             detected_projects = self._detect_projects(request.repository_path)
@@ -489,7 +489,7 @@ class CodeQLAnalysisUseCase:
     ) -> CodeQLAnalysisResult:
         """Analyze a single project with CodeQL."""
         # Set project context for this specific project
-        set_project_context(project.path)
+        set_project_context(str(project.path))
 
         self._logger.info(f"Analyzing project: {project.name}")
 
