@@ -2,7 +2,6 @@
 
 import subprocess
 import os  # Added for chmod
-import click
 from pathlib import Path
 from typing import List, Optional
 from dataclasses import dataclass

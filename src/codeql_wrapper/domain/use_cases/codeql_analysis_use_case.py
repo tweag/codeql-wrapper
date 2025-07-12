@@ -20,11 +20,9 @@ from ...infrastructure.codeql_installer import CodeQLInstaller
 from ...infrastructure.codeql_runner import CodeQLRunner
 from ...infrastructure.system_resource_manager import SystemResourceManager
 from ...infrastructure.logger import (
-    log_with_project,
     set_project_context,
     clear_project_context,
 )
-import logging
 
 
 class CodeQLAnalysisUseCase:
