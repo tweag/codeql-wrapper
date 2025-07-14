@@ -78,7 +78,6 @@ class CodeQLRunner:
         language: str,
         command: Optional[str] = None,
         build_mode: Optional[str] = None,
-        repository_path: Optional[str] = None,
     ) -> CodeQLResult:
         """
         Create a CodeQL database.
@@ -89,7 +88,6 @@ class CodeQLRunner:
             language: Programming language to analyze
             command: Build command (required for compiled languages)
             build_mode: Build mode for the database creation
-            repository_path: Repository path for SARIF category
 
         Returns:
             CodeQLResult with database creation information
@@ -103,10 +101,6 @@ class CodeQLRunner:
             "--language",
             language,
         ]
-
-        # Add SARIF category with repository path
-        if repository_path:
-            args.extend(["--sarif-category", repository_path])
 
         # Only add build-mode if specified and not "none"
         if build_mode:
@@ -127,6 +121,7 @@ class CodeQLRunner:
         output_format: str = "sarif-latest",
         output: Optional[str] = None,
         queries: Optional[List[str]] = None,
+        sarif_category: Optional[str] = None,
     ) -> CodeQLResult:
         """
         Analyze a CodeQL database.
@@ -135,6 +130,8 @@ class CodeQLRunner:
             database_path: Path to the CodeQL database
             output_format: Output format ('sarif-latest', 'csv', 'json')
             output: Output file path
+            queries: List of query files or suites to run
+            sarif_category: SARIF category for the analysis results
 
         Returns:
             CodeQLResult with analysis information
@@ -150,6 +147,10 @@ class CodeQLRunner:
 
         if output:
             args.extend(["--output", output])
+
+        # Add SARIF category if provided
+        if sarif_category:
+            args.extend(["--sarif-category", sarif_category])
 
         if queries:
             args.extend(queries)
@@ -230,7 +231,6 @@ class CodeQLRunner:
                 language,
                 build_command,
                 build_mode=build_mode,
-                repository_path=repository_path,
             )
 
             if not create_result.success:
@@ -246,6 +246,7 @@ class CodeQLRunner:
                 output_format="sarif-latest",
                 output=output_file,
                 queries=queries,
+                sarif_category=repository_path,
             )
 
             if not analyze_result.success:
