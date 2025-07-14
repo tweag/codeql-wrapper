@@ -202,45 +202,45 @@ class TestLanguageDetector:
         assert result == "cpp"
 
     def test_github_actions_detection(self) -> None:
-        """Test GitHub Actions workflow detection."""
-        # Test .yml file in .github/workflows should be detected as actions
+        """Test that GitHub Actions workflow files are not detected as any language."""
+        # Test .yml file in .github/workflows should not be detected as any language
         result = self.detector._get_language_from_file(
             Path(".github/workflows/test.yml"), LanguageType.NON_COMPILED
         )
-        assert result == "actions"
+        assert result == ""
 
-        # Test .yaml file in .github/workflows should be detected as actions
+        # Test .yaml file in .github/workflows should not be detected as any language
         result = self.detector._get_language_from_file(
             Path(".github/workflows/ci.yaml"), LanguageType.NON_COMPILED
         )
-        assert result == "actions"
+        assert result == ""
 
-        # Test yml file NOT in .github/workflows should NOT be detected as actions
+        # Test yml file NOT in .github/workflows should also not be detected
         result = self.detector._get_language_from_file(
             Path("config.yml"), LanguageType.NON_COMPILED
         )
         assert result == ""
 
-        # Test yml file in different directory should NOT be detected as actions
+        # Test yml file in different directory should not be detected
         result = self.detector._get_language_from_file(
             Path("config/workflows/test.yml"), LanguageType.NON_COMPILED
         )
         assert result == ""
 
-        # Test yml file in .github but not workflows should NOT be detected as actions
+        # Test yml file in .github but not workflows should not be detected
         result = self.detector._get_language_from_file(
             Path(".github/dependabot.yml"), LanguageType.NON_COMPILED
         )
         assert result == ""
 
-        # Test compiled language type should ignore actions
+        # Test compiled language type should also not detect yml files
         result = self.detector._get_language_from_file(
             Path(".github/workflows/test.yml"), LanguageType.COMPILED
         )
         assert result == ""
 
     def test_detect_github_actions_in_directory(self) -> None:
-        """Test detecting GitHub Actions workflows in a real directory structure."""
+        """Test that GitHub Actions workflows are not detected in directory scanning."""
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
 
@@ -272,10 +272,9 @@ class TestLanguageDetector:
                 temp_path, LanguageType.NON_COMPILED
             )
 
-            # Should detect both actions and python
-            assert "actions" in result
+            # Should only detect python, not actions
             assert "python" in result
-            assert len(result) == 2
+            assert len(result) == 1
 
     def test_permission_error_handling(self) -> None:
         """Test handling of permission errors during directory scanning."""
@@ -401,8 +400,14 @@ class TestLanguageDetector:
                 ("src/main/resources/helper.h", "cpp"),
                 ("frontend/src/App.cs", "csharp"),
                 ("backend/api/models.swift", "swift"),
-                (".github/workflows/ci.yml", "actions"),
-                (".github/workflows/deploy.yaml", "actions"),
+                (
+                    ".github/workflows/ci.yml",
+                    None,
+                ),  # YAML files not detected as any language
+                (
+                    ".github/workflows/deploy.yaml",
+                    None,
+                ),  # YAML files not detected as any language
                 ("docs/README.md", None),  # Should be ignored
                 ("config.xml", None),  # Should be ignored
             ]
@@ -415,7 +420,6 @@ class TestLanguageDetector:
                 temp_path, LanguageType.NON_COMPILED
             )
             expected_non_compiled = [
-                "actions",
                 "javascript",  # TypeScript files now detected as JavaScript
                 "python",
                 "ruby",
@@ -556,8 +560,8 @@ class TestLanguageDetector:
             assert result == expected_lang, f"Failed for {filename}"
 
     def test_github_actions_edge_cases(self) -> None:
-        """Test edge cases for GitHub Actions detection."""
-        # Test path with fewer than 3 components (our fix)
+        """Test edge cases for YAML files that should not be detected as any language."""
+        # Test path with fewer than 3 components
         result = self.detector._get_language_from_file(
             Path("workflows/test.yml"), LanguageType.NON_COMPILED
         )
@@ -569,11 +573,11 @@ class TestLanguageDetector:
         )
         assert result == ""
 
-        # Test .github/workflows with extra nesting
+        # Test .github/workflows with extra nesting - should not be detected
         result = self.detector._get_language_from_file(
             Path("repo/.github/workflows/ci.yml"), LanguageType.NON_COMPILED
         )
-        assert result == "actions"
+        assert result == ""
 
     def test_logger_usage(self) -> None:
         """Test that logger is used appropriately."""

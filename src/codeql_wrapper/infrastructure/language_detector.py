@@ -27,6 +27,7 @@ class LanguageDetector:
         self._non_compiled_extensions = {
             # JavaScript (includes TypeScript - CodeQL treats them identically)
             # Note: TypeScript is treated as JavaScript in CodeQL Action
+            # Note: JSX, Flow, HTML, and other web-related files are analyzed with JavaScript
             "js": "javascript",
             "jsx": "javascript",
             "mjs": "javascript",
@@ -181,13 +182,6 @@ class LanguageDetector:
         """
         # Get file extension (without the dot)
         extension = file_path.suffix.lstrip(".").lower()
-
-        # Special case: GitHub Actions workflows - check this BEFORE general extension mapping
-        if language_type == LanguageType.NON_COMPILED and extension in ["yml", "yaml"]:
-            # Check if the file is in .github/workflows directory
-            parts = file_path.parts
-            if len(parts) >= 3 and parts[-3:-1] == (".github", "workflows"):
-                return "actions"
 
         if language_type == LanguageType.NON_COMPILED:
             result = self._non_compiled_extensions.get(extension)
