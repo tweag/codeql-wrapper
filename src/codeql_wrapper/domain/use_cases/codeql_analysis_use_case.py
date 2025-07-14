@@ -28,6 +28,20 @@ from ...infrastructure.logger import (
 class CodeQLAnalysisUseCase:
     """Use case for running CodeQL analysis on repositories."""
 
+    # Language mapping from string names to CodeQL language enums
+    LANGUAGE_MAPPING = {
+        "javascript": CodeQLLanguage.JAVASCRIPT,
+        "typescript": CodeQLLanguage.TYPESCRIPT,
+        "python": CodeQLLanguage.PYTHON,
+        "java": CodeQLLanguage.JAVA,
+        "csharp": CodeQLLanguage.CSHARP,
+        "cpp": CodeQLLanguage.CPP,
+        "go": CodeQLLanguage.GO,
+        "ruby": CodeQLLanguage.RUBY,
+        "swift": CodeQLLanguage.SWIFT,
+        "actions": CodeQLLanguage.ACTIONS,
+    }
+
     def __init__(self, logger: Any) -> None:
         """Initialize the use case with dependencies."""
         self._logger = logger
@@ -453,18 +467,7 @@ class CodeQLAnalysisUseCase:
                 json_languages = []
 
             # Map the configured languages to CodeQL languages
-            language_mapping = {
-                "javascript": CodeQLLanguage.JAVASCRIPT,
-                "typescript": CodeQLLanguage.TYPESCRIPT,
-                "python": CodeQLLanguage.PYTHON,
-                "java": CodeQLLanguage.JAVA,
-                "csharp": CodeQLLanguage.CSHARP,
-                "cpp": CodeQLLanguage.CPP,
-                "go": CodeQLLanguage.GO,
-                "ruby": CodeQLLanguage.RUBY,
-                "swift": CodeQLLanguage.SWIFT,
-                "actions": CodeQLLanguage.ACTIONS,
-            }
+            language_mapping = self.LANGUAGE_MAPPING
 
             for lang in json_languages:
                 lang_lower = lang.lower()
@@ -484,18 +487,7 @@ class CodeQLAnalysisUseCase:
             )
 
             # Map detected languages to CodeQL languages
-            language_mapping = {
-                "javascript": CodeQLLanguage.JAVASCRIPT,
-                "typescript": CodeQLLanguage.TYPESCRIPT,
-                "python": CodeQLLanguage.PYTHON,
-                "java": CodeQLLanguage.JAVA,
-                "csharp": CodeQLLanguage.CSHARP,
-                "cpp": CodeQLLanguage.CPP,
-                "go": CodeQLLanguage.GO,
-                "ruby": CodeQLLanguage.RUBY,
-                "swift": CodeQLLanguage.SWIFT,
-                "actions": CodeQLLanguage.ACTIONS,
-            }
+            language_mapping = self.LANGUAGE_MAPPING
 
             for lang_list in all_languages.values():
                 for lang in lang_list:
