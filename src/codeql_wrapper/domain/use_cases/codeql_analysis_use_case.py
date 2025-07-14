@@ -558,6 +558,9 @@ class CodeQLAnalysisUseCase:
                     cleanup_database=False,  # Keep database for debugging
                     build_mode=request.build_mode,  # Pass build_mode
                     queries=request.queries,
+                    repository_path=str(
+                        request.repository_path
+                    ),  # Pass repository_path for SARIF category
                 )
 
                 if not analysis_result.success:

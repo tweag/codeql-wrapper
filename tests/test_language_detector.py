@@ -40,7 +40,10 @@ class TestLanguageDetector:
             non_compiled = self.detector.detect_languages(
                 temp_path, LanguageType.NON_COMPILED
             )
-            expected_non_compiled = ["javascript", "python", "typescript"]
+            expected_non_compiled = [
+                "javascript",
+                "python",
+            ]  # TypeScript now detected as JavaScript
             assert sorted(non_compiled) == sorted(expected_non_compiled)
 
             # Test compiled languages
@@ -147,14 +150,16 @@ class TestLanguageDetector:
             assert result == "csharp", f"Extension .{ext} should map to csharp"
 
     def test_typescript_extensions(self):
-        """Test that all TypeScript extensions are detected correctly."""
+        """Test that all TypeScript extensions are detected as JavaScript (CodeQL Action behavior)."""
         ts_extensions = ["ts", "tsx", "mts", "cts"]
 
         for ext in ts_extensions:
             result = self.detector._get_language_from_file(
                 Path(f"test.{ext}"), LanguageType.NON_COMPILED
             )
-            assert result == "typescript", f"Extension .{ext} should map to typescript"
+            assert (
+                result == "javascript"
+            ), f"Extension .{ext} should map to javascript (CodeQL Action behavior)"
 
     def test_subdirectory_scanning(self):
         """Test that subdirectories are scanned correctly."""
@@ -411,10 +416,9 @@ class TestLanguageDetector:
             )
             expected_non_compiled = [
                 "actions",
-                "javascript",
+                "javascript",  # TypeScript files now detected as JavaScript
                 "python",
                 "ruby",
-                "typescript",
             ]
             assert sorted(non_compiled) == sorted(expected_non_compiled)
 

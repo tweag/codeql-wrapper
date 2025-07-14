@@ -78,6 +78,7 @@ class CodeQLRunner:
         language: str,
         command: Optional[str] = None,
         build_mode: Optional[str] = None,
+        repository_path: Optional[str] = None,
     ) -> CodeQLResult:
         """
         Create a CodeQL database.
@@ -88,6 +89,7 @@ class CodeQLRunner:
             language: Programming language to analyze
             command: Build command (required for compiled languages)
             build_mode: Build mode for the database creation
+            repository_path: Repository path for SARIF category
 
         Returns:
             CodeQLResult with database creation information
@@ -101,6 +103,10 @@ class CodeQLRunner:
             "--language",
             language,
         ]
+
+        # Add SARIF category with repository path
+        if repository_path:
+            args.extend(["--sarif-category", repository_path])
 
         # Only add build-mode if specified and not "none"
         if build_mode:
@@ -160,6 +166,7 @@ class CodeQLRunner:
         cleanup_database: bool = True,
         build_mode: Optional[str] = None,
         queries: Optional[List[str]] = None,
+        repository_path: Optional[str] = None,
     ) -> CodeQLResult:
         """
         High-level method to create database and run analysis in one step.
@@ -171,6 +178,9 @@ class CodeQLRunner:
             database_name: Name for the database (defaults to temp directory)
             build_command: Build command for compiled languages
             cleanup_database: Whether to clean up the database after analysis
+            build_mode: Build mode for the database creation
+            queries: List of query files or suites to run
+            repository_path: Repository path for SARIF category
 
         Returns:
             CodeQLResult with final analysis information
@@ -220,6 +230,7 @@ class CodeQLRunner:
                 language,
                 build_command,
                 build_mode=build_mode,
+                repository_path=repository_path,
             )
 
             if not create_result.success:
