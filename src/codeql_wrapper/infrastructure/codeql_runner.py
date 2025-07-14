@@ -121,6 +121,7 @@ class CodeQLRunner:
         output_format: str = "sarif-latest",
         output: Optional[str] = None,
         queries: Optional[List[str]] = None,
+        sarif_category: Optional[str] = None,
     ) -> CodeQLResult:
         """
         Analyze a CodeQL database.
@@ -129,6 +130,8 @@ class CodeQLRunner:
             database_path: Path to the CodeQL database
             output_format: Output format ('sarif-latest', 'csv', 'json')
             output: Output file path
+            queries: List of query files or suites to run
+            sarif_category: SARIF category for the analysis results
 
         Returns:
             CodeQLResult with analysis information
@@ -145,6 +148,10 @@ class CodeQLRunner:
         if output:
             args.extend(["--output", output])
 
+        # Add SARIF category if provided
+        if sarif_category:
+            args.extend(["--sarif-category", sarif_category])
+
         if queries:
             args.extend(queries)
 
@@ -160,6 +167,7 @@ class CodeQLRunner:
         cleanup_database: bool = True,
         build_mode: Optional[str] = None,
         queries: Optional[List[str]] = None,
+        repository_path: Optional[str] = None,
     ) -> CodeQLResult:
         """
         High-level method to create database and run analysis in one step.
@@ -171,6 +179,9 @@ class CodeQLRunner:
             database_name: Name for the database (defaults to temp directory)
             build_command: Build command for compiled languages
             cleanup_database: Whether to clean up the database after analysis
+            build_mode: Build mode for the database creation
+            queries: List of query files or suites to run
+            repository_path: Repository path for SARIF category
 
         Returns:
             CodeQLResult with final analysis information
@@ -235,6 +246,7 @@ class CodeQLRunner:
                 output_format="sarif-latest",
                 output=output_file,
                 queries=queries,
+                sarif_category=repository_path,
             )
 
             if not analyze_result.success:
