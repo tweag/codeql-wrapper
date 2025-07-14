@@ -259,7 +259,16 @@ class CodeQLAnalysisUseCase:
                 build_script=build_script,
                 queries=queries,
             )
-            return self._execute_single_repo_analysis(sub_request)
+
+            # Create project-specific config data for language detection
+            project_config_data = None
+            if "language" in project_cfg:
+                project_config_data = {"language": project_cfg["language"]}
+                self._logger.debug(
+                    f"Using project-specific language configuration: {project_cfg['language']}"
+                )
+
+            return self._execute_single_repo_analysis(sub_request, project_config_data)
 
         except Exception as e:
             self._logger.exception(
@@ -273,7 +282,7 @@ class CodeQLAnalysisUseCase:
             )
 
     def _execute_single_repo_analysis(
-        self, request: CodeQLAnalysisRequest
+        self, request: CodeQLAnalysisRequest, config_data: Optional[dict] = None
     ) -> RepositoryAnalysisSummary:
         """
         Execute CodeQL analysis on a repository.
@@ -298,7 +307,9 @@ class CodeQLAnalysisUseCase:
             set_project_context(str(request.repository_path))
 
             # Step 1: Detect projects and languages
-            detected_projects = self._detect_projects(request.repository_path)
+            detected_projects = self._detect_projects(
+                request.repository_path, config_data
+            )
             self._logger.info(f"Detected {len(detected_projects)} project(s)")
 
             # Step 2: Filter projects by target languages if specified
@@ -413,34 +424,83 @@ class CodeQLAnalysisUseCase:
                 error_message=f"CodeQL verification failed: {str(e)}",
             )
 
-    def _detect_projects(self, repository_path: Path) -> List[ProjectInfo]:
+    def _detect_projects(
+        self, repository_path: Path, config_data: Optional[dict] = None
+    ) -> List[ProjectInfo]:
         """Detect projects in the repository."""
         self._logger.debug(f"Detecting projects in: {repository_path}")
 
         # Convert language detector results to our domain entities
         detected_languages = set()
 
-        # Detect both compiled and non-compiled languages
-        all_languages = self._language_detector.detect_all_languages(repository_path)
+        # Only use config_data language configuration for monorepo mode
+        # For single repo mode, always use automatic detection
+        if config_data and "language" in config_data:
+            language_config = config_data["language"]
+            self._logger.info(
+                f"Using language configuration from .codeql.json: {language_config}"
+            )
 
-        # Map detected languages to CodeQL languages
-        language_mapping = {
-            "javascript": CodeQLLanguage.JAVASCRIPT,
-            "typescript": CodeQLLanguage.TYPESCRIPT,
-            "python": CodeQLLanguage.PYTHON,
-            "java": CodeQLLanguage.JAVA,
-            "csharp": CodeQLLanguage.CSHARP,
-            "cpp": CodeQLLanguage.CPP,
-            "go": CodeQLLanguage.GO,
-            "ruby": CodeQLLanguage.RUBY,
-            "swift": CodeQLLanguage.SWIFT,
-            "actions": CodeQLLanguage.ACTIONS,
-        }
+            # Handle both string and list formats
+            if isinstance(language_config, str):
+                json_languages = [language_config]
+            elif isinstance(language_config, list):
+                json_languages = language_config
+            else:
+                self._logger.warning(
+                    f"Invalid language configuration in .codeql.json: {language_config}"
+                )
+                json_languages = []
 
-        for lang_list in all_languages.values():
-            for lang in lang_list:
-                if lang in language_mapping:
-                    detected_languages.add(language_mapping[lang])
+            # Map the configured languages to CodeQL languages
+            language_mapping = {
+                "javascript": CodeQLLanguage.JAVASCRIPT,
+                "typescript": CodeQLLanguage.TYPESCRIPT,
+                "python": CodeQLLanguage.PYTHON,
+                "java": CodeQLLanguage.JAVA,
+                "csharp": CodeQLLanguage.CSHARP,
+                "cpp": CodeQLLanguage.CPP,
+                "go": CodeQLLanguage.GO,
+                "ruby": CodeQLLanguage.RUBY,
+                "swift": CodeQLLanguage.SWIFT,
+                "actions": CodeQLLanguage.ACTIONS,
+            }
+
+            for lang in json_languages:
+                lang_lower = lang.lower()
+                if lang_lower in language_mapping:
+                    detected_languages.add(language_mapping[lang_lower])
+                else:
+                    self._logger.warning(
+                        f"Unknown language '{lang}' in .codeql.json configuration"
+                    )
+        else:
+            # Use automatic detection (default behavior for single repo mode)
+            self._logger.debug("Using automatic language detection")
+
+            # Detect both compiled and non-compiled languages
+            all_languages = self._language_detector.detect_all_languages(
+                repository_path
+            )
+
+            # Map detected languages to CodeQL languages
+            language_mapping = {
+                "javascript": CodeQLLanguage.JAVASCRIPT,
+                "typescript": CodeQLLanguage.TYPESCRIPT,
+                "python": CodeQLLanguage.PYTHON,
+                "java": CodeQLLanguage.JAVA,
+                "csharp": CodeQLLanguage.CSHARP,
+                "cpp": CodeQLLanguage.CPP,
+                "go": CodeQLLanguage.GO,
+                "ruby": CodeQLLanguage.RUBY,
+                "swift": CodeQLLanguage.SWIFT,
+                "actions": CodeQLLanguage.ACTIONS,
+            }
+
+            for lang_list in all_languages.values():
+                for lang in lang_list:
+                    if lang in language_mapping:
+                        detected_languages.add(language_mapping[lang])
 
         if not detected_languages:
             self._logger.warning("No supported languages detected in repository")

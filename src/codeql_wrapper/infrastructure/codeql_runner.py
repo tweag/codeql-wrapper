@@ -241,12 +241,15 @@ class CodeQLRunner:
 
             # Analyze database
             self.logger.info("Running analysis on the database")
+            sarif_category = (
+                f"{language} : {repository_path}" if repository_path else None
+            )
             analyze_result = self.analyze_database(
                 str(database_path),
                 output_format="sarif-latest",
                 output=output_file,
                 queries=queries,
-                sarif_category=repository_path,
+                sarif_category=sarif_category,
             )
 
             if not analyze_result.success:
