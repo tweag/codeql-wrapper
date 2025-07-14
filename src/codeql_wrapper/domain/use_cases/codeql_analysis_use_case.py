@@ -1,7 +1,6 @@
 """CodeQL analysis use case implementation."""
 
 import json
-import os
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
@@ -19,12 +18,15 @@ from ..entities.codeql_analysis import (
 from ...infrastructure.language_detector import LanguageDetector
 from ...infrastructure.codeql_installer import CodeQLInstaller
 from ...infrastructure.codeql_runner import CodeQLRunner
+from ...infrastructure.system_resource_manager import SystemResourceManager
+from ...infrastructure.logger import (
+    set_project_context,
+    clear_project_context,
+)
 
 
 class CodeQLAnalysisUseCase:
     """Use case for running CodeQL analysis on repositories."""
-
-    DEFAULT_MAX_WORKERS: int = 10
 
     def __init__(self, logger: Any) -> None:
         """Initialize the use case with dependencies."""
@@ -32,6 +34,37 @@ class CodeQLAnalysisUseCase:
         self._language_detector = LanguageDetector()
         self._codeql_installer = CodeQLInstaller()
         self._codeql_runner: Optional[CodeQLRunner] = None
+        self._system_resource_manager = SystemResourceManager(logger)
+
+        # Calculate optimal workers based on system resources (default)
+        self._adaptive_max_workers = (
+            self._system_resource_manager.calculate_optimal_workers()
+        )
+        self._manual_max_workers: Optional[int] = None
+
+    @property
+    def max_workers(self) -> int:
+        """Get the maximum number of workers for this instance."""
+        return (
+            self._manual_max_workers
+            if self._manual_max_workers is not None
+            else self._adaptive_max_workers
+        )
+
+    def set_max_workers(self, max_workers: Optional[int]) -> None:
+        """Set the maximum number of workers manually."""
+        if max_workers is not None:
+            if max_workers > 16:
+                self._logger.warning(
+                    f"Using {max_workers} workers may cause resource exhaustion"
+                )
+            self._logger.info(f"Using manual max_workers: {max_workers}")
+        else:
+            self._logger.info(
+                f"Using adaptive max_workers: {self._adaptive_max_workers}"
+            )
+
+        self._manual_max_workers = max_workers
 
     def execute(self, request: CodeQLAnalysisRequest) -> RepositoryAnalysisSummary:
         """
@@ -48,6 +81,29 @@ class CodeQLAnalysisUseCase:
             Exception: If analysis fails
         """
         try:
+            # Set max workers from request if provided
+            self.set_max_workers(request.max_workers)
+
+            # Step 1: Verify CodeQL installation once for all projects
+            self._logger.info("Verifying CodeQL installation...")
+            installation_info = self._verify_codeql_installation(request.force_install)
+            if not installation_info.is_valid:
+                raise Exception(
+                    f"CodeQL installation error: {installation_info.error_message}"
+                )
+
+            # Step 2: Initialize CodeQL runner once for all projects
+            self._codeql_runner = CodeQLRunner(str(installation_info.path))
+            self._logger.info(
+                f"CodeQL runner initialized with version {installation_info.version}"
+            )
+
+            # Step 2.1: Set environment variable for worker processes to use
+            import os
+
+            os.environ["CODEQL_WRAPPER_VERIFIED_PATH"] = str(installation_info.path)
+
+            # Step 3: Execute analysis based on repository type
             if request.monorepo:
                 # Run scan based on .codeql.json if it exists
                 root_config_path = request.repository_path / ".codeql.json"
@@ -79,6 +135,9 @@ class CodeQLAnalysisUseCase:
         self, project_path: Path, request: CodeQLAnalysisRequest
     ) -> RepositoryAnalysisSummary:
         """Process a single project inside a monorepo."""
+        # Set project context for logging
+        set_project_context(str(project_path))
+
         self._logger.info(f"Processing project: {project_path}")
         sub_request = CodeQLAnalysisRequest(
             repository_path=project_path,
@@ -127,28 +186,25 @@ class CodeQLAnalysisUseCase:
         all_analysis_results = []
         error_messages = []
 
-        max_workers = min(os.cpu_count() or 1, self.DEFAULT_MAX_WORKERS)
-        with ProcessPoolExecutor(max_workers=max_workers) as executor:
+        # Process projects in parallel using ProcessPoolExecutor
+        # CodeQL installation is already verified at this point, so workers can reuse it
+        with ProcessPoolExecutor(max_workers=self.max_workers) as executor:
+            # Submit all projects for processing
             futures = []
             for project_cfg in projects_config:
                 if use_config_mode:
-                    futures.append(
-                        executor.submit(
-                            self._process_monorepo_project_from_config,
-                            project_cfg,
-                            request,
-                        )
+                    future = executor.submit(
+                        self._process_monorepo_project_from_config, project_cfg, request
                     )
                 else:
-                    futures.append(
-                        executor.submit(
-                            self._process_monorepo_project,
-                            Path(project_cfg["path"]),
-                            request,
-                        )
+                    future = executor.submit(
+                        self._process_monorepo_project,
+                        Path(project_cfg["path"]),
+                        request,
                     )
+                futures.append(future)
 
-            # Collect results from futures
+            # Collect results as they complete
             for future in as_completed(futures):
                 try:
                     result = future.result()
@@ -175,6 +231,9 @@ class CodeQLAnalysisUseCase:
     ) -> RepositoryAnalysisSummary:
         try:
             project_path = Path(project_cfg["path"])
+            # Set project context for logging
+            set_project_context(str(project_path))
+
             build_mode = project_cfg.get("build-mode", "none")
             build_script = project_cfg.get("build-script")
             queries = project_cfg.get("queries", [])
@@ -235,32 +294,25 @@ class CodeQLAnalysisUseCase:
                 f"{request.repository_path}"
             )
 
-            # Step 1: Verify CodeQL installation
-            installation_info = self._verify_codeql_installation(request.force_install)
-            if not installation_info.is_valid:
-                raise Exception(
-                    f"CodeQL installation error: {installation_info.error_message}"
-                )
+            # Set project context for logging
+            set_project_context(str(request.repository_path))
 
-            # Step 2: Initialize CodeQL runner
-            self._codeql_runner = CodeQLRunner(str(installation_info.path))
-
-            # Step 3: Detect projects and languages
+            # Step 1: Detect projects and languages
             detected_projects = self._detect_projects(request.repository_path)
             self._logger.info(f"Detected {len(detected_projects)} project(s)")
 
-            # Step 4: Filter projects by target languages if specified
+            # Step 2: Filter projects by target languages if specified
             filtered_projects = self._filter_projects_by_language(
                 detected_projects, request.target_languages
             )
 
-            # Step 5: Run analysis on each project
+            # Step 3: Run analysis on each project
             analysis_results = []
             for project in filtered_projects:
                 result = self._analyze_project(project, request)
                 analysis_results.append(result)
 
-            # Step 6: Create summary
+            # Step 4: Create summary
             summary = RepositoryAnalysisSummary(
                 repository_path=request.repository_path,
                 detected_projects=detected_projects,
@@ -277,6 +329,9 @@ class CodeQLAnalysisUseCase:
         except Exception as e:
             self._logger.error(f"CodeQL analysis failed: {e}")
             raise
+        finally:
+            # Clear project context when done
+            clear_project_context()
 
     def _verify_codeql_installation(
         self, force_install: bool = False
@@ -433,6 +488,9 @@ class CodeQLAnalysisUseCase:
         self, project: ProjectInfo, request: CodeQLAnalysisRequest
     ) -> CodeQLAnalysisResult:
         """Analyze a single project with CodeQL."""
+        # Set project context for this specific project
+        set_project_context(str(project.path))
+
         self._logger.info(f"Analyzing project: {project.name}")
 
         start_time = datetime.now()

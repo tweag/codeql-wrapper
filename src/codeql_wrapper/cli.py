@@ -108,6 +108,12 @@ def cli(ctx: click.Context, verbose: bool = False) -> None:
     envvar="GITHUB_TOKEN",
     help="GitHub token for SARIF upload (or set GITHUB_TOKEN env var)",
 )
+@click.option(
+    "--max-workers",
+    type=click.IntRange(1),
+    help="Maximum number of worker processes for concurrent analysis "
+    "(default: adaptive based on system resources)",
+)
 @click.pass_context
 def analyze(
     ctx: click.Context,
@@ -121,6 +127,7 @@ def analyze(
     commit_sha: Optional[str],
     ref: Optional[str],
     github_token: Optional[str],
+    max_workers: Optional[int],
 ) -> None:
     """
     Run CodeQL analysis on a repository.
@@ -207,6 +214,14 @@ def analyze(
                 else:
                     logger.warning(f"Unsupported language: {lang}")
 
+        # Validate max_workers parameter
+        if max_workers is not None:
+            if max_workers > 16:
+                click.echo(
+                    click.style("WARNING:", fg="yellow", bold=True)
+                    + f" Using {max_workers} workers may cause resource exhaustion on some systems"
+                )
+
         # Create analysis request
         request = CodeQLAnalysisRequest(
             repository_path=Path(repository_path),
@@ -215,6 +230,7 @@ def analyze(
             verbose=verbose,
             force_install=force_install,
             monorepo=monorepo,
+            max_workers=max_workers,
         )
 
         # Execute analysis

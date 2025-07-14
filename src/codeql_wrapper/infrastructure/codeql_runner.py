@@ -1,9 +1,7 @@
 """CodeQL runner infrastructure module."""
 
 import subprocess
-import shutil
 import os  # Added for chmod
-import click
 from pathlib import Path
 from typing import List, Optional
 from dataclasses import dataclass
@@ -113,7 +111,7 @@ class CodeQLRunner:
         if command:
             args.extend(["--command", command])
 
-        args.append("--overwrite")
+        args.append("--force-overwrite")
 
         return self._run_command(args)
 
@@ -225,43 +223,8 @@ class CodeQLRunner:
             )
 
             if not create_result.success:
-                # Check if this is the specific corrupted database error
-                if (
-                    "Unrecognized file in database cluster" in create_result.stderr
-                    or "does not appear to be a CodeQL database" in create_result.stderr
-                ):
-                    self.logger.warning(
-                        "Detected corrupted database directory, removing and retrying..."
-                    )
-
-                    # Remove the corrupted directory
-                    if database_path.exists():
-                        try:
-                            shutil.rmtree(database_path, ignore_errors=True)
-                            self.logger.info(
-                                f"Removed corrupted database directory: {database_path}"
-                            )
-                        except Exception as e:
-                            self.logger.error(
-                                f"Failed to remove corrupted directory: {e}"
-                            )
-                            return create_result
-
-                    # Retry database creation
-                    self.logger.info("Retrying database creation...")
-                    create_result = self.create_database(
-                        str(database_path),
-                        source_root,
-                        language,
-                        build_command,
-                        build_mode=build_mode,
-                    )
-
-                if not create_result.success:
-                    self.logger.error(
-                        f"Database creation failed: {create_result.stderr}"
-                    )
-                    return create_result
+                self.logger.error(f"Database creation failed: {create_result.stderr}")
+                return create_result
 
             self.logger.info("Database created successfully")
 
@@ -292,8 +255,6 @@ class CodeQLRunner:
     def _run_command(self, args: List[str], cwd: Optional[str] = None) -> CodeQLResult:
         command = [self.codeql_path] + args
         self.logger.debug(f"Running command: {' '.join(command)}")
-
-        click.echo(f"Executing CodeQL command: {' '.join(command)}")
 
         if "--command" in args:
             self.logger.debug(f"Build command: {args[args.index('--command') + 1]}")

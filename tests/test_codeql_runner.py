@@ -196,7 +196,7 @@ class TestCodeQLRunner:
             "javascript",
             "--build-mode",
             "none",
-            "--overwrite",
+            "--force-overwrite",
         ]
         assert args == expected
 
@@ -229,7 +229,7 @@ class TestCodeQLRunner:
             "none",
             "--command",
             "mvn compile",
-            "--overwrite",
+            "--force-overwrite",
         ]
         assert args == expected
 
@@ -410,74 +410,6 @@ class TestCodeQLRunner:
         # Check that the custom database path was used
         create_call_args = mock_run.call_args_list[0][0][0]
         assert "/custom/db/path" in create_call_args
-
-    @patch("subprocess.run")
-    @patch("tempfile.mkdtemp")
-    @patch("pathlib.Path.exists")
-    @patch("shutil.rmtree")
-    def test_create_and_analyze_corrupted_database_retry(
-        self, mock_rmtree, mock_exists, mock_mkdtemp, mock_run
-    ) -> None:
-        """Test create_and_analyze handles corrupted database and retries."""
-        mock_mkdtemp.return_value = "/tmp/test123"
-        mock_exists.return_value = True  # Database path exists for cleanup
-
-        # Mock corrupted database creation failure
-        corrupted_result = Mock()
-        corrupted_result.returncode = 1
-        corrupted_result.stdout = ""
-        corrupted_result.stderr = "Unrecognized file in database cluster"
-
-        # Mock successful retry
-        retry_result = Mock()
-        retry_result.returncode = 0
-        retry_result.stdout = "Database created"
-        retry_result.stderr = ""
-
-        # Mock successful analysis
-        analyze_result = Mock()
-        analyze_result.returncode = 0
-        analyze_result.stdout = "Analysis complete"
-        analyze_result.stderr = ""
-
-        mock_run.side_effect = [corrupted_result, retry_result, analyze_result]
-
-        result = self.runner.create_and_analyze(
-            "/source", "javascript", "/results.sarif", cleanup_database=False
-        )
-
-        assert result.success is True
-        assert mock_run.call_count == 3  # corrupted, retry, analyze
-        mock_rmtree.assert_called_once()  # Directory should be removed
-
-    @patch("subprocess.run")
-    @patch("tempfile.mkdtemp")
-    @patch("pathlib.Path.exists")
-    @patch("shutil.rmtree")
-    def test_create_and_analyze_corrupted_database_cleanup_failure(
-        self, mock_rmtree, mock_exists, mock_mkdtemp, mock_run
-    ) -> None:
-        """Test create_and_analyze handles corrupted database cleanup failure."""
-        mock_mkdtemp.return_value = "/tmp/test123"
-        mock_exists.return_value = True  # Database path exists for cleanup
-        mock_rmtree.side_effect = Exception("Permission denied")
-
-        # Mock corrupted database creation failure
-        corrupted_result = Mock()
-        corrupted_result.returncode = 1
-        corrupted_result.stdout = ""
-        corrupted_result.stderr = "does not appear to be a CodeQL database"
-
-        mock_run.return_value = corrupted_result
-
-        result = self.runner.create_and_analyze(
-            "/source", "javascript", "/results.sarif", cleanup_database=False
-        )
-
-        assert result.success is False
-        assert result.stderr == "does not appear to be a CodeQL database"
-        assert mock_run.call_count == 1  # Only initial failed attempt
-        mock_rmtree.assert_called_once()  # Should try to remove directory
 
     @patch("subprocess.run")
     @patch("tempfile.mkdtemp")
