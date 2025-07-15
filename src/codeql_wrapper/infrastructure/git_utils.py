@@ -71,7 +71,7 @@ class GitUtils:
         repository_path: Path,
         base_ref: str = "HEAD~1",
         target_ref: str = "HEAD",
-        diff_filter: Optional[str] = None
+        diff_filter: Optional[str] = None,
     ) -> List[str]:
         """
         Get list of files that differ between two Git references.
@@ -88,7 +88,7 @@ class GitUtils:
         try:
             # Build the git diff command
             cmd = ["git", "diff", "--name-only", f"{base_ref}..{target_ref}"]
-            
+
             # Add filter if specified
             if diff_filter:
                 cmd.insert(2, f"--diff-filter={diff_filter}")
@@ -100,14 +100,16 @@ class GitUtils:
                 text=True,
                 check=False,
             )
-            
+
             if result.returncode == 0:
                 # Return list of file paths, filtering out empty lines
-                return [line.strip() for line in result.stdout.split('\n') if line.strip()]
+                return [
+                    line.strip() for line in result.stdout.split("\n") if line.strip()
+                ]
             else:
                 # Log error but don't raise exception
                 return []
-                
+
         except Exception:
             return []
 

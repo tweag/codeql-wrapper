@@ -162,12 +162,12 @@ class CodeQLRunner:
         source_root: str,
         language: str,
         output_file: str,
-        project_name: str ,
+        project_name: str,
         database_name: Optional[str] = None,
         build_command: Optional[str] = None,
         cleanup_database: bool = True,
         build_mode: Optional[str] = None,
-        queries: Optional[List[str]] = None,       
+        queries: Optional[List[str]] = None,
     ) -> CodeQLResult:
         """
         High-level method to create database and run analysis in one step.

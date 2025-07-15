@@ -20,6 +20,7 @@ current_format: ContextVar[Optional[str]] = ContextVar(
     "current_format", default="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 
+
 class ShortNameFormatter(logging.Formatter):
     """Custom formatter that shows only the class name instead of full module path."""
 
@@ -35,27 +36,29 @@ class ShortNameFormatter(logging.Formatter):
 
         # Get the log color from context if available
         log_color = getattr(record, "log_color", None) or current_log_color.get()
-        
+
         # Get the current format from context and update the formatter
         # If no specific format is set, determine format based on project context
         current_fmt = current_format.get()
         if current_fmt is None:
             if project_value:
-                current_fmt = "%(asctime)s - %(name)s - %(project)s - %(levelname)s - %(message)s"
+                current_fmt = (
+                    "%(asctime)s - %(name)s - %(project)s - %(levelname)s - %(message)s"
+                )
             else:
                 current_fmt = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-        
+
         if current_fmt and current_fmt != self._style._fmt:
             self._style._fmt = current_fmt
-        
+
         # Format the message with the parent formatter
         formatted_message = super().format(record)
-        
+
         # Apply color if available
         if log_color:
             reset_color = "\033[0m"
             return f"{log_color}{formatted_message}{reset_color}"
-        
+
         return formatted_message
 
 
@@ -89,7 +92,7 @@ def get_logger(
     # Always use our custom formatter to ensure colors work
     if format_string is None:
         format_string = current_format.get()
-    
+
     # Create console handler
     handler = logging.StreamHandler(sys.stdout)
     handler_level = level if level is not None else logger.getEffectiveLevel()
@@ -116,7 +119,9 @@ def set_project_context(project_path: Optional[str]) -> None:
         project_path: The project path to set in context
     """
     current_project_context.set(str(project_path) if project_path else "")
-    current_format.set("%(asctime)s - %(name)s - %(project)s - %(levelname)s - %(message)s")
+    current_format.set(
+        "%(asctime)s - %(name)s - %(project)s - %(levelname)s - %(message)s"
+    )
 
 
 def clear_project_context() -> None:
@@ -159,7 +164,7 @@ def configure_logging(verbose: bool = False) -> None:
 
     # Use our custom formatter that shows only class names
     formatter = ShortNameFormatter(current_format.get())
-    
+
     handler.setFormatter(formatter)
 
     # Configure root logger

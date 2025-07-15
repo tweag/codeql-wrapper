@@ -4,7 +4,6 @@ import json
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
-import re
 from typing import Any, List, Optional, Set
 
 from ..entities.codeql_analysis import (
@@ -21,7 +20,7 @@ from ...infrastructure.codeql_installer import CodeQLInstaller
 from ...infrastructure.codeql_runner import CodeQLRunner
 from ...infrastructure.system_resource_manager import SystemResourceManager
 from ...infrastructure.logger import configure_logging, get_logger
-        
+
 from ...infrastructure.logger import (
     set_project_context,
     clear_project_context,
@@ -36,7 +35,7 @@ class CodeQLAnalysisUseCase:
     def __init__(self, logger: Any) -> None:
         """Initialize the use case with dependencies."""
         self._logger = get_logger(__name__)
-        self.verbose = False 
+        self.verbose = False
         self._language_detector = LanguageDetector()
         self._codeql_installer = CodeQLInstaller()
         self._codeql_runner: Optional[CodeQLRunner] = None
@@ -106,17 +105,21 @@ class CodeQLAnalysisUseCase:
             )
 
             # Step 3: Detect projects
-            configFile = request.repository_path / ".codeql.json" if request.monorepo else None
+            configFile = (
+                request.repository_path / ".codeql.json" if request.monorepo else None
+            )
             config_data = None
             if request.monorepo and configFile and configFile.exists():
                 with open(configFile, "r", encoding="utf-8") as f:
                     config_data = json.load(f)
-                    
-            projects:List[ProjectInfo] = self._detect_projects(request.monorepo, config_data, request.repository_path)
 
-            # Step 4: Execute analysis 
+            projects: List[ProjectInfo] = self._detect_projects(
+                request.monorepo, config_data, request.repository_path
+            )
+
+            # Step 4: Execute analysis
             all_analysis_results = []
-            error_messages = []     
+            error_messages = []
 
             # Process projects in parallel using ProcessPoolExecutor
             # CodeQL installation is already verified at this point, so workers can reuse it
@@ -125,10 +128,14 @@ class CodeQLAnalysisUseCase:
                 futures = []
                 for project in projects:
                     future = executor.submit(
-                            self._analyze,
-                            project,
-                            request.output_directory if request.output_directory is not None else Path(project.project_path) / "codeql-results"
-                        )
+                        self._analyze,
+                        project,
+                        (
+                            request.output_directory
+                            if request.output_directory is not None
+                            else Path(project.project_path) / "codeql-results"
+                        ),
+                    )
                     futures.append(future)
 
                 # Collect results as they complete
@@ -142,7 +149,6 @@ class CodeQLAnalysisUseCase:
                         self._logger.exception(f"Processing failed: {e}")
                         error_messages.append(str(e))
 
-            
             # Compose aggregated error string, if any
             aggregated_error = "\n".join(error_messages) if error_messages else None
 
@@ -157,7 +163,9 @@ class CodeQLAnalysisUseCase:
             self._logger.error(f"CodeQL analysis failed: {e}")
             raise
 
-    def _analyze(self, project: ProjectInfo, output_directory: Path) -> CodeQLAnalysisResult:
+    def _analyze(
+        self, project: ProjectInfo, output_directory: Path
+    ) -> CodeQLAnalysisResult:
         """
         Execute CodeQL analysis on a repository.
 
@@ -172,14 +180,16 @@ class CodeQLAnalysisUseCase:
             Exception: If CodeQL installation or analysis fails
         """
 
-        configure_logging(verbose=self.verbose)  # Use verbose to see debug messages in worker
-                
+        configure_logging(
+            verbose=self.verbose
+        )  # Use verbose to see debug messages in worker
+
         # Set project context for logging
         if project.target_language is not None:
             set_project_context(f"{project.name}({project.target_language.value})")
         else:
             set_project_context(f"{project.name}")
-        
+
         # Set log color if available
         if project.log_color:
             set_log_color(project.log_color)
@@ -187,7 +197,9 @@ class CodeQLAnalysisUseCase:
         self._logger.info(f"Analyzing project: {project.name}")
         self._logger.debug(f"Project context set: {str(project.project_path)}")
         self._logger.debug(f"Project compiled language: {project.compiled_languages}")
-        self._logger.debug(f"Project non-compiled language: {project.non_compiled_languages}")
+        self._logger.debug(
+            f"Project non-compiled language: {project.non_compiled_languages}"
+        )
         self._logger.debug(f"Project target language: {project.target_language}")
         self._logger.debug(f"Project build script: {project.build_script}")
         self._logger.debug(f"Project queries: {project.queries}")
@@ -202,36 +214,45 @@ class CodeQLAnalysisUseCase:
             # Export CodeQL suites path for this analysis
             self._export_codeql_suites_path()
 
-            output_directory=Path(output_directory,project.name)
+            output_directory = Path(output_directory, project.name)
             output_directory.mkdir(parents=True, exist_ok=True)
 
             # Analyze each language in the project
-            for language in project.compiled_languages.union(project.non_compiled_languages):
+            for language in project.compiled_languages.union(
+                project.non_compiled_languages
+            ):
                 if project.target_language and language != project.target_language:
                     self._logger.debug(
-                        f"Skipping language {language.value} as it is not the target language {project.target_language}"
+                        f"Skipping language {language.value} as it is not the target "
+                        f"language {project.target_language}"
                     )
                     continue
 
                 if self._codeql_runner is None:
                     # Initialize CodeQL runner in worker process
                     import os
+
                     codeql_path = os.environ.get("CODEQL_WRAPPER_VERIFIED_PATH")
                     if not codeql_path:
                         raise Exception("CodeQL path not found in environment")
-                    
+
                     from ...infrastructure.codeql_runner import CodeQLRunner
+
                     self._codeql_runner = CodeQLRunner(codeql_path)
-                    self._logger.debug(f"Initialized CodeQL runner in worker process: {codeql_path}")
+                    self._logger.debug(
+                        f"Initialized CodeQL runner in worker process: {codeql_path}"
+                    )
 
                 # Default output format
                 output_format = "sarif-latest"
-                output_file = Path(output_directory ,f"results-{language.value}.sarif")
+                output_file = Path(output_directory, f"results-{language.value}.sarif")
 
                 # Explicitly set build_command to None if build_mode is "none"
                 build_command = None
                 if project.build_mode != "none" and project.build_script:
-                    build_command = str(Path(project.repository_path,project.build_script))
+                    build_command = str(
+                        Path(project.repository_path, project.build_script)
+                    )
                     self._logger.debug(f"Using build command: {build_command}")
                 else:
                     self._logger.debug(
@@ -244,11 +265,11 @@ class CodeQLAnalysisUseCase:
                     language=language.value,
                     output_file=str(output_file),
                     database_name=str(output_directory / f"db-{language.value}"),
-                    build_command=build_command,  
-                    cleanup_database=False,  
-                    build_mode=project.build_mode,  
+                    build_command=build_command,
+                    cleanup_database=False,
+                    build_mode=project.build_mode,
                     queries=project.queries,
-                    project_name=project.name, 
+                    project_name=project.name,
                 )
 
                 if not analysis_result.success:
@@ -306,43 +327,45 @@ class CodeQLAnalysisUseCase:
         """Get a unique color for a project based on its index."""
         # ANSI color codes for different colors
         colors = [
-            "\033[92m",   # Bright Green
-            "\033[93m",   # Bright Yellow
-            "\033[94m",   # Bright Blue
-            "\033[95m",   # Bright Magenta
-            "\033[96m",   # Bright Cyan
-            "\033[97m",   # Bright White
-            "\033[32m",   # Dark Green
-            "\033[33m",   # Dark Yellow
-            "\033[34m",   # Dark Blue
-            "\033[35m",   # Dark Magenta
-            "\033[36m",   # Dark Cyan
-            "\033[90m",   # Dark Gray
-            "\033[37m",   # Light Gray
-            "\033[1;32m", # Bold Green
-            "\033[1;33m", # Bold Yellow
-            "\033[1;34m", # Bold Blue
-            "\033[1;35m", # Bold Magenta
-            "\033[1;36m", # Bold Cyan
-            "\033[1;37m", # Bold White
-            "\033[38;5;208m", # Orange (256-color)
-            "\033[38;5;129m", # Purple (256-color)
+            "\033[92m",  # Bright Green
+            "\033[93m",  # Bright Yellow
+            "\033[94m",  # Bright Blue
+            "\033[95m",  # Bright Magenta
+            "\033[96m",  # Bright Cyan
+            "\033[97m",  # Bright White
+            "\033[32m",  # Dark Green
+            "\033[33m",  # Dark Yellow
+            "\033[34m",  # Dark Blue
+            "\033[35m",  # Dark Magenta
+            "\033[36m",  # Dark Cyan
+            "\033[90m",  # Dark Gray
+            "\033[37m",  # Light Gray
+            "\033[1;32m",  # Bold Green
+            "\033[1;33m",  # Bold Yellow
+            "\033[1;34m",  # Bold Blue
+            "\033[1;35m",  # Bold Magenta
+            "\033[1;36m",  # Bold Cyan
+            "\033[1;37m",  # Bold White
+            "\033[38;5;208m",  # Orange (256-color)
+            "\033[38;5;129m",  # Purple (256-color)
             "\033[38;5;39m",  # Light Blue (256-color)
             "\033[38;5;46m",  # Lime Green (256-color)
-            "\033[38;5;196m", # Bright Red (256-color)
-            "\033[38;5;202m", # Orange Red (256-color)
-            "\033[38;5;214m", # Gold (256-color)
+            "\033[38;5;196m",  # Bright Red (256-color)
+            "\033[38;5;202m",  # Orange Red (256-color)
+            "\033[38;5;214m",  # Gold (256-color)
             "\033[38;5;51m",  # Turquoise (256-color)
-            "\033[38;5;165m", # Hot Pink (256-color)
+            "\033[38;5;165m",  # Hot Pink (256-color)
             "\033[38;5;99m",  # Violet (256-color)
-            "\033[38;5;118m", # Green Yellow (256-color)
+            "\033[38;5;118m",  # Green Yellow (256-color)
             "\033[38;5;75m",  # Sky Blue (256-color)
-            "\033[38;5;220m", # Yellow (256-color)
-            "\033[38;5;197m", # Deep Pink (256-color)
+            "\033[38;5;220m",  # Yellow (256-color)
+            "\033[38;5;197m",  # Deep Pink (256-color)
         ]
         return colors[project_index % len(colors)]
 
-    def _detect_projects(self,isMonorepo:bool, configData: Optional[dict], repository_path: Path) -> List[ProjectInfo]:
+    def _detect_projects(
+        self, isMonorepo: bool, configData: Optional[dict], repository_path: Path
+    ) -> List[ProjectInfo]:
         """Detect projects in the repository."""
         self._logger.debug(f"Detecting projects in: {repository_path}")
 
@@ -358,13 +381,27 @@ class CodeQLAnalysisUseCase:
                             repository_path=repository_path,
                             project_path=project_path,
                             build_mode=project.get("build-mode", "none"),
-                            build_script=Path(repository_path,project.get("build-script")).resolve() if project.get("build-script") else None,
+                            build_script=(
+                                Path(
+                                    repository_path, project.get("build-script")
+                                ).resolve()
+                                if project.get("build-script")
+                                else None
+                            ),
                             queries=project.get("queries", []),
                             name=project_path.name,
-                            non_compiled_languages=self._detect_languages(project_path, LanguageType.NON_COMPILED),
-                            compiled_languages=self._detect_languages(project_path, LanguageType.COMPILED),
-                            target_language=CodeQLLanguage(project.get("language")) if project.get("language") else None,
-                            log_color=self._get_project_color(project_index)
+                            non_compiled_languages=self._detect_languages(
+                                project_path, LanguageType.NON_COMPILED
+                            ),
+                            compiled_languages=self._detect_languages(
+                                project_path, LanguageType.COMPILED
+                            ),
+                            target_language=(
+                                CodeQLLanguage(project.get("language"))
+                                if project.get("language")
+                                else None
+                            ),
+                            log_color=self._get_project_color(project_index),
                         )
                     )
             else:
@@ -377,13 +414,17 @@ class CodeQLAnalysisUseCase:
                             ProjectInfo(
                                 repository_path=repository_path,
                                 project_path=folder,
-                                build_mode='none',
+                                build_mode="none",
                                 build_script=None,
                                 queries=[],
                                 name=project_name,
-                                non_compiled_languages=self._detect_languages(folder, LanguageType.NON_COMPILED),
-                                compiled_languages=self._detect_languages(folder, LanguageType.COMPILED),
-                                log_color=self._get_project_color(project_index)
+                                non_compiled_languages=self._detect_languages(
+                                    folder, LanguageType.NON_COMPILED
+                                ),
+                                compiled_languages=self._detect_languages(
+                                    folder, LanguageType.COMPILED
+                                ),
+                                log_color=self._get_project_color(project_index),
                             )
                         )
                         project_index += 1
@@ -394,22 +435,28 @@ class CodeQLAnalysisUseCase:
                 ProjectInfo(
                     repository_path=repository_path,
                     project_path=repository_path,
-                    build_mode='none',
+                    build_mode="none",
                     build_script=None,
                     queries=[],
                     name=project_name,
-                    non_compiled_languages=self._detect_languages(repository_path, LanguageType.NON_COMPILED),
-                    compiled_languages=self._detect_languages(repository_path, LanguageType.COMPILED),
-                    log_color=self._get_project_color(0)
+                    non_compiled_languages=self._detect_languages(
+                        repository_path, LanguageType.NON_COMPILED
+                    ),
+                    compiled_languages=self._detect_languages(
+                        repository_path, LanguageType.COMPILED
+                    ),
+                    log_color=self._get_project_color(0),
                 )
             )
 
         if not projects:
             self._logger.warning("No supported projects detected in repository")
-        
+
         return projects
 
-    def _detect_languages(self, repository_path: Path, languageType: LanguageType) -> Set[CodeQLLanguage]:
+    def _detect_languages(
+        self, repository_path: Path, languageType: LanguageType
+    ) -> Set[CodeQLLanguage]:
         # Convert language detector results to our domain entities
         detected_languages = set()
 
@@ -432,9 +479,20 @@ class CodeQLAnalysisUseCase:
 
         # Define which languages are compiled vs non-compiled
         compiled_languages = {"java", "csharp", "cpp", "swift"}
-        non_compiled_languages = {"javascript", "typescript", "python", "go", "ruby", "actions"}
+        non_compiled_languages = {
+            "javascript",
+            "typescript",
+            "python",
+            "go",
+            "ruby",
+            "actions",
+        }
 
-        target_language_set = compiled_languages if languageType == LanguageType.COMPILED else non_compiled_languages
+        target_language_set = (
+            compiled_languages
+            if languageType == LanguageType.COMPILED
+            else non_compiled_languages
+        )
 
         for lang_list in all_languages.values():
             for lang in lang_list:
@@ -515,6 +573,7 @@ class CodeQLAnalysisUseCase:
 
             # Set environment variable for worker processes to use
             import os
+
             os.environ["CODEQL_WRAPPER_VERIFIED_PATH"] = str(binary_path)
 
             return CodeQLInstallationInfo(
