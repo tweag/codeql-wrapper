@@ -48,6 +48,7 @@ class ProjectInfo:
     compiled_languages: Set[CodeQLLanguage] = field(default_factory=set)
     target_language: Optional[CodeQLLanguage] = None
     build_mode: Optional[str] = None
+    log_color: Optional[str] = None
 
     def __post_init__(self) -> None:
         """Validate project information."""

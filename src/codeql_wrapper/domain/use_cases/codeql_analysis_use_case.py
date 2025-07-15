@@ -20,9 +20,13 @@ from ...infrastructure.language_detector import LanguageDetector, LanguageType
 from ...infrastructure.codeql_installer import CodeQLInstaller
 from ...infrastructure.codeql_runner import CodeQLRunner
 from ...infrastructure.system_resource_manager import SystemResourceManager
+from ...infrastructure.logger import configure_logging, get_logger
+        
 from ...infrastructure.logger import (
     set_project_context,
     clear_project_context,
+    set_log_color,
+    clear_log_color,
 )
 
 
@@ -31,7 +35,8 @@ class CodeQLAnalysisUseCase:
 
     def __init__(self, logger: Any) -> None:
         """Initialize the use case with dependencies."""
-        self._logger = logger
+        self._logger = get_logger(__name__)
+        self.verbose = False 
         self._language_detector = LanguageDetector()
         self._codeql_installer = CodeQLInstaller()
         self._codeql_runner: Optional[CodeQLRunner] = None
@@ -84,6 +89,7 @@ class CodeQLAnalysisUseCase:
         try:
             # Set max workers from request if provided
             self.set_max_workers(request.max_workers)
+            self.verbose = request.verbose
 
             # Step 1: Verify CodeQL installation once for all projects
             self._logger.info("Verifying CodeQL installation...")
@@ -165,13 +171,18 @@ class CodeQLAnalysisUseCase:
             ValueError: If the request is invalid
             Exception: If CodeQL installation or analysis fails
         """
-        self._logger.info(
-            f"Starting single repository CodeQL analysis for: "
-            f"{project.project_path}"
-        )
 
+        configure_logging(verbose=self.verbose)  # Use verbose to see debug messages in worker
+                
         # Set project context for logging
-        set_project_context(str(project.project_path))
+        if project.target_language is not None:
+            set_project_context(f"{project.name}({project.target_language.value})")
+        else:
+            set_project_context(f"{project.name}")
+        
+        # Set log color if available
+        if project.log_color:
+            set_log_color(project.log_color)
 
         self._logger.info(f"Analyzing project: {project.name}")
         self._logger.debug(f"Project context set: {str(project.project_path)}")
@@ -203,7 +214,15 @@ class CodeQLAnalysisUseCase:
                     continue
 
                 if self._codeql_runner is None:
-                    raise Exception("CodeQL runner not initialized")
+                    # Initialize CodeQL runner in worker process
+                    import os
+                    codeql_path = os.environ.get("CODEQL_WRAPPER_VERIFIED_PATH")
+                    if not codeql_path:
+                        raise Exception("CodeQL path not found in environment")
+                    
+                    from ...infrastructure.codeql_runner import CodeQLRunner
+                    self._codeql_runner = CodeQLRunner(codeql_path)
+                    self._logger.debug(f"Initialized CodeQL runner in worker process: {codeql_path}")
 
                 # Default output format
                 output_format = "sarif-latest"
@@ -279,8 +298,49 @@ class CodeQLAnalysisUseCase:
 
             return result
         finally:
-            # Clear project context when done
+            # Clear project context and log color when done
             clear_project_context()
+            clear_log_color()
+
+    def _get_project_color(self, project_index: int) -> str:
+        """Get a unique color for a project based on its index."""
+        # ANSI color codes for different colors
+        colors = [
+            "\033[92m",   # Bright Green
+            "\033[93m",   # Bright Yellow
+            "\033[94m",   # Bright Blue
+            "\033[95m",   # Bright Magenta
+            "\033[96m",   # Bright Cyan
+            "\033[97m",   # Bright White
+            "\033[32m",   # Dark Green
+            "\033[33m",   # Dark Yellow
+            "\033[34m",   # Dark Blue
+            "\033[35m",   # Dark Magenta
+            "\033[36m",   # Dark Cyan
+            "\033[90m",   # Dark Gray
+            "\033[37m",   # Light Gray
+            "\033[1;32m", # Bold Green
+            "\033[1;33m", # Bold Yellow
+            "\033[1;34m", # Bold Blue
+            "\033[1;35m", # Bold Magenta
+            "\033[1;36m", # Bold Cyan
+            "\033[1;37m", # Bold White
+            "\033[38;5;208m", # Orange (256-color)
+            "\033[38;5;129m", # Purple (256-color)
+            "\033[38;5;39m",  # Light Blue (256-color)
+            "\033[38;5;46m",  # Lime Green (256-color)
+            "\033[38;5;196m", # Bright Red (256-color)
+            "\033[38;5;202m", # Orange Red (256-color)
+            "\033[38;5;214m", # Gold (256-color)
+            "\033[38;5;51m",  # Turquoise (256-color)
+            "\033[38;5;165m", # Hot Pink (256-color)
+            "\033[38;5;99m",  # Violet (256-color)
+            "\033[38;5;118m", # Green Yellow (256-color)
+            "\033[38;5;75m",  # Sky Blue (256-color)
+            "\033[38;5;220m", # Yellow (256-color)
+            "\033[38;5;197m", # Deep Pink (256-color)
+        ]
+        return colors[project_index % len(colors)]
 
     def _detect_projects(self,isMonorepo:bool, configData: Optional[dict], repository_path: Path) -> List[ProjectInfo]:
         """Detect projects in the repository."""
@@ -291,7 +351,7 @@ class CodeQLAnalysisUseCase:
         if isMonorepo:
             if configData:
                 projects_config = configData.get("projects", [])
-                for project in projects_config:
+                for project_index, project in enumerate(projects_config):
                     project_path = Path(project.get("path", ""))
                     projects.append(
                         ProjectInfo(
@@ -303,10 +363,12 @@ class CodeQLAnalysisUseCase:
                             name=project_path.name,
                             non_compiled_languages=self._detect_languages(project_path, LanguageType.NON_COMPILED),
                             compiled_languages=self._detect_languages(project_path, LanguageType.COMPILED),
-                            target_language=CodeQLLanguage(project.get("language")) if project.get("language") else None
+                            target_language=CodeQLLanguage(project.get("language")) if project.get("language") else None,
+                            log_color=self._get_project_color(project_index)
                         )
                     )
             else:
+                project_index = 0
                 for folder in repository_path.iterdir():
                     if folder.is_dir():
                         project_name = folder.name or folder.resolve().name
@@ -321,8 +383,10 @@ class CodeQLAnalysisUseCase:
                                 name=project_name,
                                 non_compiled_languages=self._detect_languages(folder, LanguageType.NON_COMPILED),
                                 compiled_languages=self._detect_languages(folder, LanguageType.COMPILED),
+                                log_color=self._get_project_color(project_index)
                             )
                         )
+                        project_index += 1
         else:
             project_name = repository_path.name or repository_path.resolve().name
 
@@ -336,6 +400,7 @@ class CodeQLAnalysisUseCase:
                     name=project_name,
                     non_compiled_languages=self._detect_languages(repository_path, LanguageType.NON_COMPILED),
                     compiled_languages=self._detect_languages(repository_path, LanguageType.COMPILED),
+                    log_color=self._get_project_color(0)
                 )
             )
 
@@ -375,8 +440,6 @@ class CodeQLAnalysisUseCase:
             for lang in lang_list:
                 if lang in language_mapping and lang in target_language_set:
                     detected_languages.add(language_mapping[lang])
-                    lang_type = "compiled" if languageType == LanguageType.COMPILED else "non-compiled"
-                    self._logger.info(f"Detected {lang_type} language: {lang}")
 
         return detected_languages
 
