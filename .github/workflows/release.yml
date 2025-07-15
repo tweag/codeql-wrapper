@@ -163,7 +163,29 @@ jobs:
         # Check if version already exists
         if git tag | grep -q "^v${VERSION}$"; then
           echo "Version v${VERSION} already exists!"
-          exit 1
+          
+          # If pre release, delete existing tag and branch          
+          if [[ "${{ needs.validate.outputs.is_prerelease }}" == 'true' ]]; then
+            # Check if release branch already exists locally or remotely
+            if git show-ref --verify --quiet refs/heads/release/v$VERSION; then
+              echo "Local release branch exists, deleting it..."
+              git branch -D release/v$VERSION
+            fi
+            
+            if git ls-remote --exit-code --heads origin release/v$VERSION; then
+              echo "Remote release branch exists, deleting it..."
+              git push origin --delete release/v$VERSION || echo "Failed to delete remote branch (may not exist)"
+            fi
+
+            # Delete existing tag if it exists
+            if git tag -l | grep -q "^v$VERSION$"; then
+              echo "Remote Tag v$VERSION already exists, deleting it..."
+              git tag -d v$VERSION
+            fi
+          else
+            echo "Version v${VERSION} already exists, exiting..."
+            exit 1
+          fi
         fi
         
         # Check current version in pyproject.toml
@@ -248,23 +270,7 @@ jobs:
         VERSION="${{ needs.validate.outputs.version }}"
         
         echo "Creating release commit and tag..."
-        
-        # Check if release branch already exists locally or remotely
-        if git show-ref --verify --quiet refs/heads/release/v$VERSION; then
-          echo "Local release branch exists, deleting it..."
-          git branch -D release/v$VERSION
-        fi
-        
-        if git ls-remote --exit-code --heads origin release/v$VERSION; then
-          echo "Remote release branch exists, deleting it..."
-          git push origin --delete release/v$VERSION || echo "Failed to delete remote branch (may not exist)"
-        fi
 
-        # Delete existing tag if it exists
-        if git tag -l | grep -q "^v$VERSION$"; then
-          echo "Remote Tag v$VERSION already exists, deleting it..."
-          git tag -d v$VERSION
-        fi
         
         # Create fresh release branch
         git checkout -b release/v$VERSION
@@ -332,7 +338,7 @@ jobs:
           --body "$PR_BODY" \
           --base main \
           --head release/v$VERSION 
-          
+
         echo "Pull request created"
       env:
         GH_TOKEN: ${{ secrets.GH_TOKEN }}
