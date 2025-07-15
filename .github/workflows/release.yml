@@ -302,14 +302,11 @@ jobs:
 
         ---
         _This PR will be auto-merged after creation._"
-        
         gh pr create \
           --title "Release v$VERSION" \
           --body "$PR_BODY" \
           --base main \
-          --head release/v$VERSION \
-          --label "release" \
-          --label "automated"
+          --head release/v$VERSION 
         
         echo "Pull request created"
       env:
