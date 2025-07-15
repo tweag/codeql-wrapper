@@ -2,7 +2,7 @@
 
 import subprocess
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List
 from dataclasses import dataclass
 from urllib.parse import urlparse
 
@@ -65,6 +65,53 @@ class GitUtils:
             return result.returncode == 0
         except Exception:
             return False
+
+    @staticmethod
+    def get_diff_files(
+        repository_path: Path,
+        base_ref: str = "HEAD~1",
+        target_ref: str = "HEAD",
+        diff_filter: Optional[str] = None,
+    ) -> List[str]:
+        """
+        Get list of files that differ between two Git references.
+
+        Args:
+            repository_path: Path to the Git repository
+            base_ref: Base reference to compare from (default: HEAD~1)
+            target_ref: Target reference to compare to (default: HEAD)
+            diff_filter: Optional filter for diff types (A=added, M=modified, D=deleted, etc.)
+
+        Returns:
+            List of file paths that differ between the references
+        """
+        try:
+            # Build the git diff command
+            cmd = ["git", "diff", "--name-only", f"{base_ref}..{target_ref}"]
+
+            # Add filter if specified
+            if diff_filter:
+                cmd.insert(2, f"--diff-filter={diff_filter}")
+
+            result = subprocess.run(
+                cmd,
+                cwd=repository_path,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+            if result.returncode == 0:
+                # Return list of file paths, filtering out empty lines
+                return [
+                    line.strip() for line in result.stdout.split("\n") if line.strip()
+                ]
+            else:
+                # Log error but don't raise exception
+                return []
+
+        except Exception:
+            return []
 
     # Private methods
     @staticmethod

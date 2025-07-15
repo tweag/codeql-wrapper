@@ -4,7 +4,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
 name = "codeql-wrapper"
-version = "0.1.9"
+version = "0.2.0-alpha"
 description = "A universal Python CLI wrapper for running CodeQL analysis on any type of project (monorepo or single repository) across different CI/CD platforms including Jenkins, GitHub Actions, Harness, and any environment where Python scripts can be executed."
 authors = ["Mateus Perdigão Domiciano <mateus.domiciano@moduscreate.com>", "Fernando Matsuo Santos <fernando.matsuo@moduscreate.com>"]
 license = "MIT"
@@ -49,3 +49,13 @@ python_version = "3.13"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
+
+[tool.pytest.ini_options]
+testpaths = ["src", "tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "--strict-markers --strict-config"
+# Explicitly ignore tests_projects directory
+ignore = ["tests_projects"]
+norecursedirs = ["tests_projects", "*.egg", ".eggs", "dist", "build", "docs", ".tox", ".git", "__pycache__"]

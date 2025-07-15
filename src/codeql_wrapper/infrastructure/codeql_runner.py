@@ -162,12 +162,12 @@ class CodeQLRunner:
         source_root: str,
         language: str,
         output_file: str,
+        project_name: str,
         database_name: Optional[str] = None,
         build_command: Optional[str] = None,
         cleanup_database: bool = True,
         build_mode: Optional[str] = None,
         queries: Optional[List[str]] = None,
-        repository_path: Optional[str] = None,
     ) -> CodeQLResult:
         """
         High-level method to create database and run analysis in one step.
@@ -201,7 +201,7 @@ class CodeQLRunner:
 
             # Ensure build_command script is executable if provided
             if build_command:
-                build_script_path = Path(build_command)
+                build_script_path = Path(build_command).resolve()
                 if build_script_path.exists():
                     try:
                         os.chmod(build_script_path, 0o755)  # Make script executable
@@ -246,7 +246,7 @@ class CodeQLRunner:
                 output_format="sarif-latest",
                 output=output_file,
                 queries=queries,
-                sarif_category=repository_path,
+                sarif_category=f"{project_name}_{language}",
             )
 
             if not analyze_result.success:

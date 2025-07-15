@@ -1,6 +1,6 @@
 """CodeQL analysis domain entities."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 from typing import List, Optional, Set
@@ -33,26 +33,32 @@ class AnalysisStatus(Enum):
     SKIPPED = "skipped"
 
 
-@dataclass(frozen=True)
+@dataclass
 class ProjectInfo:
     """Information about a detected project."""
 
-    path: Path
+    repository_path: Path  # Path to the repository containing the project
+    project_path: Path
     name: str
-    languages: Set[CodeQLLanguage]
-    primary_language: Optional[CodeQLLanguage] = None
     framework: Optional[str] = None
     build_files: Optional[List[str]] = None
+    build_script: Optional[Path] = None
+    queries: Optional[List[str]] = None
+    non_compiled_languages: Set[CodeQLLanguage] = field(default_factory=set)
+    compiled_languages: Set[CodeQLLanguage] = field(default_factory=set)
+    target_language: Optional[CodeQLLanguage] = None
+    build_mode: Optional[str] = None
+    log_color: Optional[str] = None
 
     def __post_init__(self) -> None:
         """Validate project information."""
-        if not self.path.exists():
-            raise ValueError(f"Project path does not exist: {self.path}")
+        if not self.project_path.exists():
+            raise ValueError(f"Project path does not exist: {self.project_path}")
 
         if not self.name or not self.name.strip():
             raise ValueError("Project name cannot be empty")
 
-        if not self.languages:
+        if not self.non_compiled_languages and not self.compiled_languages:
             raise ValueError("At least one language must be detected")
 
 
@@ -67,7 +73,7 @@ class CodeQLAnalysisRequest:
     output_directory: Optional[Path] = None
     monorepo: bool = False
     build_mode: Optional[str] = None
-    build_script: Optional[str] = None
+    build_script: Optional[Path] = None
     queries: Optional[List[str]] = None
     max_workers: Optional[int] = None
 
