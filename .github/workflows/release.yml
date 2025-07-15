@@ -88,7 +88,7 @@ jobs:
 
     - name: Run linting
       run: |
-        echo "🔍 Running code quality checks..."
+        echo "Running code quality checks..."
         poetry run black --check src/ || (echo "Black formatting failed" && exit 1)
         poetry run flake8 src/ || (echo "Flake8 linting failed" && exit 1)
         poetry run mypy src/ || (echo "MyPy type checking failed" && exit 1)
