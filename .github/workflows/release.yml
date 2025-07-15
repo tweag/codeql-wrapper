@@ -100,11 +100,11 @@ jobs:
     #     poetry run pytest --cov=src --cov-report=xml --cov-report=term-missing
     #     echo "All tests passed"
 
-    - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v4
-      with:
-        file: ./coverage.xml
-        fail_ci_if_error: false
+    # - name: Upload coverage to Codecov
+    #   uses: codecov/codecov-action@v4
+    #   with:
+    #     file: ./coverage.xml
+    #     fail_ci_if_error: false
 
   build-and-release:
     name: Build and Release
@@ -197,8 +197,13 @@ jobs:
         PACKAGE_VERSION=$(poetry run python -c "from codeql_wrapper import __version__; print(__version__)")
         echo "Package version: $PACKAGE_VERSION"
         
-        if [ "$PACKAGE_VERSION" != "$VERSION" ]; then
-          echo "Package version mismatch. Expected $VERSION, got $PACKAGE_VERSION"
+        EXPECTED_PEP440=$(echo "$VERSION" | sed -E 's/-alpha(\.[0-9]+)?$/a\1/; s/-beta(\.[0-9]+)?$/b\1/; s/-rc(\.[0-9]+)?$/rc\1/; s/\.([0-9]+)$/\1/')
+        
+        echo "Expected version (semantic): $VERSION"
+        echo "Expected version (PEP 440): $EXPECTED_PEP440"
+        
+        if [ "$PACKAGE_VERSION" != "$EXPECTED_PEP440" ]; then
+          echo "Package version mismatch. Expected $EXPECTED_PEP440 (PEP 440), got $PACKAGE_VERSION"
           exit 1
         fi
         echo "Package version verified"
@@ -274,7 +279,7 @@ jobs:
         _This PR will be auto-merged after creation._"
         
         gh pr create \
-          --title "🚀 Release v$VERSION" \
+          --title "Release v$VERSION" \
           --body "$PR_BODY" \
           --base main \
           --head release/v$VERSION \
@@ -314,9 +319,9 @@ jobs:
           
           Release created automatically by GitHub Actions.
           
-          ### Installation
+          ### Installationdo
           
-          ${{ needs.validate.outputs.is_prerelease == 'true' && '**⚠️ Pre-release**: This version is published to TestPyPI for testing purposes.' || '' }}
+          ${{ needs.validate.outputs.is_prerelease == 'true' && '**Pre-release**: This version is published to TestPyPI for testing purposes.' || '' }}
           
           ```bash
           ${{ needs.validate.outputs.is_prerelease == 'true' && 'pip install --index-url https://test.pypi.org/simple/ codeql-wrapper==' || 'pip install codeql-wrapper==' }}${{ needs.validate.outputs.version }}
