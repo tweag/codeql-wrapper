@@ -332,10 +332,10 @@ jobs:
           --body "$PR_BODY" \
           --base main \
           --head release/v$VERSION 
-        
+          
         echo "Pull request created"
       env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GH_TOKEN: ${{ secrets.GH_TOKEN }}
 
     - name: Auto-merge Pull Request
       if: ${{ github.event.inputs.dry_run == 'false' }}
