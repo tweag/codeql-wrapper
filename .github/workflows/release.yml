@@ -247,7 +247,26 @@ jobs:
       run: |
         VERSION="${{ needs.validate.outputs.version }}"
         
-        # Create release branch
+        echo "Creating release commit and tag..."
+        
+        # Check if release branch already exists locally or remotely
+        if git show-ref --verify --quiet refs/heads/release/v$VERSION; then
+          echo "Local release branch exists, deleting it..."
+          git branch -D release/v$VERSION
+        fi
+        
+        if git ls-remote --exit-code --heads origin release/v$VERSION; then
+          echo "Remote release branch exists, deleting it..."
+          git push origin --delete release/v$VERSION || echo "Failed to delete remote branch (may not exist)"
+        fi
+
+        # Delete existing tag if it exists
+        if git tag -l | grep -q "^v$VERSION$"; then
+          echo "Remote Tag v$VERSION already exists, deleting it..."
+          git tag -d v$VERSION
+        fi
+        
+        # Create fresh release branch
         git checkout -b release/v$VERSION
         
         # Commit version bump
@@ -257,9 +276,8 @@ jobs:
         - Bump version to $VERSION
         - Update package metadata
         
-        Released via GitHub Actions"
+        Released via GitHub Actions"        
         
-        # Create annotated tag
         git tag -a v$VERSION -m "Release v$VERSION"
         
         echo "Release commit and tag created"
@@ -270,9 +288,16 @@ jobs:
         VERSION="${{ needs.validate.outputs.version }}"
         
         echo "Pushing release branch and tag..."
+        
+        # Push the release branch
+        echo "Pushing release branch..."
         git push origin release/v$VERSION
+
+        # Push the tag
+        echo "Pushing tag..."
         git push origin v$VERSION
-        echo "Release branch and tag pushed"
+        
+        echo "Release branch and tag pushed successfully"
 
     - name: Create Pull Request
       if: ${{ github.event.inputs.dry_run == 'false' }}
