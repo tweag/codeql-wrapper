@@ -1,8 +1,5 @@
-# Note: This workflow requires the repository to allow GitHub Actions to bypass branch protection rules
-# for pushing tags and commits. If branch protection rules prevent direct pushes to main:
-# 1. The tag will be created and pushed successfully
-# 2. The version bump commit will need to be manually merged via a pull request
-# 3. Or configure the repository to allow GitHub Actions to bypass branch protection
+# Release workflow for CodeQL Wrapper
+# This workflow creates a release with proper version management and security practices
 
 name: Release
 
@@ -13,10 +10,50 @@ on:
         description: 'Version to release (e.g., 1.0.0 - without v prefix)'
         required: true
         type: string
+      prerelease:
+        description: 'Mark as pre-release'
+        required: false
+        type: boolean
+        default: false
+      dry_run:
+        description: 'Dry run - build and validate without publishing'
+        required: false
+        type: boolean
+        default: false
+
+env:
+  PYTHON_VERSION: "3.13"
+  POETRY_VERSION: "1.8.3"
 
 jobs:
-  test:
+  validate:
+    name: Validate Release Input
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.validate.outputs.version }}
+      is_prerelease: ${{ steps.validate.outputs.is_prerelease }}
+    steps:
+    - name: Validate version format
+      id: validate
+      run: |
+        VERSION="${{ github.event.inputs.version }}"
+        
+        # Validate semantic version format
+        if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]]; then
+          echo "❌ Invalid version format: $VERSION"
+          echo "Expected semantic version format: MAJOR.MINOR.PATCH[-PRERELEASE][+BUILD]"
+          echo "Examples: 1.0.0, 1.0.0-alpha.1, 1.0.0+build.1"
+          exit 1
+        fi
+        
+        echo "✅ Version format is valid: $VERSION"
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "is_prerelease=${{ github.event.inputs.prerelease }}" >> $GITHUB_OUTPUT
+
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    needs: validate
     permissions:
       contents: read
     steps:
@@ -24,28 +61,63 @@ jobs:
       uses: actions/checkout@v4
 
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
-        python-version: "3.13"
+        python-version: ${{ env.PYTHON_VERSION }}
 
     - name: Install Poetry
       uses: snok/install-poetry@v1
       with:
-        version: latest
+        version: ${{ env.POETRY_VERSION }}
+        virtualenvs-create: true
+        virtualenvs-in-project: true
+
+    - name: Load cached venv
+      id: cached-poetry-dependencies
+      uses: actions/cache@v4
+      with:
+        path: .venv
+        key: venv-${{ runner.os }}-${{ env.PYTHON_VERSION }}-${{ hashFiles('**/poetry.lock') }}
 
     - name: Install dependencies
+      if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
+      run: poetry install --no-interaction --no-root
+
+    - name: Install project
       run: poetry install --no-interaction
 
-    #- name: Run tests
-    #  run: poetry run pytest
+    - name: Run linting
+      run: |
+        echo "🔍 Running code quality checks..."
+        poetry run black --check src/ || (echo "❌ Black formatting failed" && exit 1)
+        poetry run flake8 src/ || (echo "❌ Flake8 linting failed" && exit 1)
+        poetry run mypy src/ || (echo "❌ MyPy type checking failed" && exit 1)
+        echo "✅ All code quality checks passed"
+
+    - name: Run tests
+      run: |
+        echo "🧪 Running tests..."
+        poetry run pytest --cov=src --cov-report=xml --cov-report=term-missing
+        echo "✅ All tests passed"
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v4
+      with:
+        file: ./coverage.xml
+        fail_ci_if_error: false
 
   build-and-release:
-    needs: test
+    name: Build and Release
+    needs: [validate, test]
     runs-on: ubuntu-latest
     permissions:
       contents: write
       packages: write
       pull-requests: write
+      id-token: write  # For trusted publishing to PyPI
+    environment: 
+      name: release
+      url: ${{ steps.release.outputs.html_url }}
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -54,16 +126,29 @@ jobs:
         fetch-depth: 0
 
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
-        python-version: "3.13"
+        python-version: ${{ env.PYTHON_VERSION }}
 
     - name: Install Poetry
       uses: snok/install-poetry@v1
       with:
-        version: latest
+        version: ${{ env.POETRY_VERSION }}
+        virtualenvs-create: true
+        virtualenvs-in-project: true
+
+    - name: Load cached venv
+      id: cached-poetry-dependencies
+      uses: actions/cache@v4
+      with:
+        path: .venv
+        key: venv-${{ runner.os }}-${{ env.PYTHON_VERSION }}-${{ hashFiles('**/poetry.lock') }}
 
     - name: Install dependencies
+      if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
+      run: poetry install --no-interaction --no-root
+
+    - name: Install project
       run: poetry install --no-interaction
 
     - name: Configure Git
@@ -71,88 +156,245 @@ jobs:
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
 
-    - name: Bump version in pyproject.toml
+    - name: Check for existing version
       run: |
-        poetry version ${{ github.event.inputs.version }}
-        echo "VERSION_UPDATED=true" >> $GITHUB_ENV
-
-    - name: Verify version update
-      run: |
-        NEW_VERSION=$(poetry version --short)
-        echo "New version: $NEW_VERSION"
-        if [ "$NEW_VERSION" != "${{ github.event.inputs.version }}" ]; then
-          echo "Error: Version mismatch. Expected ${{ github.event.inputs.version }}, got $NEW_VERSION"
+        VERSION="${{ needs.validate.outputs.version }}"
+        
+        # Check if version already exists
+        if git tag | grep -q "^v${VERSION}$"; then
+          echo "Version v${VERSION} already exists!"
           exit 1
         fi
-        echo "FINAL_VERSION=$NEW_VERSION" >> $GITHUB_ENV
+        
+        # Check current version in pyproject.toml
+        CURRENT_VERSION=$(poetry version --short)
+        echo "Current version: $CURRENT_VERSION"
+        echo "Target version: $VERSION"
 
-    - name: Reinstall package with new version
-      run: poetry install --no-interaction
+    - name: Bump version in pyproject.toml
+      run: |
+        VERSION="${{ needs.validate.outputs.version }}"
+        echo "Updating version to $VERSION..."
+        poetry version $VERSION
+        
+        # Verify the update
+        NEW_VERSION=$(poetry version --short)
+        if [ "$NEW_VERSION" != "$VERSION" ]; then
+          echo "Version update failed. Expected $VERSION, got $NEW_VERSION"
+          exit 1
+        fi
+        echo "Version updated successfully to $NEW_VERSION"
+
+    - name: Update package version
+      run: |
+        VERSION="${{ needs.validate.outputs.version }}"
+        echo "Reinstalling package with new version..."
+        poetry install --no-interaction
 
     - name: Verify package version
       run: |
+        VERSION="${{ needs.validate.outputs.version }}"
         PACKAGE_VERSION=$(poetry run python -c "from codeql_wrapper import __version__; print(__version__)")
         echo "Package version: $PACKAGE_VERSION"
-        if [ "$PACKAGE_VERSION" != "${{ github.event.inputs.version }}" ]; then
-          echo "Error: Package version mismatch. Expected ${{ github.event.inputs.version }}, got $PACKAGE_VERSION"
+        
+        if [ "$PACKAGE_VERSION" != "$VERSION" ]; then
+          echo "Package version mismatch. Expected $VERSION, got $PACKAGE_VERSION"
           exit 1
         fi
-
-    - name: Create release branch and commit version bump
-      run: |
-        git checkout -b release/v${{ github.event.inputs.version }}
-        git add pyproject.toml
-        git commit -m "Bump version to ${{ github.event.inputs.version }}"
-        git tag v${{ github.event.inputs.version }}
-
-    - name: Push release branch and tag
-      run: |
-        git push origin release/v${{ github.event.inputs.version }}
-        git push origin v${{ github.event.inputs.version }}
-
-    - name: Create and Auto-merge Pull Request
-      run: |
-        echo "Creating pull request..."
-        
-        # Create PR using GitHub CLI
-        PR_URL=$(gh pr create \
-          --title "Release v${{ github.event.inputs.version }}" \
-          --body "Automated release pull request for version ${{ github.event.inputs.version }}
-
-        Changes:
-        - Bump version to ${{ github.event.inputs.version }} in pyproject.toml
-
-        This PR was created automatically by the release workflow." \
-          --base main \
-          --head release/v${{ github.event.inputs.version }})
-        
-        echo "Created PR: $PR_URL"
-        
-        # Enable auto-merge using PR URL directly
-        echo "Enabling auto-merge for PR: $PR_URL"
-        sleep 5
-        gh pr merge "$PR_URL" --merge --auto
-        
-        echo "Auto-merge enabled for PR: $PR_URL"
-      env:
-        GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        echo "Package version verified"
 
     - name: Build package
-      run: poetry build
+      run: |
+        echo "Building package..."
+        poetry build
+        
+        # Verify build artifacts
+        ls -la dist/
+        echo "Package built successfully"
+
+    - name: Create release commit and tag
+      if: ${{ !github.event.inputs.dry_run }}
+      run: |
+        VERSION="${{ needs.validate.outputs.version }}"
+        
+        # Create release branch
+        git checkout -b release/v$VERSION
+        
+        # Commit version bump
+        git add pyproject.toml
+        git commit -m "Release v$VERSION
+
+        - Bump version to $VERSION
+        - Update package metadata
+        
+        Released via GitHub Actions"
+        
+        # Create annotated tag
+        git tag -a v$VERSION -m "Release v$VERSION"
+        
+        echo "Release commit and tag created"
+
+    - name: Push release branch and tag
+      if: ${{ !github.event.inputs.dry_run }}
+      run: |
+        VERSION="${{ needs.validate.outputs.version }}"
+        
+        echo "Pushing release branch and tag..."
+        git push origin release/v$VERSION
+        git push origin v$VERSION
+        echo "Release branch and tag pushed"
+
+    - name: Create Pull Request
+      if: ${{ !github.event.inputs.dry_run }}
+      id: create_pr
+      run: |
+        VERSION="${{ needs.validate.outputs.version }}"
+        
+        echo "Creating release pull request..."
+        
+        PR_BODY="## Release v$VERSION
+
+        This is an automated release pull request created by the release workflow.
+
+        ### Changes
+        - Bump version to \`$VERSION\` in \`pyproject.toml\`
+        - Update package metadata
+
+        ### Related
+        - Tag: \`v$VERSION\`
+        - Workflow: [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+
+        ### Checklist
+        - [x] Version bumped
+        - [x] Tests passed
+        - [x] Package built successfully
+        - [x] Tag created
+
+        ---
+        _This PR will be auto-merged after creation._"
+        
+        gh pr create \
+          --title "🚀 Release v$VERSION" \
+          --body "$PR_BODY" \
+          --base main \
+          --head release/v$VERSION \
+          --label "release" \
+          --label "automated"
+        
+        echo "Pull request created"
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Auto-merge Pull Request
+      if: ${{ !github.event.inputs.dry_run }}
+      run: |
+        VERSION="${{ needs.validate.outputs.version }}"
+        
+        echo "Enabling auto-merge for release PR..."
+        sleep 5  # Brief delay to ensure PR is fully created
+        
+        gh pr merge release/v$VERSION --merge --auto
+        echo "Auto-merge enabled for release PR"
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Create GitHub Release
-      uses: softprops/action-gh-release@v1
+      if: ${{ !github.event.inputs.dry_run }}
+      id: release
+      uses: softprops/action-gh-release@v2
       with:
-        tag_name: v${{ github.event.inputs.version }}
-        name: Release v${{ github.event.inputs.version }}
+        tag_name: v${{ needs.validate.outputs.version }}
+        name: "Release v${{ needs.validate.outputs.version }}"
         draft: false
-        prerelease: false
+        prerelease: ${{ needs.validate.outputs.is_prerelease }}
         files: dist/*
         generate_release_notes: true
+        body: |
+          ## CodeQL Wrapper v${{ needs.validate.outputs.version }}
+          
+          Release created automatically by GitHub Actions.
+          
+          ### Installation
+          
+          ${{ needs.validate.outputs.is_prerelease == 'true' && '**⚠️ Pre-release**: This version is published to TestPyPI for testing purposes.' || '' }}
+          
+          ```bash
+          ${{ needs.validate.outputs.is_prerelease == 'true' && 'pip install --index-url https://test.pypi.org/simple/ codeql-wrapper==' || 'pip install codeql-wrapper==' }}${{ needs.validate.outputs.version }}
+          ```
+          
+          ### Links
+          - [${{ needs.validate.outputs.is_prerelease == 'true' && 'TestPyPI' || 'PyPI' }} Package](${{ needs.validate.outputs.is_prerelease == 'true' && 'https://test.pypi.org/project/codeql-wrapper/' || 'https://pypi.org/project/codeql-wrapper/' }}${{ needs.validate.outputs.version }}/)
+          - [Documentation](https://github.com/${{ github.repository }})
+          - [Changelog](https://github.com/${{ github.repository }}/releases)
       env:
-        GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Publish to PyPI
-      env:
-        POETRY_PYPI_TOKEN_PYPI: ${{ secrets.PYPI_API_TOKEN }}
-      run: poetry publish
+    - name: Publish to PyPI (Trusted Publishing)
+      if: ${{ !github.event.inputs.dry_run && !needs.validate.outputs.is_prerelease }}
+      uses: pypa/gh-action-pypi-publish@release/v1
+      with:
+        print-hash: true
+        verbose: true
+
+    - name: Publish to TestPyPI (Pre-release)
+      if: ${{ !github.event.inputs.dry_run && needs.validate.outputs.is_prerelease }}
+      uses: pypa/gh-action-pypi-publish@release/v1
+      with:
+        repository-url: https://test.pypi.org/legacy/
+        print-hash: true
+        verbose: true
+
+    - name: Dry Run Summary
+      if: ${{ github.event.inputs.dry_run }}
+      run: |
+        VERSION="${{ needs.validate.outputs.version }}"
+        IS_PRERELEASE="${{ needs.validate.outputs.is_prerelease }}"
+        
+        echo "DRY RUN COMPLETED"
+        echo "=================================="
+        echo "Version validation: PASSED"
+        echo "Tests: PASSED"
+        echo "Package build: PASSED"
+        echo "Version bump: SIMULATED"
+        echo ""
+        echo "Would release version: v$VERSION"
+        
+        if [ "$IS_PRERELEASE" = "true" ]; then
+          echo "Would publish to: TestPyPI (Pre-release)"
+        else
+          echo "Would publish to: PyPI (Production)"
+        fi
+        
+        echo "Built artifacts:"
+        ls -la dist/
+        echo ""
+        echo "To create actual release, run workflow without dry_run option"
+
+    - name: Success Summary
+      if: ${{ !github.event.inputs.dry_run }}
+      run: |
+        VERSION="${{ needs.validate.outputs.version }}"
+        IS_PRERELEASE="${{ needs.validate.outputs.is_prerelease }}"
+        
+        echo "RELEASE COMPLETED SUCCESSFULLY!"
+        echo "=================================="
+        echo "Version: v$VERSION"
+        echo "GitHub Release: Created"
+        
+        if [ "$IS_PRERELEASE" = "true" ]; then
+          echo "TestPyPI Package: Published (Pre-release)"
+          echo "TestPyPI: https://test.pypi.org/project/codeql-wrapper/$VERSION/"
+          echo ""
+          echo "Install command:"
+          echo "pip install --index-url https://test.pypi.org/simple/ codeql-wrapper==$VERSION"
+        else
+          echo "PyPI Package: Published"
+          echo "PyPI: https://pypi.org/project/codeql-wrapper/$VERSION/"
+          echo ""
+          echo "Install command:"
+          echo "pip install codeql-wrapper==$VERSION"
+        fi
+        
+        echo "Pull Request: Auto-merged"
+        echo ""
+        echo "Release URL: ${{ steps.release.outputs.html_url }}"
