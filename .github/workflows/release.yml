@@ -243,7 +243,7 @@ jobs:
         echo "Package built successfully"
 
     - name: Create release commit and tag
-      if: ${{ !github.event.inputs.dry_run }}
+      if: ${{ github.event.inputs.dry_run == 'false' }}
       run: |
         VERSION="${{ needs.validate.outputs.version }}"
         
@@ -265,7 +265,7 @@ jobs:
         echo "Release commit and tag created"
 
     - name: Push release branch and tag
-      if: ${{ !github.event.inputs.dry_run }}
+      if: ${{ github.event.inputs.dry_run == 'false' }}
       run: |
         VERSION="${{ needs.validate.outputs.version }}"
         
@@ -275,7 +275,7 @@ jobs:
         echo "Release branch and tag pushed"
 
     - name: Create Pull Request
-      if: ${{ !github.event.inputs.dry_run }}
+      if: ${{ github.event.inputs.dry_run == 'false' }}
       id: create_pr
       run: |
         VERSION="${{ needs.validate.outputs.version }}"
@@ -316,7 +316,7 @@ jobs:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Auto-merge Pull Request
-      if: ${{ !github.event.inputs.dry_run }}
+      if: ${{ github.event.inputs.dry_run == 'false' }}
       run: |
         VERSION="${{ needs.validate.outputs.version }}"
         
@@ -329,7 +329,7 @@ jobs:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Create GitHub Release
-      if: ${{ !github.event.inputs.dry_run }}
+      if: ${{ github.event.inputs.dry_run == 'false' }}
       id: release
       uses: softprops/action-gh-release@v2
       with:
@@ -360,14 +360,14 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Publish to PyPI (Trusted Publishing)
-      if: ${{ !github.event.inputs.dry_run && !needs.validate.outputs.is_prerelease }}
+      if: ${{ github.event.inputs.dry_run == 'false' && needs.validate.outputs.is_prerelease == 'false' }}
       uses: pypa/gh-action-pypi-publish@release/v1
       with:
         print-hash: true
         verbose: true
 
     - name: Publish to TestPyPI (Pre-release)
-      if: ${{ !github.event.inputs.dry_run && needs.validate.outputs.is_prerelease }}
+      if: ${{ github.event.inputs.dry_run == 'false' && needs.validate.outputs.is_prerelease == 'true' }}
       uses: pypa/gh-action-pypi-publish@release/v1
       with:
         repository-url: https://test.pypi.org/legacy/
@@ -375,7 +375,7 @@ jobs:
         verbose: true
 
     - name: Dry Run Summary
-      if: ${{ github.event.inputs.dry_run }}
+      if: ${{ github.event.inputs.dry_run == 'true' }}
       run: |
         VERSION="${{ needs.validate.outputs.version }}"
         IS_PRERELEASE="${{ needs.validate.outputs.is_prerelease }}"
@@ -401,7 +401,7 @@ jobs:
         echo "To create actual release, run workflow without dry_run option"
 
     - name: Success Summary
-      if: ${{ !github.event.inputs.dry_run }}
+      if: ${{ github.event.inputs.dry_run == 'false' }}
       run: |
         VERSION="${{ needs.validate.outputs.version }}"
         IS_PRERELEASE="${{ needs.validate.outputs.is_prerelease }}"
