@@ -4,6 +4,7 @@ import json
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
+import re
 from typing import Any, List, Optional, Set
 
 from ..entities.codeql_analysis import (
@@ -15,7 +16,7 @@ from ..entities.codeql_analysis import (
     RepositoryAnalysisSummary,
     AnalysisStatus,
 )
-from ...infrastructure.language_detector import LanguageDetector
+from ...infrastructure.language_detector import LanguageDetector, LanguageType
 from ...infrastructure.codeql_installer import CodeQLInstaller
 from ...infrastructure.codeql_runner import CodeQLRunner
 from ...infrastructure.system_resource_manager import SystemResourceManager
@@ -98,183 +99,59 @@ class CodeQLAnalysisUseCase:
                 f"CodeQL runner initialized with version {installation_info.version}"
             )
 
-            # Step 2.1: Set environment variable for worker processes to use
-            import os
+            # Step 3: Detect projects
+            configFile = request.repository_path / ".codeql.json" if request.monorepo else None
+            config_data = None
+            if request.monorepo and configFile and configFile.exists():
+                with open(configFile, "r", encoding="utf-8") as f:
+                    config_data = json.load(f)
+                    
+            projects:List[ProjectInfo] = self._detect_projects(request.monorepo, config_data, request.repository_path)
 
-            os.environ["CODEQL_WRAPPER_VERIFIED_PATH"] = str(installation_info.path)
+            # Step 4: Execute analysis 
+            all_analysis_results = []
+            error_messages = []     
 
-            # Step 3: Execute analysis based on repository type
-            if request.monorepo:
-                # Run scan based on .codeql.json if it exists
-                root_config_path = request.repository_path / ".codeql.json"
-                if root_config_path.exists():
-                    self._logger.info(
-                        "Detected .codeql.json. Using project config mode."
-                    )
-                    with open(root_config_path, "r", encoding="utf-8") as f:
-                        config_data = json.load(f)
-                    return self._execute_monorepo_analysis(request, config_data)
-                else:
-                    self._logger.info(
-                        "Starting monorepo CodeQL analysis for: %s",
-                        request.repository_path,
-                    )
-                    return self._execute_monorepo_analysis(request)
-            else:
-                self._logger.info(
-                    f"Starting single repository CodeQL analysis for: "
-                    f"{request.repository_path}"
-                )
-                return self._execute_single_repo_analysis(request)
+            # Process projects in parallel using ProcessPoolExecutor
+            # CodeQL installation is already verified at this point, so workers can reuse it
+            with ProcessPoolExecutor(max_workers=self.max_workers) as executor:
+                # Submit all projects for processing
+                futures = []
+                for project in projects:
+                    future = executor.submit(
+                            self._analyze,
+                            project,
+                            request.output_directory if request.output_directory is not None else Path(project.project_path) / "codeql-results"
+                        )
+                    futures.append(future)
+
+                # Collect results as they complete
+                for future in as_completed(futures):
+                    try:
+                        result = future.result()
+                        all_analysis_results.append(result)
+                        if result.error_message:
+                            error_messages.append(result.error_message)
+                    except Exception as e:
+                        self._logger.exception(f"Processing failed: {e}")
+                        error_messages.append(str(e))
+
+            
+            # Compose aggregated error string, if any
+            aggregated_error = "\n".join(error_messages) if error_messages else None
+
+            return RepositoryAnalysisSummary(
+                repository_path=request.repository_path,
+                detected_projects=projects,  # Use the original projects list
+                analysis_results=all_analysis_results,
+                error=aggregated_error,
+            )
 
         except Exception as e:
             self._logger.error(f"CodeQL analysis failed: {e}")
             raise
 
-    def _process_monorepo_project(
-        self, project_path: Path, request: CodeQLAnalysisRequest
-    ) -> RepositoryAnalysisSummary:
-        """Process a single project inside a monorepo."""
-        # Set project context for logging
-        set_project_context(str(project_path))
-
-        self._logger.info(f"Processing project: {project_path}")
-        sub_request = CodeQLAnalysisRequest(
-            repository_path=project_path,
-            force_install=request.force_install,
-            target_languages=request.target_languages,
-            verbose=request.verbose,
-            output_directory=request.output_directory,
-        )
-        try:
-            return self._execute_single_repo_analysis(sub_request)
-        except Exception as e:
-            self._logger.exception(f"Analysis failed for {project_path}: {e}")
-            return RepositoryAnalysisSummary(
-                repository_path=project_path,
-                detected_projects=[],
-                analysis_results=[],
-                error=str(e),
-            )
-
-    def _execute_monorepo_analysis(
-        self, request: CodeQLAnalysisRequest, config_data: Optional[dict] = None
-    ) -> RepositoryAnalysisSummary:
-        self._logger.info("Starting monorepo analysis (parallelized)...")
-
-        if config_data:
-            projects_config = config_data.get("projects", [])
-            use_config_mode = True
-        else:
-            use_config_mode = False
-            projects_config = [
-                {"path": str(p), "build-mode": "none"}
-                for p in request.repository_path.iterdir()
-                if p.is_dir() and not p.name.startswith(".")
-            ]
-
-        if not projects_config:
-            self._logger.warning("No projects found.")
-            return RepositoryAnalysisSummary(
-                repository_path=request.repository_path,
-                detected_projects=[],
-                analysis_results=[],
-                error="No projects found.",
-            )
-
-        all_detected_projects = []
-        all_analysis_results = []
-        error_messages = []
-
-        # Process projects in parallel using ProcessPoolExecutor
-        # CodeQL installation is already verified at this point, so workers can reuse it
-        with ProcessPoolExecutor(max_workers=self.max_workers) as executor:
-            # Submit all projects for processing
-            futures = []
-            for project_cfg in projects_config:
-                if use_config_mode:
-                    future = executor.submit(
-                        self._process_monorepo_project_from_config, project_cfg, request
-                    )
-                else:
-                    future = executor.submit(
-                        self._process_monorepo_project,
-                        Path(project_cfg["path"]),
-                        request,
-                    )
-                futures.append(future)
-
-            # Collect results as they complete
-            for future in as_completed(futures):
-                try:
-                    result = future.result()
-                    all_detected_projects.extend(result.detected_projects)
-                    all_analysis_results.extend(result.analysis_results)
-                    if result.error:
-                        error_messages.append(result.error)
-                except Exception as e:
-                    self._logger.exception(f"Processing failed: {e}")
-                    error_messages.append(str(e))
-
-        # Compose aggregated error string, if any
-        aggregated_error = "\n".join(error_messages) if error_messages else None
-
-        return RepositoryAnalysisSummary(
-            repository_path=request.repository_path,
-            detected_projects=all_detected_projects,
-            analysis_results=all_analysis_results,
-            error=aggregated_error,
-        )
-
-    def _process_monorepo_project_from_config(
-        self, project_cfg: dict, request: CodeQLAnalysisRequest
-    ) -> RepositoryAnalysisSummary:
-        try:
-            project_path = Path(project_cfg["path"])
-            # Set project context for logging
-            set_project_context(str(project_path))
-
-            build_mode = project_cfg.get("build-mode", "none")
-            build_script = project_cfg.get("build-script")
-            queries = project_cfg.get("queries", [])
-
-            if build_script:
-                root_path = (
-                    request.repository_path.resolve()
-                )  # Resolve current working directory
-                build_script = str(root_path / build_script)
-                self._logger.debug(f"Resolved build_script path: {build_script}")
-
-            self._logger.info(
-                f"Processing project from config: {project_path} (build-mode: {build_mode})"
-            )
-
-            sub_request = CodeQLAnalysisRequest(
-                repository_path=project_path,
-                force_install=request.force_install,
-                target_languages=request.target_languages,
-                verbose=request.verbose,
-                output_directory=request.output_directory,
-                build_mode=build_mode,
-                build_script=build_script,
-                queries=queries,
-            )
-            return self._execute_single_repo_analysis(sub_request)
-
-        except Exception as e:
-            self._logger.exception(
-                f"Analysis failed for {project_cfg.get('path')}: {e}"
-            )
-            return RepositoryAnalysisSummary(
-                repository_path=Path(project_cfg.get("path", ".")),
-                detected_projects=[],
-                analysis_results=[],
-                error=str(e),
-            )
-
-    def _execute_single_repo_analysis(
-        self, request: CodeQLAnalysisRequest
-    ) -> RepositoryAnalysisSummary:
+    def _analyze(self, project: ProjectInfo, output_directory: Path) -> CodeQLAnalysisResult:
         """
         Execute CodeQL analysis on a repository.
 
@@ -282,56 +159,226 @@ class CodeQLAnalysisUseCase:
             request: CodeQL analysis request
 
         Returns:
-            RepositoryAnalysisSummary with analysis results
+            CodeQLAnalysisResult with analysis results
 
         Raises:
             ValueError: If the request is invalid
             Exception: If CodeQL installation or analysis fails
         """
+        self._logger.info(
+            f"Starting single repository CodeQL analysis for: "
+            f"{project.project_path}"
+        )
+
+        # Set project context for logging
+        set_project_context(str(project.project_path))
+
+        self._logger.info(f"Analyzing project: {project.name}")
+        self._logger.debug(f"Project context set: {str(project.project_path)}")
+        self._logger.debug(f"Project compiled language: {project.compiled_languages}")
+        self._logger.debug(f"Project non-compiled language: {project.non_compiled_languages}")
+        self._logger.debug(f"Project target language: {project.target_language}")
+        self._logger.debug(f"Project build script: {project.build_script}")
+        self._logger.debug(f"Project queries: {project.queries}")
+        self._logger.debug(f"Project build mode: {project.build_mode}")
+
+        start_time = datetime.now()
+        result = CodeQLAnalysisResult(
+            project_info=project, status=AnalysisStatus.RUNNING, start_time=start_time
+        )
+
         try:
+            # Export CodeQL suites path for this analysis
+            self._export_codeql_suites_path()
+
+            output_directory=Path(output_directory,project.name)
+            output_directory.mkdir(parents=True, exist_ok=True)
+
+            # Analyze each language in the project
+            for language in project.compiled_languages.union(project.non_compiled_languages):
+                if project.target_language and language != project.target_language:
+                    self._logger.debug(
+                        f"Skipping language {language.value} as it is not the target language {project.target_language}"
+                    )
+                    continue
+
+                if self._codeql_runner is None:
+                    raise Exception("CodeQL runner not initialized")
+
+                # Default output format
+                output_format = "sarif-latest"
+                output_file = Path(output_directory ,f"results-{language.value}.sarif")
+
+                # Explicitly set build_command to None if build_mode is "none"
+                build_command = None
+                if project.build_mode != "none" and project.build_script:
+                    build_command = str(Path(project.repository_path,project.build_script))
+                    self._logger.debug(f"Using build command: {build_command}")
+                else:
+                    self._logger.debug(
+                        f"No build command used (build_mode={project.build_mode})"
+                    )
+
+                # Call CodeQL analysis
+                analysis_result = self._codeql_runner.create_and_analyze(
+                    source_root=str(project.project_path),
+                    language=language.value,
+                    output_file=str(output_file),
+                    database_name=str(output_directory / f"db-{language.value}"),
+                    build_command=build_command,  
+                    cleanup_database=False,  
+                    build_mode=project.build_mode,  
+                    queries=project.queries,
+                    project_name=project.name, 
+                )
+
+                if not analysis_result.success:
+                    error_msg = (
+                        f"Failed to create database and analyze {language.value}: "
+                        f"{analysis_result.stderr}"
+                    )
+                    self._logger.error(error_msg)
+                    result.status = AnalysisStatus.FAILED
+                    result.error_message = error_msg
+                    result.end_time = datetime.now()
+                    return result
+
+                # Add output file to results
+                if result.output_files is None:
+                    result.output_files = []
+                result.output_files.append(output_file)
+
+                # Count findings (basic implementation)
+                try:
+                    if output_format.startswith("sarif"):
+                        findings = self._count_sarif_findings(output_file)
+                    else:
+                        findings = 0  # Placeholder for other formats
+                    result.findings_count += findings
+                except Exception as e:
+                    self._logger.warning(f"Failed to count findings: {e}")
+
+            # Mark as completed
+            result.status = AnalysisStatus.COMPLETED
+            result.end_time = datetime.now()
+
             self._logger.info(
-                f"Starting single repository CodeQL analysis for: "
-                f"{request.repository_path}"
+                f"Project analysis completed: {project.name} "
+                f"(Duration: {result.duration:.2f}s, Findings: {result.findings_count})"
             )
 
-            # Set project context for logging
-            set_project_context(str(request.repository_path))
-
-            # Step 1: Detect projects and languages
-            detected_projects = self._detect_projects(request.repository_path)
-            self._logger.info(f"Detected {len(detected_projects)} project(s)")
-
-            # Step 2: Filter projects by target languages if specified
-            filtered_projects = self._filter_projects_by_language(
-                detected_projects, request.target_languages
-            )
-
-            # Step 3: Run analysis on each project
-            analysis_results = []
-            for project in filtered_projects:
-                result = self._analyze_project(project, request)
-                analysis_results.append(result)
-
-            # Step 4: Create summary
-            summary = RepositoryAnalysisSummary(
-                repository_path=request.repository_path,
-                detected_projects=detected_projects,
-                analysis_results=analysis_results,
-            )
-
-            self._logger.info(
-                f"Analysis completed. Success rate: {summary.success_rate:.2%} "
-                f"({summary.successful_analyses}/{len(analysis_results)})"
-            )
-
-            return summary
+            return result
 
         except Exception as e:
-            self._logger.error(f"CodeQL analysis failed: {e}")
-            raise
+            error_msg = f"Analysis failed for project {project.name}: {str(e)}"
+            self._logger.error(error_msg)
+
+            result.status = AnalysisStatus.FAILED
+            result.error_message = error_msg
+            result.end_time = datetime.now()
+
+            return result
         finally:
             # Clear project context when done
             clear_project_context()
+
+    def _detect_projects(self,isMonorepo:bool, configData: Optional[dict], repository_path: Path) -> List[ProjectInfo]:
+        """Detect projects in the repository."""
+        self._logger.debug(f"Detecting projects in: {repository_path}")
+
+        projects: List[ProjectInfo] = []
+
+        if isMonorepo:
+            if configData:
+                projects_config = configData.get("projects", [])
+                for project in projects_config:
+                    project_path = Path(project.get("path", ""))
+                    projects.append(
+                        ProjectInfo(
+                            repository_path=repository_path,
+                            project_path=project_path,
+                            build_mode=project.get("build-mode", "none"),
+                            build_script=Path(repository_path,project.get("build-script")).resolve() if project.get("build-script") else None,
+                            queries=project.get("queries", []),
+                            name=project_path.name,
+                            non_compiled_languages=self._detect_languages(project_path, LanguageType.NON_COMPILED),
+                            compiled_languages=self._detect_languages(project_path, LanguageType.COMPILED),
+                            target_language=CodeQLLanguage(project.get("language")) if project.get("language") else None
+                        )
+                    )
+            else:
+                for folder in repository_path.iterdir():
+                    if folder.is_dir():
+                        project_name = folder.name or folder.resolve().name
+
+                        projects.append(
+                            ProjectInfo(
+                                repository_path=repository_path,
+                                project_path=folder,
+                                build_mode='none',
+                                build_script=None,
+                                queries=[],
+                                name=project_name,
+                                non_compiled_languages=self._detect_languages(folder, LanguageType.NON_COMPILED),
+                                compiled_languages=self._detect_languages(folder, LanguageType.COMPILED),
+                            )
+                        )
+        else:
+            project_name = repository_path.name or repository_path.resolve().name
+
+            projects.append(
+                ProjectInfo(
+                    repository_path=repository_path,
+                    project_path=repository_path,
+                    build_mode='none',
+                    build_script=None,
+                    queries=[],
+                    name=project_name,
+                    non_compiled_languages=self._detect_languages(repository_path, LanguageType.NON_COMPILED),
+                    compiled_languages=self._detect_languages(repository_path, LanguageType.COMPILED),
+                )
+            )
+
+        if not projects:
+            self._logger.warning("No supported projects detected in repository")
+        
+        return projects
+
+    def _detect_languages(self, repository_path: Path, languageType: LanguageType) -> Set[CodeQLLanguage]:
+        # Convert language detector results to our domain entities
+        detected_languages = set()
+
+        # Detect both compiled and non-compiled languages
+        all_languages = self._language_detector.detect_all_languages(repository_path)
+
+        # Map detected languages to CodeQL languages
+        language_mapping = {
+            "javascript": CodeQLLanguage.JAVASCRIPT,
+            "typescript": CodeQLLanguage.TYPESCRIPT,
+            "python": CodeQLLanguage.PYTHON,
+            "java": CodeQLLanguage.JAVA,
+            "csharp": CodeQLLanguage.CSHARP,
+            "cpp": CodeQLLanguage.CPP,
+            "go": CodeQLLanguage.GO,
+            "ruby": CodeQLLanguage.RUBY,
+            "swift": CodeQLLanguage.SWIFT,
+            "actions": CodeQLLanguage.ACTIONS,
+        }
+
+        # Define which languages are compiled vs non-compiled
+        compiled_languages = {"java", "csharp", "cpp", "swift"}
+        non_compiled_languages = {"javascript", "typescript", "python", "go", "ruby", "actions"}
+
+        target_language_set = compiled_languages if languageType == LanguageType.COMPILED else non_compiled_languages
+
+        for lang_list in all_languages.values():
+            for lang in lang_list:
+                if lang in language_mapping and lang in target_language_set:
+                    detected_languages.add(language_mapping[lang])
+                    lang_type = "compiled" if languageType == LanguageType.COMPILED else "non-compiled"
+                    self._logger.info(f"Detected {lang_type} language: {lang}")
+
+        return detected_languages
 
     def _verify_codeql_installation(
         self, force_install: bool = False
@@ -403,6 +450,10 @@ class CodeQLAnalysisUseCase:
 
             self._logger.info(f"CodeQL version {version} found at {binary_path}")
 
+            # Set environment variable for worker processes to use
+            import os
+            os.environ["CODEQL_WRAPPER_VERIFIED_PATH"] = str(binary_path)
+
             return CodeQLInstallationInfo(
                 is_installed=True, version=version, path=Path(binary_path)
             )
@@ -412,230 +463,6 @@ class CodeQLAnalysisUseCase:
                 is_installed=False,
                 error_message=f"CodeQL verification failed: {str(e)}",
             )
-
-    def _detect_projects(self, repository_path: Path) -> List[ProjectInfo]:
-        """Detect projects in the repository."""
-        self._logger.debug(f"Detecting projects in: {repository_path}")
-
-        # Convert language detector results to our domain entities
-        detected_languages = set()
-
-        # Detect both compiled and non-compiled languages
-        all_languages = self._language_detector.detect_all_languages(repository_path)
-
-        # Map detected languages to CodeQL languages
-        language_mapping = {
-            "javascript": CodeQLLanguage.JAVASCRIPT,
-            "typescript": CodeQLLanguage.TYPESCRIPT,
-            "python": CodeQLLanguage.PYTHON,
-            "java": CodeQLLanguage.JAVA,
-            "csharp": CodeQLLanguage.CSHARP,
-            "cpp": CodeQLLanguage.CPP,
-            "go": CodeQLLanguage.GO,
-            "ruby": CodeQLLanguage.RUBY,
-            "swift": CodeQLLanguage.SWIFT,
-            "actions": CodeQLLanguage.ACTIONS,
-        }
-
-        for lang_list in all_languages.values():
-            for lang in lang_list:
-                if lang in language_mapping:
-                    detected_languages.add(language_mapping[lang])
-
-        if not detected_languages:
-            self._logger.warning("No supported languages detected in repository")
-            return []
-
-        # For now, treat the entire repository as one project
-        # In the future, this could be enhanced to detect sub-projects in monorepos
-        project_name = repository_path.name or repository_path.resolve().name
-        project = ProjectInfo(
-            path=repository_path,
-            name=project_name,
-            languages=detected_languages,
-            primary_language=self._determine_primary_language(detected_languages),
-        )
-
-        self._logger.info(
-            f"Detected project '{project.name}' with languages: "
-            f"{[lang.value for lang in detected_languages]}"
-        )
-
-        return [project]
-
-    def _filter_projects_by_language(
-        self,
-        projects: List[ProjectInfo],
-        target_languages: Optional[Set[CodeQLLanguage]],
-    ) -> List[ProjectInfo]:
-        """Filter projects by target languages if specified."""
-        if not target_languages:
-            return projects
-
-        filtered_projects = []
-        for project in projects:
-            # Check if project has any of the target languages
-            if project.languages.intersection(target_languages):
-                filtered_projects.append(project)
-            else:
-                self._logger.debug(
-                    f"Skipping project '{project.name}' - no target languages found"
-                )
-
-        return filtered_projects
-
-    def _analyze_project(
-        self, project: ProjectInfo, request: CodeQLAnalysisRequest
-    ) -> CodeQLAnalysisResult:
-        """Analyze a single project with CodeQL."""
-        # Set project context for this specific project
-        set_project_context(str(project.path))
-
-        self._logger.info(f"Analyzing project: {project.name}")
-
-        start_time = datetime.now()
-        result = CodeQLAnalysisResult(
-            project_info=project, status=AnalysisStatus.RUNNING, start_time=start_time
-        )
-
-        try:
-            # Export CodeQL suites path for this analysis
-            self._export_codeql_suites_path()
-
-            # Create output directory
-            if request.output_directory:
-                output_dir = request.output_directory / project.name
-            else:
-                output_dir = project.path / "codeql-results"
-
-            output_dir.mkdir(parents=True, exist_ok=True)
-
-            # Analyze each language in the project
-            for language in project.languages:
-                self._logger.debug(
-                    f"Running CodeQL analysis for {language.value} with build_mode={request.build_mode}"
-                    f", build_script={request.build_script}"
-                )
-
-                # Create database and run analysis using the robust method
-                if self._codeql_runner is None:
-                    raise Exception("CodeQL runner not initialized")
-
-                # Default output format
-                output_format = "sarif-latest"
-
-                # Map output formats to conventional file extensions
-                format_to_extension = {
-                    "sarif": ".sarif",
-                    "sarif-latest": ".sarif",
-                    "csv": ".csv",
-                    "json": ".json",
-                    "sarifv1": ".sarif",
-                    "sarifv2": ".sarif",
-                    "text": ".txt",
-                }
-
-                file_extension = format_to_extension.get(output_format, ".sarif")
-                output_file = output_dir / f"results-{language.value}{file_extension}"
-
-                # Explicitly set build_command to None if build_mode is "none"
-                build_command = None
-                if request.build_mode != "none" and request.build_script:
-                    build_command = request.build_script
-                    self._logger.debug(f"Using build command: {build_command}")
-                else:
-                    self._logger.debug(
-                        f"No build command used (build_mode={request.build_mode})"
-                    )
-
-                # Use the robust create_and_analyze method that handles corrupted databases
-                analysis_result = self._codeql_runner.create_and_analyze(
-                    source_root=str(project.path),
-                    language=language.value,
-                    output_file=str(output_file),
-                    database_name=str(output_dir / f"db-{language.value}"),
-                    build_command=build_command,  # Use conditional build_command
-                    cleanup_database=False,  # Keep database for debugging
-                    build_mode=request.build_mode,  # Pass build_mode
-                    queries=request.queries,
-                    repository_path=str(
-                        request.repository_path
-                    ),  # Pass repository_path for SARIF category
-                )
-
-                if not analysis_result.success:
-                    error_msg = (
-                        f"Failed to create database and analyze {language.value}: "
-                        f"{analysis_result.stderr}"
-                    )
-                    self._logger.error(error_msg)
-                    result.status = AnalysisStatus.FAILED
-                    result.error_message = error_msg
-                    result.end_time = datetime.now()
-                    return result
-
-                # Add output file to results
-                if result.output_files is None:
-                    result.output_files = []
-                result.output_files.append(output_file)
-
-                # Count findings (basic implementation)
-                try:
-                    if output_format.startswith("sarif"):
-                        findings = self._count_sarif_findings(output_file)
-                    else:
-                        findings = 0  # Placeholder for other formats
-                    result.findings_count += findings
-                except Exception as e:
-                    self._logger.warning(f"Failed to count findings: {e}")
-
-            # Mark as completed
-            result.status = AnalysisStatus.COMPLETED
-            result.end_time = datetime.now()
-
-            self._logger.info(
-                f"Project analysis completed: {project.name} "
-                f"(Duration: {result.duration:.2f}s, Findings: {result.findings_count})"
-            )
-
-            return result
-
-        except Exception as e:
-            error_msg = f"Analysis failed for project {project.name}: {str(e)}"
-            self._logger.error(error_msg)
-
-            result.status = AnalysisStatus.FAILED
-            result.error_message = error_msg
-            result.end_time = datetime.now()
-
-            return result
-
-    def _determine_primary_language(
-        self, languages: Set[CodeQLLanguage]
-    ) -> Optional[CodeQLLanguage]:
-        """Determine the primary language from a set of languages."""
-        if not languages:
-            return None
-
-        # Priority order for determining primary language
-        priority_order = [
-            CodeQLLanguage.TYPESCRIPT,
-            CodeQLLanguage.JAVASCRIPT,
-            CodeQLLanguage.PYTHON,
-            CodeQLLanguage.JAVA,
-            CodeQLLanguage.CSHARP,
-            CodeQLLanguage.GO,
-            CodeQLLanguage.CPP,
-            CodeQLLanguage.SWIFT,
-            CodeQLLanguage.RUBY,
-            CodeQLLanguage.ACTIONS,
-        ]
-
-        for lang in priority_order:
-            if lang in languages:
-                return lang
-
-        return next(iter(languages))
 
     def _count_sarif_findings(self, sarif_file: Path) -> int:
         """Count findings in a SARIF file."""
