@@ -1,6 +1,5 @@
 """CodeQL analysis use case implementation."""
 
-from email.mime import base
 import json
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from datetime import datetime
@@ -107,12 +106,14 @@ class CodeQLAnalysisUseCase:
             )
 
             # Step 3: Detect projects
-            configFile = (
-                request.repository_path / ".codeql.json" if request.monorepo else None
-            )
             config_data = None
-            if request.monorepo and configFile and configFile.exists():
-                with open(configFile, "r", encoding="utf-8") as f:
+            root_config_path = Path(request.repository_path, ".codeql.json")
+            if request.monorepo and root_config_path.exists():
+                self._logger.info(
+                    "Detected .codeql.json in root. Using current directory as repository path."
+                )
+
+                with open(root_config_path, "r", encoding="utf-8") as f:
                     config_data = json.load(f)
 
             projects: List[ProjectInfo] = self._detect_projects(
@@ -379,22 +380,23 @@ class CodeQLAnalysisUseCase:
         # Get changed files if filtering is enabled
         changed_files = []
         if request.only_changed_files:
-            if GitUtils.is_git_repository(request.repository_path):
+            if request.git_info.base_ref and request.git_info.current_ref:
                 self._logger.info(
                     f"Filtering projects based on changed files between "
-                    f"{request.base_ref} and {request.target_ref}"
+                    f"{request.git_info.base_ref} and {request.git_info.current_ref}"
                 )
                 changed_files = GitUtils.get_diff_files(
                     request.repository_path,
-                    base_ref=request.base_ref,
-                    target_ref=request.target_ref,
+                    base_ref=request.git_info.base_ref,
+                    target_ref=request.git_info.current_ref,
                 )
                 self._logger.debug(
                     f"Found {len(changed_files)} changed files: {changed_files}"
                 )
             else:
                 self._logger.warning(
-                    "Cannot filter projects by changed files: not a Git repository"
+                    "Changed files filtering is enabled but no base or current ref provided. "
+                    "All projects will be included."
                 )
 
         if isMonorepo:

@@ -123,10 +123,6 @@ def cli(ctx: click.Context, verbose: bool = False) -> None:
     "--base-ref",
     help="Base Git reference to compare changes from (default: HEAD~1)",
 )
-@click.option(
-    "--target-ref",
-    help="Target Git reference to compare changes to (default: HEAD)",
-)
 @click.pass_context
 def analyze(
     ctx: click.Context,
@@ -143,7 +139,6 @@ def analyze(
     max_workers: Optional[int],
     only_changed_files: bool,
     base_ref: str,
-    target_ref: str,
 ) -> None:
     """
     Run CodeQL analysis on a repository.
@@ -154,26 +149,20 @@ def analyze(
         logger = get_logger(__name__)
         verbose = ctx.obj.get("verbose", False)
 
-        # If monorepo mode and .codeql.json exists, default repository_path to current directory
-        root_config_path = Path(repository_path) / ".codeql.json"
-        if monorepo and root_config_path.exists():
-            logger.info(
-                "Detected .codeql.json in root. Using current directory as repository path."
-            )
-
         logger.info(f"Starting CodeQL analysis for: {repository_path}")
+
+        # Try to detect Git information automatically if not provided
+        git_info = GitUtils.get_git_info(
+            repository_path=Path(repository_path),
+            base_ref=base_ref,
+            commit_sha=commit_sha,
+            current_ref=ref,
+            repository=repository,
+        )
 
         # Validate upload-sarif parameters if upload is requested
         if upload_sarif:
-            # Try to detect Git information automatically if not provided
-            git_info = GitUtils.get_git_info(Path(repository_path))
-
-            # Use provided values or fall back to Git detection
-            final_repository = repository or git_info.repository
-            final_commit_sha = commit_sha or git_info.commit_sha
-            final_ref = ref or git_info.ref
-
-            if not final_repository:
+            if not git_info.repository:
                 click.echo(
                     click.style("ERROR:", fg="red", bold=True)
                     + " --repository is required when using --upload-sarif. "
@@ -182,7 +171,7 @@ def analyze(
                 )
                 sys.exit(1)
 
-            if not final_commit_sha:
+            if not git_info.commit_sha:
                 click.echo(
                     click.style("ERROR:", fg="red", bold=True)
                     + " --commit-sha is required when using --upload-sarif. "
@@ -200,11 +189,6 @@ def analyze(
                     err=True,
                 )
                 sys.exit(1)
-
-            # Update variables for later use
-            repository = final_repository
-            commit_sha = final_commit_sha
-            ref = final_ref
 
         # Parse target languages if provided
         target_languages = None
@@ -239,16 +223,19 @@ def analyze(
                 )
 
         # Validate only-changed-files option
-        if only_changed_files:
-            if not GitUtils.is_git_repository(Path(repository_path)):
-                click.echo(
-                    click.style("ERROR:", fg="red", bold=True)
-                    + " --only-changed-files requires a Git repository"
-                )
-                sys.exit(1)
-            logger.info(
-                f"Filtering projects based on changes between {base_ref} and {target_ref}"
+        if only_changed_files and not git_info.is_git_repository:
+            click.echo(
+                click.style("ERROR:", fg="red", bold=True)
+                + " --only-changed-files requires a Git repository"
             )
+            sys.exit(1)
+
+        if git_info.base_ref is None:
+            click.echo(
+                click.style("ERROR:", fg="red", bold=True)
+                + "No base reference provided. Please use --base-ref option to specify it."
+            )
+            sys.exit(1)
 
         # Create analysis request
         request = CodeQLAnalysisRequest(
@@ -260,8 +247,7 @@ def analyze(
             monorepo=monorepo,
             max_workers=max_workers,
             only_changed_files=only_changed_files,
-            base_ref=base_ref,
-            target_ref=target_ref,
+            git_info=git_info,
         )
 
         # Execute analysis
@@ -315,28 +301,25 @@ def analyze(
                     + " No SARIF files found for upload"
                 )
             else:
-                # These are guaranteed to be non-None due to validation above
-                assert repository is not None
-                assert commit_sha is not None
-                assert github_token is not None
-
-                # Show upload info
-                used_ref = ref or "refs/heads/main"
                 click.echo(
                     "\n"
                     + click.style("UPLOADING:", fg="blue", bold=True)
                     + f" {len(sarif_files)} SARIF file(s) to {repository}"
                 )
                 click.echo(f"   Commit: {commit_sha}")
-                click.echo(f"   Reference: {used_ref}")
+                click.echo(f"   Reference: {git_info.current_ref}")
 
                 # Create upload request
+                assert git_info.repository is not None
+                assert git_info.commit_sha is not None
+                assert github_token is not None
+
                 upload_request = SarifUploadRequest(
                     sarif_files=sarif_files,
-                    repository=repository,
-                    commit_sha=commit_sha,
+                    repository=git_info.repository,
+                    commit_sha=git_info.commit_sha,
                     github_token=github_token,
-                    ref=ref,
+                    ref=git_info.current_ref,
                 )
 
                 # Execute upload
@@ -469,7 +452,7 @@ def install(ctx: click.Context, version: str, force: bool) -> None:
 def upload_sarif(
     ctx: click.Context,
     sarif_file: str,
-    repository: Optional[str],
+    repository: str,
     commit_sha: Optional[str],
     ref: Optional[str],
     github_token: Optional[str],
@@ -489,32 +472,12 @@ def upload_sarif(
         logger = get_logger(__name__)
 
         # Try to detect Git information automatically if not provided
-        sarif_file_path = Path(sarif_file)
-        # Try to find Git repository by looking at the SARIF file's directory and parents
-        git_repo_path = sarif_file_path.parent
-        while git_repo_path != git_repo_path.parent:
-            if GitUtils.is_git_repository(git_repo_path):
-                break
-            git_repo_path = git_repo_path.parent
-        else:
-            # If no Git repo found, use current directory
-            git_repo_path = Path.cwd()
-
-        git_info = GitUtils.get_git_info(git_repo_path)
-
-        # Use provided values or fall back to Git detection
-        final_repository = repository or git_info.repository
-        final_commit_sha = commit_sha or git_info.commit_sha
-        final_ref = ref or git_info.ref
-
-        # Debug output (temporary)
-        click.echo(
-            f"Debug: repository={repository}, git_info.repository={git_info.repository}"
+        git_info = GitUtils.get_git_info(
+            commit_sha=commit_sha, current_ref=ref, repository=repository
         )
-        click.echo(f"Debug: final_repository={final_repository}")
 
         # Parse repository owner/name
-        if not final_repository:
+        if not repository:
             click.echo(
                 click.style("ERROR:", fg="red", bold=True)
                 + " Repository is required. Provide --repository or ensure you're in a Git "
@@ -523,21 +486,19 @@ def upload_sarif(
             )
             sys.exit(1)
 
-        if not final_commit_sha:
+        if not git_info.repository:
             click.echo(
                 click.style("ERROR:", fg="red", bold=True)
-                + " Commit SHA is required. Provide --commit-sha or ensure you're in a Git "
-                "repository.",
+                + " Invalid repository format. Use 'owner/name' format.",
                 err=True,
             )
             sys.exit(1)
 
-        try:
-            repository_owner, repository_name = final_repository.split("/", 1)
-        except ValueError:
+        if not git_info.commit_sha:
             click.echo(
                 click.style("ERROR:", fg="red", bold=True)
-                + " Invalid repository format. Use 'owner/name' format.",
+                + " Commit SHA is required. Provide --commit-sha or ensure you're in a Git "
+                "repository.",
                 err=True,
             )
             sys.exit(1)
@@ -552,37 +513,21 @@ def upload_sarif(
             )
             sys.exit(1)
 
-        used_ref = final_ref or "refs/heads/main"
         click.echo(
             click.style("UPLOADING:", fg="blue", bold=True)
             + f" SARIF file: {sarif_file}"
         )
-        click.echo(f"   Repository: {final_repository}")
-        click.echo(f"   Commit: {final_commit_sha}")
-        click.echo(f"   Reference: {used_ref}")
-
-        # Show auto-detected information
-        if git_info.repository or git_info.commit_sha or git_info.ref:
-            auto_detected = []
-            if not repository and git_info.repository:
-                auto_detected.append("repository")
-            if not commit_sha and git_info.commit_sha:
-                auto_detected.append("commit-sha")
-            if not ref and git_info.ref:
-                auto_detected.append("ref")
-            if auto_detected:
-                click.echo(
-                    click.style("INFO:", fg="cyan", bold=True)
-                    + f" Auto-detected: {', '.join(auto_detected)}"
-                )
+        click.echo(f"   Repository: {git_info.repository}")
+        click.echo(f"   Commit: {git_info.commit_sha}")
+        click.echo(f"   Reference: {git_info.current_ref}")
 
         # Create upload request
         upload_request = SarifUploadRequest(
             sarif_files=[Path(sarif_file)],
-            repository=final_repository,
-            commit_sha=final_commit_sha,
+            repository=git_info.repository,
+            commit_sha=git_info.commit_sha,
             github_token=github_token,
-            ref=final_ref,
+            ref=git_info.current_ref,
         )
 
         # Execute upload
@@ -601,7 +546,9 @@ def upload_sarif(
                     click.echo(click.style("ERROR:", fg="red", bold=True) + f" {error}")
             raise Exception("SARIF upload failed")
 
-        logger.info(f"SARIF upload completed for {final_repository}")
+        logger.info(
+            f"SARIF upload completed for {git_info.repository} at {git_info.commit_sha}"
+        )
 
     except Exception as e:
         logger = get_logger(__name__)
