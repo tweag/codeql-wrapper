@@ -76,6 +76,9 @@ class CodeQLAnalysisRequest:
     build_script: Optional[Path] = None
     queries: Optional[List[str]] = None
     max_workers: Optional[int] = None
+    only_changed_files: bool = False
+    base_ref: str = "HEAD~1"
+    target_ref: str = "HEAD"
 
     def __post_init__(self) -> None:
         """Validate analysis request."""
