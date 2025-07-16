@@ -121,12 +121,10 @@ def cli(ctx: click.Context, verbose: bool = False) -> None:
 )
 @click.option(
     "--base-ref",
-    default="HEAD~1",
     help="Base Git reference to compare changes from (default: HEAD~1)",
 )
 @click.option(
     "--target-ref",
-    default="HEAD",
     help="Target Git reference to compare changes to (default: HEAD)",
 )
 @click.pass_context

@@ -1,5 +1,6 @@
 """CodeQL analysis use case implementation."""
 
+from email.mime import base
 import json
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from datetime import datetime

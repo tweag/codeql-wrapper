@@ -69,8 +69,8 @@ class GitUtils:
     @staticmethod
     def get_diff_files(
         repository_path: Path,
-        base_ref: str = "HEAD~1",
-        target_ref: str = "HEAD",
+        base_ref: str  ,
+        target_ref: str ,
         diff_filter: Optional[str] = None,
     ) -> List[str]:
         """
@@ -86,6 +86,12 @@ class GitUtils:
             List of file paths that differ between the references
         """
         try:
+            if base_ref is None:
+                base_ref = self._get_current_ref(repository_path)
+
+            if target_ref is None:
+                target_ref = "HEAD"
+
             # Build the git diff command
             cmd = ["git", "diff", "--name-only", f"{base_ref}..{target_ref}"]
 
