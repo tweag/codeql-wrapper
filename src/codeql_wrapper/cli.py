@@ -114,6 +114,21 @@ def cli(ctx: click.Context, verbose: bool = False) -> None:
     help="Maximum number of worker processes for concurrent analysis "
     "(default: adaptive based on system resources)",
 )
+@click.option(
+    "--only-changed-files",
+    is_flag=True,
+    help="Only analyze projects that contain changed files (requires Git repository)",
+)
+@click.option(
+    "--base-ref",
+    default="HEAD~1",
+    help="Base Git reference to compare changes from (default: HEAD~1)",
+)
+@click.option(
+    "--target-ref",
+    default="HEAD",
+    help="Target Git reference to compare changes to (default: HEAD)",
+)
 @click.pass_context
 def analyze(
     ctx: click.Context,
@@ -128,6 +143,9 @@ def analyze(
     ref: Optional[str],
     github_token: Optional[str],
     max_workers: Optional[int],
+    only_changed_files: bool,
+    base_ref: str,
+    target_ref: str,
 ) -> None:
     """
     Run CodeQL analysis on a repository.
@@ -222,6 +240,18 @@ def analyze(
                     + f" Using {max_workers} workers may cause resource exhaustion on some systems"
                 )
 
+        # Validate only-changed-files option
+        if only_changed_files:
+            if not GitUtils.is_git_repository(Path(repository_path)):
+                click.echo(
+                    click.style("ERROR:", fg="red", bold=True)
+                    + " --only-changed-files requires a Git repository"
+                )
+                sys.exit(1)
+            logger.info(
+                f"Filtering projects based on changes between {base_ref} and {target_ref}"
+            )
+
         # Create analysis request
         request = CodeQLAnalysisRequest(
             repository_path=Path(repository_path),
@@ -231,6 +261,9 @@ def analyze(
             force_install=force_install,
             monorepo=monorepo,
             max_workers=max_workers,
+            only_changed_files=only_changed_files,
+            base_ref=base_ref,
+            target_ref=target_ref,
         )
 
         # Execute analysis
