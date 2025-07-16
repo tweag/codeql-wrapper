@@ -230,12 +230,12 @@ def analyze(
             )
             sys.exit(1)
 
-        if git_info.base_ref is None:
-            click.echo(
-                click.style("ERROR:", fg="red", bold=True)
-                + "No base reference provided. Please use --base-ref option to specify it."
-            )
-            sys.exit(1)
+            if git_info.base_ref is None:
+                click.echo(
+                    click.style("ERROR:", fg="red", bold=True)
+                    + "No base reference provided. Please use --base-ref option to specify it."
+                )
+                sys.exit(1)
 
         # Create analysis request
         request = CodeQLAnalysisRequest(

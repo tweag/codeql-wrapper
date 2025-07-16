@@ -120,12 +120,6 @@ class GitUtils:
         """
         logger = get_logger(__name__)
 
-        if base_ref is None:
-            base_ref = GitUtils._get_current_ref(repository_path)
-
-        if target_ref is None:
-            target_ref = "refs/remotes/origin/main"
-
         logger.debug(
             f"Getting diff files between {base_ref} and {target_ref} in {repository_path}"
         )
