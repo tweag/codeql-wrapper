@@ -265,7 +265,7 @@ jobs:
         echo "Package built successfully"
 
     - name: Create release commit and tag
-      if: ${{ github.event.inputs.dry_run == 'false' }}
+      if: ${{ github.event.inputs.dry_run == 'false' && needs.validate.outputs.is_prerelease == 'false' }}
       run: |
         VERSION="${{ needs.validate.outputs.version }}"
         
@@ -288,8 +288,20 @@ jobs:
         
         echo "Release commit and tag created"
 
+    - name: Create pre-release tag
+      if: ${{ github.event.inputs.dry_run == 'false' && needs.validate.outputs.is_prerelease == 'true' }}
+      run: |
+        VERSION="${{ needs.validate.outputs.version }}"
+        
+        echo "Creating pre-release tag..."
+        
+        # For pre-releases, just create a tag without committing version changes to main
+        git tag -a v$VERSION -m "Pre-release v$VERSION"
+        
+        echo "Pre-release tag created"
+
     - name: Push release branch and tag
-      if: ${{ github.event.inputs.dry_run == 'false' }}
+      if: ${{ github.event.inputs.dry_run == 'false' && needs.validate.outputs.is_prerelease == 'false' }}
       run: |
         VERSION="${{ needs.validate.outputs.version }}"
         
@@ -305,8 +317,20 @@ jobs:
         
         echo "Release branch and tag pushed successfully"
 
+    - name: Push pre-release tag
+      if: ${{ github.event.inputs.dry_run == 'false' && needs.validate.outputs.is_prerelease == 'true' }}
+      run: |
+        VERSION="${{ needs.validate.outputs.version }}"
+        
+        echo "Pushing pre-release tag..."
+        
+        # Push only the tag for pre-releases
+        git push origin v$VERSION
+        
+        echo "Pre-release tag pushed successfully"
+
     - name: Create Pull Request
-      if: ${{ github.event.inputs.dry_run == 'false' }}
+      if: ${{ github.event.inputs.dry_run == 'false' && needs.validate.outputs.is_prerelease == 'false' }}
       id: create_pr
       run: |
         VERSION="${{ needs.validate.outputs.version }}"
@@ -344,7 +368,7 @@ jobs:
         GH_TOKEN: ${{ secrets.GH_TOKEN }}
 
     - name: Auto-merge Pull Request
-      if: ${{ github.event.inputs.dry_run == 'false' }}
+      if: ${{ github.event.inputs.dry_run == 'false' && needs.validate.outputs.is_prerelease == 'false' }}
       run: |
         VERSION="${{ needs.validate.outputs.version }}"
         
