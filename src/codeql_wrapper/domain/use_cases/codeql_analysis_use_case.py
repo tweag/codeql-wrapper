@@ -404,10 +404,10 @@ class CodeQLAnalysisUseCase:
                     
                     # Detect languages first to check if this is a valid project
                     non_compiled_languages = self._detect_languages(
-                        request.repository_path, LanguageType.NON_COMPILED
+                        project_path, LanguageType.NON_COMPILED
                     )
                     compiled_languages = self._detect_languages(
-                        request.repository_path, LanguageType.COMPILED
+                        project_path, LanguageType.COMPILED
                     )
                     
                     # Skip if no supported languages are detected
