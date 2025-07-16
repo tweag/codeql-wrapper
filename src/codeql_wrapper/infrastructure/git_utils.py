@@ -6,6 +6,8 @@ from typing import Optional, List
 from dataclasses import dataclass
 from urllib.parse import urlparse
 
+from .logger import get_logger
+
 
 @dataclass
 class GitInfo:
@@ -13,15 +15,23 @@ class GitInfo:
 
     repository: Optional[str] = None  # Format: 'owner/name'
     commit_sha: Optional[str] = None
-    ref: Optional[str] = None  # Format: 'refs/heads/branch-name'
+    current_ref: Optional[str] = None  # Format: 'refs/heads/branch-name'
+    base_ref: Optional[str] = None  # Base reference for comparisons
     remote_url: Optional[str] = None
+    is_git_repository: Optional[bool] = None
 
 
 class GitUtils:
     """Utility class for Git operations."""
 
     @staticmethod
-    def get_git_info(repository_path: Path) -> GitInfo:
+    def get_git_info(
+        repository_path: Optional[Path] = None,
+        repository: Optional[str] = None,
+        commit_sha: Optional[str] = None,
+        current_ref: Optional[str] = None,
+        base_ref: Optional[str] = None,
+    ) -> GitInfo:
         """
         Extract Git information from a repository.
 
@@ -31,23 +41,46 @@ class GitUtils:
         Returns:
             GitInfo with extracted information
         """
+        logger = get_logger(__name__)
         git_info = GitInfo()
 
-        try:
-            # Get current commit SHA
-            git_info.commit_sha = GitUtils._get_commit_sha(repository_path)
+        # Get current commit SHA
+        git_info.commit_sha = (
+            commit_sha or GitUtils._get_commit_sha(repository_path)
+            if repository_path
+            else None
+        )
 
-            # Get current branch/ref
-            git_info.ref = GitUtils._get_current_ref(repository_path)
+        # Get current branch/ref
+        git_info.current_ref = (
+            current_ref or GitUtils._get_current_ref(repository_path)
+            if repository_path
+            else None
+        )
 
-            # Get remote URL and extract repository name
-            remote_url = GitUtils._get_remote_url(repository_path)
-            git_info.remote_url = remote_url
-            git_info.repository = GitUtils._extract_repository_from_url(remote_url)
+        git_info.base_ref = base_ref
 
-        except Exception:
-            # If any Git operation fails, return partial information
-            pass
+        # Get remote URL and extract repository name
+        remote_url = (
+            GitUtils._get_remote_url(repository_path) if repository_path else None
+        )
+        git_info.remote_url = remote_url
+        if repository:
+            try:
+                repository_owner, repository_name = repository.split("/", 1)
+            except ValueError:
+                logger.warning(
+                    "Invalid repository format. Trying to extract from remote URL."
+                )
+                repository = None
+
+        git_info.repository = repository or GitUtils._extract_repository_from_url(
+            remote_url
+        )
+
+        git_info.is_git_repository = (
+            GitUtils.is_git_repository(repository_path) if repository_path else False
+        )
 
         return git_info
 
@@ -69,8 +102,8 @@ class GitUtils:
     @staticmethod
     def get_diff_files(
         repository_path: Path,
-        base_ref: str = "HEAD~1",
-        target_ref: str = "HEAD",
+        base_ref: str,
+        target_ref: str,
         diff_filter: Optional[str] = None,
     ) -> List[str]:
         """
@@ -85,32 +118,32 @@ class GitUtils:
         Returns:
             List of file paths that differ between the references
         """
-        try:
-            # Build the git diff command
-            cmd = ["git", "diff", "--name-only", f"{base_ref}..{target_ref}"]
+        logger = get_logger(__name__)
 
-            # Add filter if specified
-            if diff_filter:
-                cmd.insert(2, f"--diff-filter={diff_filter}")
+        logger.debug(
+            f"Getting diff files between {base_ref} and {target_ref} in {repository_path}"
+        )
 
-            result = subprocess.run(
-                cmd,
-                cwd=repository_path,
-                capture_output=True,
-                text=True,
-                check=False,
-            )
+        # Build the git diff command
+        cmd = ["git", "diff", "--name-only", f"{base_ref}..{target_ref}"]
 
-            if result.returncode == 0:
-                # Return list of file paths, filtering out empty lines
-                return [
-                    line.strip() for line in result.stdout.split("\n") if line.strip()
-                ]
-            else:
-                # Log error but don't raise exception
-                return []
+        # Add filter if specified
+        if diff_filter:
+            cmd.insert(2, f"--diff-filter={diff_filter}")
 
-        except Exception:
+        result = subprocess.run(
+            cmd,
+            cwd=repository_path,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        if result.returncode == 0:
+            # Return list of file paths, filtering out empty lines
+            return [line.strip() for line in result.stdout.split("\n") if line.strip()]
+        else:
+            # Log error but don't raise exception
             return []
 
     # Private methods
