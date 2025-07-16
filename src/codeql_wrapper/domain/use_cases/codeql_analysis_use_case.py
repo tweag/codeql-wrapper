@@ -365,7 +365,10 @@ class CodeQLAnalysisUseCase:
         return colors[project_index % len(colors)]
 
     def _detect_projects(
-        self, isMonorepo: bool, configData: Optional[dict],  request: CodeQLAnalysisRequest
+        self,
+        isMonorepo: bool,
+        configData: Optional[dict],
+        request: CodeQLAnalysisRequest,
     ) -> List[ProjectInfo]:
         """Detect projects in the repository."""
         self._logger.debug(f"Detecting projects in: {request.repository_path}")
@@ -376,17 +379,22 @@ class CodeQLAnalysisUseCase:
         changed_files = []
         if request.only_changed_files:
             if GitUtils.is_git_repository(request.repository_path):
-                self._logger.info(f"Filtering projects based on changed files between {request.base_ref} and {request.target_ref}")
+                self._logger.info(
+                    f"Filtering projects based on changed files between "
+                    f"{request.base_ref} and {request.target_ref}"
+                )
                 changed_files = GitUtils.get_diff_files(
                     request.repository_path,
                     base_ref=request.base_ref,
-                    target_ref=request.target_ref
+                    target_ref=request.target_ref,
                 )
-                self._logger.debug(f"Found {len(changed_files)} changed files: {changed_files}")
+                self._logger.debug(
+                    f"Found {len(changed_files)} changed files: {changed_files}"
+                )
             else:
                 self._logger.warning(
                     "Cannot filter projects by changed files: not a Git repository"
-                )     
+                )
 
         if isMonorepo:
             if configData:
@@ -394,14 +402,19 @@ class CodeQLAnalysisUseCase:
                 project_index = 0
                 for config_index, project in enumerate(projects_config):
                     project_path = Path(project.get("path", ""))
-                    
+
                     # Skip project if filtering by changed files and no changes in this project
-                    if request.only_changed_files and not self._project_has_changed_files(
-                        project_path, request.repository_path, changed_files
+                    if (
+                        request.only_changed_files
+                        and not self._project_has_changed_files(
+                            project_path, request.repository_path, changed_files
+                        )
                     ):
-                        self._logger.debug(f"Skipping project {project_path} - no changed files")
+                        self._logger.debug(
+                            f"Skipping project {project_path} - no changed files"
+                        )
                         continue
-                    
+
                     # Detect languages first to check if this is a valid project
                     non_compiled_languages = self._detect_languages(
                         project_path, LanguageType.NON_COMPILED
@@ -409,10 +422,12 @@ class CodeQLAnalysisUseCase:
                     compiled_languages = self._detect_languages(
                         project_path, LanguageType.COMPILED
                     )
-                    
+
                     # Skip if no supported languages are detected
                     if not non_compiled_languages and not compiled_languages:
-                        self._logger.debug(f"Skipping project {project_path.name} - no supported languages detected")
+                        self._logger.debug(
+                            f"Skipping project {project_path.name} - no supported languages detected"
+                        )
                         continue
 
                     projects.append(
@@ -447,10 +462,15 @@ class CodeQLAnalysisUseCase:
                         project_name = folder.name or folder.resolve().name
 
                         # Skip project if filtering by changed files and no changes in this project
-                        if request.only_changed_files and not self._project_has_changed_files(
-                            folder, request.repository_path, changed_files
+                        if (
+                            request.only_changed_files
+                            and not self._project_has_changed_files(
+                                folder, request.repository_path, changed_files
+                            )
                         ):
-                            self._logger.debug(f"Skipping project {project_name} - no changed files")
+                            self._logger.debug(
+                                f"Skipping project {project_name} - no changed files"
+                            )
                             continue
 
                         # Detect languages first to check if this is a valid project
@@ -460,10 +480,12 @@ class CodeQLAnalysisUseCase:
                         compiled_languages = self._detect_languages(
                             folder, LanguageType.COMPILED
                         )
-                        
+
                         # Skip if no supported languages are detected
                         if not non_compiled_languages and not compiled_languages:
-                            self._logger.debug(f"Skipping project {project_name} - no supported languages detected")
+                            self._logger.debug(
+                                f"Skipping project {project_name} - no supported languages detected"
+                            )
                             continue
 
                         projects.append(
@@ -481,7 +503,9 @@ class CodeQLAnalysisUseCase:
                         )
                         project_index += 1
         else:
-            project_name = request.repository_path.name or request.repository_path.resolve().name
+            project_name = (
+                request.repository_path.name or request.repository_path.resolve().name
+            )
 
             # Detect languages first
             non_compiled_languages = self._detect_languages(
@@ -491,64 +515,77 @@ class CodeQLAnalysisUseCase:
                 request.repository_path, LanguageType.COMPILED
             )
 
-            if request.only_changed_files:                
-                self._logger.info(f"--only-changed-files will not be used in single project mode, all files will be analyzed")
-            
+            if request.only_changed_files:
+                self._logger.info(
+                    "--only-changed-files will not be used in single project mode, "
+                    "all files will be analyzed"
+                )
+
             # Only proceed if languages are detected
             if non_compiled_languages or compiled_languages:
-                    projects.append(
-                        ProjectInfo(
-                            repository_path=request.repository_path,
-                            project_path=request.repository_path,
-                            build_mode="none",
-                            build_script=None,
-                            queries=[],
-                            name=project_name,
-                            non_compiled_languages=non_compiled_languages,
-                            compiled_languages=compiled_languages,
-                            log_color=self._get_project_color(0),
-                        )
+                projects.append(
+                    ProjectInfo(
+                        repository_path=request.repository_path,
+                        project_path=request.repository_path,
+                        build_mode="none",
+                        build_script=None,
+                        queries=[],
+                        name=project_name,
+                        non_compiled_languages=non_compiled_languages,
+                        compiled_languages=compiled_languages,
+                        log_color=self._get_project_color(0),
                     )
+                )
             else:
-                self._logger.debug(f"Skipping single project {project_name} - no supported languages detected")
+                self._logger.debug(
+                    f"Skipping single project {project_name} - no supported languages detected"
+                )
 
         if not projects:
             if request.only_changed_files:
-                self._logger.warning("No projects with changed files detected in repository")
+                self._logger.warning(
+                    "No projects with changed files detected in repository"
+                )
             else:
                 self._logger.warning("No supported projects detected in repository")
         else:
             if request.only_changed_files:
-                self._logger.info(f"Found {len(projects)} project(s) with changed files to analyze")
+                self._logger.info(
+                    f"Found {len(projects)} project(s) with changed files to analyze"
+                )
             else:
                 self._logger.info(f"Found {len(projects)} project(s) to analyze")
 
         return projects
 
-    def _project_has_changed_files(self, project_path: Path, repository_path: Path, changed_files: List[str]) -> bool:
+    def _project_has_changed_files(
+        self, project_path: Path, repository_path: Path, changed_files: List[str]
+    ) -> bool:
         """Check if a project contains any of the changed files."""
         if not changed_files:
             return True  # If no changed files filter, include all projects
-        
+
         # Convert project path to relative path from repository root
         try:
             relative_project_path = project_path.relative_to(repository_path)
         except ValueError:
             # If project_path is not under repository_path, use absolute comparison
             relative_project_path = project_path
-        
+
         # Check if any changed file is within this project
         for changed_file in changed_files:
             changed_file_path = Path(changed_file)
             try:
                 # Check if the changed file is within the project directory
-                if str(relative_project_path) == "." or changed_file_path.is_relative_to(relative_project_path):
+                if str(
+                    relative_project_path
+                ) == "." or changed_file_path.is_relative_to(relative_project_path):
                     return True
             except (ValueError, AttributeError):
                 # Fallback for older Python versions or path issues
                 if str(changed_file).startswith(str(relative_project_path)):
                     return True
-        
+
         return False
 
     def _detect_languages(

@@ -125,7 +125,7 @@ def cli(ctx: click.Context, verbose: bool = False) -> None:
     help="Base Git reference to compare changes from (default: HEAD~1)",
 )
 @click.option(
-    "--target-ref", 
+    "--target-ref",
     default="HEAD",
     help="Target Git reference to compare changes to (default: HEAD)",
 )
@@ -248,7 +248,9 @@ def analyze(
                     + " --only-changed-files requires a Git repository"
                 )
                 sys.exit(1)
-            logger.info(f"Filtering projects based on changes between {base_ref} and {target_ref}")
+            logger.info(
+                f"Filtering projects based on changes between {base_ref} and {target_ref}"
+            )
 
         # Create analysis request
         request = CodeQLAnalysisRequest(

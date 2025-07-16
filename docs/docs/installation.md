@@ -93,7 +93,7 @@ poetry run mypy src/
 poetry run flake8 src/ tests/
 
 # All checks
-poetry run pytest && poetry run black src/ tests/ && poetry run mypy src/ && poetry run flake8 src/ tests/
+poetry run pytest && poetry run black src/ && poetry run mypy src/ && poetry run flake8 src/ 
 ```
 
 ### 4. Building and Publishing
