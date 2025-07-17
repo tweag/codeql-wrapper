@@ -99,7 +99,8 @@ class GitUtils:
 
             changed_files = [item.a_path for item in diff if item.a_path is not None]
             self.logger.debug(
-                f"Found {len(changed_files)} changed files between {base_ref_to_use} and {git_info.current_ref}"
+                f"Found {len(changed_files)} changed files between "
+                f"{base_ref_to_use} and {git_info.current_ref}"
             )
             return changed_files
 
@@ -110,7 +111,9 @@ class GitUtils:
             )
             return []
 
-    def fetch_repo(self, base_ref: str, current_ref: str, depth: int = 2) -> None:
+    def fetch_repo(
+        self, base_ref: str, current_ref: Optional[str] = None, depth: int = 2
+    ) -> None:
         origin = self.repo.remotes.origin
 
         try:
