@@ -60,18 +60,14 @@ class GitUtils:
         return git_info
 
     def is_pr(self, ref_name: str) -> bool:
-        # Check if it's a local branch
-        for ref in self.repo.references:
-            self.logger.debug(f"Checking local ref: {ref.name}")
+        head_commit = self.repo.head.commit
 
-        if ref_name in self.repo.branches:
-            return False
-
-        # Check if it's a remote PR (e.g., origin/pr/123)
+        # Look for remote PR refs that match HEAD commit
         for ref in self.repo.remote().refs:
-            if ref.name.endswith(ref_name):
-                if "pull" in ref.name or "pr" in ref.name:
-                    return True
+            self.logger.debug(f"Checking remote ref: {ref.name} -> {ref.commit.hexsha}")
+            if ref.commit == head_commit and ("pull" in ref.name or "pr" in ref.name):
+                self.logger.debug(f"Matched PR ref: {ref.name}")
+                return True
 
         return False
 
@@ -91,13 +87,11 @@ class GitUtils:
         return [item.a_path for item in diff if item.a_path is not None]
 
     def fetch_repo(self, base_ref: str, current_ref: str, depth: int = 2) -> None:
-        self.repo.remote().fetch()
+        origin = self.repo.remotes.origin
 
-        # origin = self.repo.remotes.origin
-
-        # if self.is_pr(current_ref):
-        #     self.logger.info(f"Fetching base branch of PR: {base_ref}")
-        #     origin.fetch(refspec=base_ref, depth=depth)
-        # else:
-        #     self.logger.info("Fetching default (non-PR) branch")
-        #     origin.fetch(depth=depth)
+        if self.is_pr(current_ref):
+            self.logger.info(f"Fetching base branch of PR: {base_ref}")
+            origin.fetch(refspec=base_ref, depth=depth)
+        else:
+            self.logger.info("Fetching default (non-PR) branch")
+            origin.fetch(depth=depth)
