@@ -74,24 +74,47 @@ class GitUtils:
     def get_diff_files(self) -> List[str]:
         git_info = self.get_git_info()
 
-        if git_info.current_ref:
+        try:
             self.fetch_repo(git_info.base_ref, git_info.current_ref)
 
-        # Get references to the branches
-        base_ref_commit = self.repo.commit(git_info.base_ref)
-        ref_commit = self.repo.commit(git_info.current_ref)
+            # Try to resolve the base ref, fallback to origin/ prefix if needed
+            base_ref_to_use = git_info.base_ref
+            try:
+                base_ref_commit = self.repo.commit(base_ref_to_use)
+            except Exception:
+                base_ref_to_use = f"origin/{git_info.base_ref}"
+                self.logger.debug(
+                    f"Could not resolve '{git_info.base_ref}', trying '{base_ref_to_use}'"
+                )
+                base_ref_commit = self.repo.commit(base_ref_to_use)
 
-        # Get the diff from base_ref to ref
-        diff = base_ref_commit.diff(ref_commit)
+            # Use HEAD for current commit in detached HEAD state
+            if git_info.current_ref == "HEAD":
+                current_commit = self.repo.head.commit
+            else:
+                current_commit = self.repo.commit(git_info.current_ref)
 
-        return [item.a_path for item in diff if item.a_path is not None]
+            # Get the diff from base_ref to current
+            diff = base_ref_commit.diff(current_commit)
+
+            changed_files = [item.a_path for item in diff if item.a_path is not None]
+            self.logger.debug(
+                f"Found {len(changed_files)} changed files between {base_ref_to_use} and {git_info.current_ref}"
+            )
+            return changed_files
+
+        except Exception as e:
+            self.logger.error(f"Failed to get diff files: {e}")
+            self.logger.warning(
+                "Falling back to analyzing all projects due to git diff failure"
+            )
+            return []
 
     def fetch_repo(self, base_ref: str, current_ref: str, depth: int = 2) -> None:
         origin = self.repo.remotes.origin
 
-        if self.is_pr(current_ref):
-            self.logger.info(f"Fetching base branch of PR: {base_ref}")
-            origin.fetch(refspec=base_ref, depth=depth)
-        else:
-            self.logger.info("Fetching default (non-PR) branch")
+        try:
+            self.logger.info(f"Fetching repository with depth={depth}")
             origin.fetch(depth=depth)
+        except Exception as e:
+            self.logger.warning(f"Failed to fetch repository: {e}")
