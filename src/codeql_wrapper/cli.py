@@ -152,13 +152,8 @@ def analyze(
         logger.info(f"Starting CodeQL analysis for: {repository_path}")
 
         # Try to detect Git information automatically if not provided
-        git_info = GitUtils.get_git_info(
-            repository_path=Path(repository_path),
-            base_ref=base_ref,
-            commit_sha=commit_sha,
-            current_ref=ref,
-            repository=repository,
-        )
+        git_utils = GitUtils(Path(repository_path))
+        git_info = git_utils.get_git_info(base_ref=base_ref)
 
         # Validate upload-sarif parameters if upload is requested
         if upload_sarif:
@@ -255,7 +250,6 @@ def analyze(
             monorepo=monorepo,
             max_workers=max_workers,
             only_changed_files=only_changed_files,
-            git_info=git_info,
         )
 
         # Execute analysis
@@ -428,141 +422,6 @@ def install(ctx: click.Context, version: str, force: bool) -> None:
         logger.error(f"CodeQL installation failed: {e}")
         click.echo(
             click.style("ERROR:", fg="red", bold=True) + f" Installation failed: {e}",
-            err=True,
-        )
-        sys.exit(1)
-
-
-@cli.command("upload-sarif")
-@click.argument(
-    "sarif_file", type=click.Path(exists=True, file_okay=True, dir_okay=False)
-)
-@click.option(
-    "--repository",
-    "-r",
-    help="GitHub repository in format 'owner/name' (auto-detected from Git if not provided)",
-)
-@click.option(
-    "--commit-sha",
-    "-c",
-    help="Full SHA of the commit that was analyzed (auto-detected from Git if not provided)",
-)
-@click.option(
-    "--ref",
-    help="Git reference (branch or tag) that was analyzed (default: 'refs/heads/main')",
-)
-@click.option(
-    "--github-token",
-    envvar="GITHUB_TOKEN",
-    help="GitHub token for authentication (or set GITHUB_TOKEN env var)",
-)
-@click.pass_context
-def upload_sarif(
-    ctx: click.Context,
-    sarif_file: str,
-    repository: str,
-    commit_sha: Optional[str],
-    ref: Optional[str],
-    github_token: Optional[str],
-) -> None:
-    """
-    Upload SARIF file to GitHub Code Scanning.
-
-    SARIF_FILE: Path to the SARIF file to upload
-
-    Example:
-        codeql-wrapper upload-sarif results.sarif \\
-            --repository octocat/Hello-World \\
-            --commit-sha a1b2c3d4e5f6 \\
-            --ref refs/heads/main
-    """
-    try:
-        logger = get_logger(__name__)
-
-        # Try to detect Git information automatically if not provided
-        git_info = GitUtils.get_git_info(
-            commit_sha=commit_sha, current_ref=ref, repository=repository
-        )
-
-        # Parse repository owner/name
-        if not repository:
-            click.echo(
-                click.style("ERROR:", fg="red", bold=True)
-                + " Repository is required. Provide --repository or ensure you're in a Git "
-                "repository with a GitHub remote configured.",
-                err=True,
-            )
-            sys.exit(1)
-
-        if not git_info.repository:
-            click.echo(
-                click.style("ERROR:", fg="red", bold=True)
-                + " Invalid repository format. Use 'owner/name' format.",
-                err=True,
-            )
-            sys.exit(1)
-
-        if not git_info.commit_sha:
-            click.echo(
-                click.style("ERROR:", fg="red", bold=True)
-                + " Commit SHA is required. Provide --commit-sha or ensure you're in a Git "
-                "repository.",
-                err=True,
-            )
-            sys.exit(1)
-
-        # Validate GitHub token
-        if not github_token:
-            click.echo(
-                click.style("ERROR:", fg="red", bold=True)
-                + " GitHub token is required. Set GITHUB_TOKEN environment variable "
-                "or use --github-token option.",
-                err=True,
-            )
-            sys.exit(1)
-
-        click.echo(
-            click.style("UPLOADING:", fg="blue", bold=True)
-            + f" SARIF file: {sarif_file}"
-        )
-        click.echo(f"   Repository: {git_info.repository}")
-        click.echo(f"   Commit: {git_info.commit_sha}")
-        click.echo(f"   Reference: {git_info.current_ref}")
-
-        # Create upload request
-        upload_request = SarifUploadRequest(
-            sarif_files=[Path(sarif_file)],
-            repository=git_info.repository,
-            commit_sha=git_info.commit_sha,
-            github_token=github_token,
-            ref=git_info.current_ref,
-        )
-
-        # Execute upload
-        upload_use_case = SarifUploadUseCase(logger)
-        upload_result = upload_use_case.execute(upload_request)
-
-        # Display results
-        if upload_result.success:
-            click.echo(
-                click.style("SUCCESS:", fg="green", bold=True)
-                + " Successfully uploaded SARIF file"
-            )
-        else:
-            if upload_result.errors:
-                for error in upload_result.errors:
-                    click.echo(click.style("ERROR:", fg="red", bold=True) + f" {error}")
-            raise Exception("SARIF upload failed")
-
-        logger.info(
-            f"SARIF upload completed for {git_info.repository} at {git_info.commit_sha}"
-        )
-
-    except Exception as e:
-        logger = get_logger(__name__)
-        logger.error(f"SARIF upload failed: {e}")
-        click.echo(
-            click.style("ERROR:", fg="red", bold=True) + f" Upload failed: {e}",
             err=True,
         )
         sys.exit(1)

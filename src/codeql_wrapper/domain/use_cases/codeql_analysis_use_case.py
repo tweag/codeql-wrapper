@@ -376,28 +376,8 @@ class CodeQLAnalysisUseCase:
         self._logger.debug(f"Detecting projects in: {request.repository_path}")
 
         projects: List[ProjectInfo] = []
-
-        # Get changed files if filtering is enabled
-        changed_files = []
-        if request.only_changed_files:
-            if request.git_info.base_ref and request.git_info.current_ref:
-                self._logger.info(
-                    f"Filtering projects based on changed files between "
-                    f"{request.git_info.base_ref} and {request.git_info.current_ref}"
-                )
-                changed_files = GitUtils.get_diff_files(
-                    request.repository_path,
-                    base_ref=request.git_info.base_ref,
-                    target_ref=request.git_info.current_ref,
-                )
-                self._logger.debug(
-                    f"Found {len(changed_files)} changed files: {changed_files}"
-                )
-            else:
-                self._logger.warning(
-                    "Changed files filtering is enabled but no base or current ref provided. "
-                    "All projects will be included."
-                )
+        git_utils = GitUtils(Path(request.repository_path))
+        changed_files = git_utils.get_diff_files()
 
         if isMonorepo:
             if configData:
