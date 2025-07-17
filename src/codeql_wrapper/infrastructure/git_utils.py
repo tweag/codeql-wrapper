@@ -31,7 +31,7 @@ class GitUtils:
         self.repo = Repo(self.repository_path)
 
     def get_git_info(self, base_ref: Optional[str] = None) -> GitInfo:
-        return GitInfo(
+        git_info = GitInfo(
             repository=self.repo.remotes.origin.url.split("/")[-2]
             + "/"
             + self.repo.remotes.origin.url.split("/")[-1].replace(".git", ""),
@@ -41,6 +41,16 @@ class GitUtils:
             remote_url=self.repo.remotes.origin.url,
             is_git_repository=True,
         )
+
+        self.logger.debug(f"Git info: {git_info}")
+        self.logger.debug(f"  Is Git repository: {git_info.is_git_repository}")
+        self.logger.debug(f"  Repository: {git_info.repository}")
+        self.logger.debug(f"  Current branch: {git_info.current_ref}")
+        self.logger.debug(f"  Remote URL: {git_info.remote_url}")
+        self.logger.debug(f"  Commit SHA: {git_info.commit_sha}")
+        self.logger.debug(f"  Base ref: {git_info.base_ref}") 
+
+        return git_info
 
     def is_pr(self, ref_name: str) -> bool:
         # Check if it's a local branch
