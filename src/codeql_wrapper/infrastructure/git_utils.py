@@ -29,9 +29,11 @@ class GitUtils:
         """Initialize GitUtils."""
         self.logger = get_logger(__name__)
         self.repository_path = repository_path
-        self.repo = Repo(self.repository_path, search_parent_directories=True)
+        self.repo = Repo(self.repository_path, search_parent_directories=True,)
 
     def get_git_info(self, base_ref: Optional[str] = None) -> GitInfo:
+        self.logger.debug(f"Getting Git info for repository: {self.repository_path}")
+        
         git_info = GitInfo(
             repository=self.repo.remotes.origin.url.split("/")[-2]
             + "/"
