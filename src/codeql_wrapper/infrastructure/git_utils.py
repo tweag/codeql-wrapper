@@ -53,11 +53,14 @@ class GitUtils:
                     "Invalid repository format. Trying to extract from remote URL."
                 )
                 repository = None
-        
-        
+
         if repository_path is not None:
-            git_info.commit_sha = commit_sha or GitUtils._get_commit_sha(repository_path)
-            git_info.current_ref = current_ref or GitUtils._get_current_ref(repository_path)
+            git_info.commit_sha = commit_sha or GitUtils._get_commit_sha(
+                repository_path
+            )
+            git_info.current_ref = current_ref or GitUtils._get_current_ref(
+                repository_path
+            )
             git_info.base_ref = base_ref
 
             git_info.remote_url = GitUtils._get_remote_url(repository_path)
@@ -73,12 +76,12 @@ class GitUtils:
             git_info.repository = None
             git_info.is_git_repository = False
 
-        logger.debug(f"Extracted Git info:")
+        logger.debug("Extracted Git info:")
         logger.debug(f"  Commit SHA: {git_info.commit_sha}")
         logger.debug(f"  Current Ref: {git_info.current_ref}")
         logger.debug(f"  Base Ref: {git_info.base_ref}")
-        logger.debug(f"  Remote URL: {git_info.remote_url}")   
-        logger.debug(f"  Repository: {git_info.repository}")   
+        logger.debug(f"  Remote URL: {git_info.remote_url}")
+        logger.debug(f"  Repository: {git_info.repository}")
         logger.debug(f"  Is Git Repository: {git_info.is_git_repository}")
 
         return git_info
@@ -158,6 +161,7 @@ class GitUtils:
         )
         if result.returncode == 0:
             return result.stdout.strip()
+        return None
 
     @staticmethod
     def _get_current_ref(repository_path: Path) -> Optional[str]:
@@ -189,6 +193,8 @@ class GitUtils:
         )
         if result.returncode == 0:
             return result.stdout.strip()
+
+        return None
 
     @staticmethod
     def _extract_repository_from_url(remote_url: Optional[str]) -> Optional[str]:
