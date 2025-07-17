@@ -1,4 +1,5 @@
 """Git utilities for extracting repository information."""
+
 from pathlib import Path
 
 # from turtle import st
@@ -48,7 +49,7 @@ class GitUtils:
         self.logger.debug(f"  Current branch: {git_info.current_ref}")
         self.logger.debug(f"  Remote URL: {git_info.remote_url}")
         self.logger.debug(f"  Commit SHA: {git_info.commit_sha}")
-        self.logger.debug(f"  Base ref: {git_info.base_ref}") 
+        self.logger.debug(f"  Base ref: {git_info.base_ref}")
 
         return git_info
 
