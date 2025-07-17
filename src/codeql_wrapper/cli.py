@@ -223,17 +223,25 @@ def analyze(
                 )
 
         # Validate only-changed-files option
-        if only_changed_files and not git_info.is_git_repository:
-            click.echo(
-                click.style("ERROR:", fg="red", bold=True)
-                + " --only-changed-files requires a Git repository"
-            )
-            sys.exit(1)
+        if only_changed_files:
+            if not git_info.is_git_repository:
+                click.echo(
+                    click.style("ERROR:", fg="red", bold=True)
+                    + " --only-changed-files requires a Git repository"
+                )
+                sys.exit(1)
 
             if git_info.base_ref is None:
                 click.echo(
                     click.style("ERROR:", fg="red", bold=True)
                     + "No base reference provided. Please use --base-ref option to specify it."
+                )
+                sys.exit(1)
+
+            if git_info.current_ref is None:
+                click.echo(
+                    click.style("ERROR:", fg="red", bold=True)
+                    + "It was not possible to determine the current Git reference."
                 )
                 sys.exit(1)
 

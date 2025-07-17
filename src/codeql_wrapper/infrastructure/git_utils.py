@@ -44,27 +44,7 @@ class GitUtils:
         logger = get_logger(__name__)
         git_info = GitInfo()
 
-        # Get current commit SHA
-        git_info.commit_sha = (
-            commit_sha or GitUtils._get_commit_sha(repository_path)
-            if repository_path
-            else None
-        )
-
-        # Get current branch/ref
-        git_info.current_ref = (
-            current_ref or GitUtils._get_current_ref(repository_path)
-            if repository_path
-            else None
-        )
-
-        git_info.base_ref = base_ref
-
-        # Get remote URL and extract repository name
-        remote_url = (
-            GitUtils._get_remote_url(repository_path) if repository_path else None
-        )
-        git_info.remote_url = remote_url
+        # If repository is provided, try to extract owner/name
         if repository:
             try:
                 repository_owner, repository_name = repository.split("/", 1)
@@ -73,14 +53,33 @@ class GitUtils:
                     "Invalid repository format. Trying to extract from remote URL."
                 )
                 repository = None
+        
+        
+        if repository_path is not None:
+            git_info.commit_sha = commit_sha or GitUtils._get_commit_sha(repository_path)
+            git_info.current_ref = current_ref or GitUtils._get_current_ref(repository_path)
+            git_info.base_ref = base_ref
 
-        git_info.repository = repository or GitUtils._extract_repository_from_url(
-            remote_url
-        )
+            git_info.remote_url = GitUtils._get_remote_url(repository_path)
+            git_info.repository = repository or GitUtils._extract_repository_from_url(
+                git_info.remote_url
+            )
+            git_info.is_git_repository = GitUtils.is_git_repository(repository_path)
+        else:
+            git_info.commit_sha = commit_sha
+            git_info.current_ref = current_ref
+            git_info.base_ref = base_ref
+            git_info.remote_url = None
+            git_info.repository = None
+            git_info.is_git_repository = False
 
-        git_info.is_git_repository = (
-            GitUtils.is_git_repository(repository_path) if repository_path else False
-        )
+        logger.debug(f"Extracted Git info:")
+        logger.debug(f"  Commit SHA: {git_info.commit_sha}")
+        logger.debug(f"  Current Ref: {git_info.current_ref}")
+        logger.debug(f"  Base Ref: {git_info.base_ref}")
+        logger.debug(f"  Remote URL: {git_info.remote_url}")   
+        logger.debug(f"  Repository: {git_info.repository}")   
+        logger.debug(f"  Is Git Repository: {git_info.is_git_repository}")
 
         return git_info
 
@@ -150,71 +149,46 @@ class GitUtils:
     @staticmethod
     def _get_commit_sha(repository_path: Path) -> Optional[str]:
         """Get the current commit SHA."""
-        try:
-            result = subprocess.run(
-                ["git", "rev-parse", "HEAD"],
-                cwd=repository_path,
-                capture_output=True,
-                text=True,
-                check=False,
-            )
-            if result.returncode == 0:
-                return result.stdout.strip()
-        except Exception:
-            pass
-        return None
+        result = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=repository_path,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode == 0:
+            return result.stdout.strip()
 
     @staticmethod
     def _get_current_ref(repository_path: Path) -> Optional[str]:
         """Get the current Git reference."""
-        try:
-            # Try to get the symbolic ref (branch name)
-            result = subprocess.run(
-                ["git", "symbolic-ref", "HEAD"],
-                cwd=repository_path,
-                capture_output=True,
-                text=True,
-                check=False,
-            )
-            if result.returncode == 0:
-                return result.stdout.strip()
 
-            # If not on a branch, try to get tag
-            result = subprocess.run(
-                ["git", "describe", "--exact-match", "--tags", "HEAD"],
-                cwd=repository_path,
-                capture_output=True,
-                text=True,
-                check=False,
-            )
-            if result.returncode == 0:
-                tag_name = result.stdout.strip()
-                return f"refs/tags/{tag_name}"
+        # Try to get the symbolic ref (branch name)
+        result = subprocess.run(
+            ["git", "symbolic-ref", "HEAD"],
+            cwd=repository_path,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode == 0:
+            return result.stdout.strip()
 
-            # If not on a tag either, we're in detached HEAD state
-            # Return None so we use the default
-            return None
-
-        except Exception:
-            pass
         return None
 
     @staticmethod
     def _get_remote_url(repository_path: Path) -> Optional[str]:
         """Get the remote URL for origin."""
-        try:
-            result = subprocess.run(
-                ["git", "remote", "get-url", "origin"],
-                cwd=repository_path,
-                capture_output=True,
-                text=True,
-                check=False,
-            )
-            if result.returncode == 0:
-                return result.stdout.strip()
-        except Exception:
-            pass
-        return None
+
+        result = subprocess.run(
+            ["git", "remote", "get-url", "origin"],
+            cwd=repository_path,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode == 0:
+            return result.stdout.strip()
 
     @staticmethod
     def _extract_repository_from_url(remote_url: Optional[str]) -> Optional[str]:
