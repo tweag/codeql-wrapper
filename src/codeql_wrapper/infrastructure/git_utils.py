@@ -29,7 +29,7 @@ class GitUtils:
         """Initialize GitUtils."""
         self.logger = get_logger(__name__)
         self.repository_path = repository_path
-        self.repo = Repo(self.repository_path)
+        self.repo = Repo(self.repository_path,  search_parent_directories=True)
 
     def get_git_info(self, base_ref: Optional[str] = None) -> GitInfo:
         git_info = GitInfo(
@@ -76,3 +76,4 @@ class GitUtils:
         diff = base_ref_commit.diff(ref_commit)
 
         return [item.a_path for item in diff if item.a_path is not None]
+    
