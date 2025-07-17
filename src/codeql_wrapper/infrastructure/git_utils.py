@@ -61,6 +61,9 @@ class GitUtils:
 
     def is_pr(self, ref_name: str) -> bool:
         # Check if it's a local branch
+        for ref in self.repo.references:
+            self.logger.debug(f"Checking local ref: {ref.name}")
+
         if ref_name in self.repo.branches:
             return False
 
@@ -75,7 +78,8 @@ class GitUtils:
     def get_diff_files(self) -> List[str]:
         git_info = self.get_git_info()
 
-        self.fetch_repo(git_info.base_ref)
+        if git_info.current_ref:
+            self.fetch_repo(git_info.base_ref, git_info.current_ref)
 
         # Get references to the branches
         base_ref_commit = self.repo.commit(git_info.base_ref)
@@ -86,11 +90,12 @@ class GitUtils:
 
         return [item.a_path for item in diff if item.a_path is not None]
 
-    def fetch_repo(self, base_ref: str, depth: int = 2) -> None:
+    def fetch_repo(self, base_ref: str, current_ref: str, depth: int = 2) -> None:
+        self.repo.remote().fetch()
 
         origin = self.repo.remotes.origin
 
-        if self.is_pr(base_ref):
+        if self.is_pr(current_ref):
             self.logger.info(f"Fetching base branch of PR: {base_ref}")
             origin.fetch(refspec=base_ref, depth=depth)
         else:
