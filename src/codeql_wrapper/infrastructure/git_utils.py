@@ -39,7 +39,11 @@ class GitUtils:
             + "/"
             + self.repo.remotes.origin.url.split("/")[-1].replace(".git", ""),
             commit_sha=self.repo.head.commit.hexsha,
-            current_ref=self.repo.head.ref.name if not self.repo.head.is_detached else self.repo.head.name,
+            current_ref=(
+                self.repo.head.ref.name
+                if not self.repo.head.is_detached
+                else self.repo.head.name
+            ),
             base_ref=base_ref or "main",
             remote_url=self.repo.remotes.origin.url,
             is_git_repository=True,
