@@ -545,8 +545,8 @@ class CodeQLAnalysisUseCase:
         self, project_path: Path, repository_path: Path, changed_files: List[str]
     ) -> bool:
         """Check if a project contains any of the changed files."""
-        if not changed_files:
-            return True  # If no changed files filter, include all projects
+        if len(changed_files) == 0:
+            return False  # If no changed files filter, include all projects
 
         # Convert project path to relative path from repository root
         try:

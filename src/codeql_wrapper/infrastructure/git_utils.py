@@ -17,7 +17,7 @@ class GitInfo:
     repository: Optional[str] = None  # Format: 'owner/name'
     commit_sha: Optional[str] = None
     current_ref: Optional[str] = None  # Format: 'refs/heads/branch-name'
-    base_ref: Optional[str] = None  # Base reference for comparisons
+    base_ref: str = "main"  # Default base branch
     remote_url: Optional[str] = None
     is_git_repository: Optional[bool] = None
 
@@ -68,6 +68,9 @@ class GitUtils:
 
     def get_diff_files(self) -> List[str]:
         git_info = self.get_git_info()
+
+        self.fetch_repo(git_info.base_ref)
+
         # Get references to the branches
         base_ref_commit = self.repo.commit(git_info.base_ref)
         ref_commit = self.repo.commit(git_info.current_ref)
@@ -76,3 +79,14 @@ class GitUtils:
         diff = base_ref_commit.diff(ref_commit)
 
         return [item.a_path for item in diff if item.a_path is not None]
+
+    def fetch_repo(self, base_ref: str, depth: int = 2) -> None:
+
+        origin = self.repo.remotes.origin
+
+        if self.is_pr(base_ref):
+            self.logger.info(f"Fetching base branch of PR: {base_ref}")
+            origin.fetch(refspec=base_ref, depth=depth)
+        else:
+            self.logger.info("Fetching default (non-PR) branch")
+            origin.fetch(depth=depth)
