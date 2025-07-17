@@ -93,11 +93,11 @@ class GitUtils:
     def fetch_repo(self, base_ref: str, current_ref: str, depth: int = 2) -> None:
         self.repo.remote().fetch()
 
-        origin = self.repo.remotes.origin
+        # origin = self.repo.remotes.origin
 
-        if self.is_pr(current_ref):
-            self.logger.info(f"Fetching base branch of PR: {base_ref}")
-            origin.fetch(refspec=base_ref, depth=depth)
-        else:
-            self.logger.info("Fetching default (non-PR) branch")
-            origin.fetch(depth=depth)
+        # if self.is_pr(current_ref):
+        #     self.logger.info(f"Fetching base branch of PR: {base_ref}")
+        #     origin.fetch(refspec=base_ref, depth=depth)
+        # else:
+        #     self.logger.info("Fetching default (non-PR) branch")
+        #     origin.fetch(depth=depth)
