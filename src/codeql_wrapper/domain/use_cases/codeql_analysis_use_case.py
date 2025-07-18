@@ -559,20 +559,35 @@ class CodeQLAnalysisUseCase:
             # If project_path is not under repository_path, use absolute comparison
             relative_project_path = project_path
 
+        # Add debug logging to see what we're comparing
+        self._logger.debug(f"Checking project: {relative_project_path}")
+        self._logger.debug(f"Changed files: {changed_files}")
+
         # Check if any changed file is within this project
         for changed_file in changed_files:
             changed_file_path = Path(changed_file)
+            self._logger.debug(
+                f"Comparing changed file: {changed_file_path} with project: {relative_project_path}"
+            )
+
             try:
                 # Check if the changed file is within the project directory
                 if str(
                     relative_project_path
                 ) == "." or changed_file_path.is_relative_to(relative_project_path):
+                    self._logger.debug(
+                        f"Match found: {changed_file} is in project {relative_project_path}"
+                    )
                     return True
             except (ValueError, AttributeError):
                 # Fallback for older Python versions or path issues
                 if str(changed_file).startswith(str(relative_project_path)):
+                    self._logger.debug(
+                        f"Match found (fallback): {changed_file} starts with {relative_project_path}"
+                    )
                     return True
 
+        self._logger.debug(f"No match found for project {relative_project_path}")
         return False
 
     def _detect_languages(
