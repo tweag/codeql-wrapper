@@ -379,6 +379,10 @@ class CodeQLAnalysisUseCase:
         git_utils = GitUtils(Path(request.repository_path))
         changed_files = git_utils.get_diff_files()
 
+        # Log changed files if any
+        for file in changed_files:
+            self._logger.debug(f"Changed file: {file}")
+
         if isMonorepo:
             if configData:
                 projects_config = configData.get("projects", [])
