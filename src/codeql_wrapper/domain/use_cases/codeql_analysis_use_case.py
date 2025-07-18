@@ -388,7 +388,9 @@ class CodeQLAnalysisUseCase:
                 projects_config = configData.get("projects", [])
                 project_index = 0
                 for config_index, project in enumerate(projects_config):
-                    project_path = Path(project.get("path", ""))
+                    project_path = Path(
+                        request.repository_path, project.get("path", "")
+                    ).resolve()
 
                     # Skip project if filtering by changed files and no changes in this project
                     if (
