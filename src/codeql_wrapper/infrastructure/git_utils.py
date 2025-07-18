@@ -22,6 +22,7 @@ class GitInfo:
     is_git_repository: Optional[bool] = None
     working_dir: Path = Path.cwd()
 
+
 class GitUtils:
     """Utility class for Git operations."""
 
@@ -47,7 +48,7 @@ class GitUtils:
             base_ref=base_ref or "main",
             remote_url=self.repo.remotes.origin.url,
             is_git_repository=True,
-            working_dir=Path(self.repo.working_dir)
+            working_dir=Path(self.repo.working_dir),
         )
 
         self.logger.debug(f"Git info: {git_info}")

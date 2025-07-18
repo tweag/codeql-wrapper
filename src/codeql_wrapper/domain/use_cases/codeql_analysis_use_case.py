@@ -562,7 +562,9 @@ class CodeQLAnalysisUseCase:
             project_prefix = str(project_path)
             if project_prefix.startswith(str(repository_root_path)):
                 # Remove repository path prefix to get relative path
-                project_prefix = project_prefix[len(str(repository_root_path)):].lstrip('/')
+                project_prefix = project_prefix[
+                    len(str(repository_root_path)) :
+                ].lstrip("/")
             else:
                 # Can't determine relationship, skip this project
                 return False
