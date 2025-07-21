@@ -147,9 +147,7 @@ class SarifUploadUseCase:
         self._logger.debug(
             f"Uploading {sarif_file} to {request.repository} (ref: {ref})"
         )
-        self._logger.debug(
-            f"Command: {' '.join(cmd)}"
-        )  # Don't log the actual token
+        self._logger.debug(f"Command: {' '.join(cmd)}")  # Don't log the actual token
 
         # Execute command with token passed via stdin
         try:

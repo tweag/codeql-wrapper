@@ -1,6 +1,5 @@
 """Analyze command for the CodeQL wrapper CLI."""
 
-import sys
 from pathlib import Path
 from typing import Optional
 
@@ -89,10 +88,14 @@ def analyze(
     REPOSITORY_PATH: Path to the repository to analyze
     """
 
-    def _show_upload_sarif_validation(git_info: GitInfo, github_token: Optional[str]) -> None:
+    def _show_upload_sarif_validation(
+        git_info: GitInfo, github_token: Optional[str]
+    ) -> None:
         if not git_info.repository:
-            error_msg = ("--repository is required when using --upload-sarif. "
-                        "Could not auto-detect from Git remote.")
+            error_msg = (
+                "--repository is required when using --upload-sarif. "
+                "Could not auto-detect from Git remote."
+            )
             click.echo(
                 click.style("ERROR:", fg="red", bold=True) + f" {error_msg}",
                 err=True,
@@ -100,8 +103,10 @@ def analyze(
             raise click.ClickException(error_msg)
 
         if not git_info.commit_sha:
-            error_msg = ("--commit-sha is required when using --upload-sarif. "
-                        "Could not auto-detect from Git.")
+            error_msg = (
+                "--commit-sha is required when using --upload-sarif. "
+                "Could not auto-detect from Git."
+            )
             click.echo(
                 click.style("ERROR:", fg="red", bold=True) + f" {error_msg}",
                 err=True,
@@ -109,9 +114,11 @@ def analyze(
             raise click.ClickException(error_msg)
 
         if not github_token:
-            error_msg = ("GitHub token is required when using --upload-sarif. "
-                        "Set GITHUB_TOKEN environment variable or use "
-                        "--github-token option.")
+            error_msg = (
+                "GitHub token is required when using --upload-sarif. "
+                "Set GITHUB_TOKEN environment variable or use "
+                "--github-token option."
+            )
             click.echo(
                 click.style("ERROR:", fg="red", bold=True) + f" {error_msg}",
                 err=True,
@@ -121,23 +128,17 @@ def analyze(
     def _show_only_changed_files_validation(git_info: GitInfo) -> None:
         if not git_info.is_git_repository:
             error_msg = "--only-changed-files requires a Git repository"
-            click.echo(
-                click.style("ERROR:", fg="red", bold=True) + f" {error_msg}"
-            )
+            click.echo(click.style("ERROR:", fg="red", bold=True) + f" {error_msg}")
             raise click.ClickException(error_msg)
 
         if git_info.base_ref is None:
             error_msg = "No base reference provided. Please use --base-ref option to specify it."
-            click.echo(
-                click.style("ERROR:", fg="red", bold=True) + f" {error_msg}"
-            )
+            click.echo(click.style("ERROR:", fg="red", bold=True) + f" {error_msg}")
             raise click.ClickException(error_msg)
 
         if git_info.current_ref is None:
             error_msg = "It was not possible to determine the current Git reference."
-            click.echo(
-                click.style("ERROR:", fg="red", bold=True) + f" {error_msg}"
-            )
+            click.echo(click.style("ERROR:", fg="red", bold=True) + f" {error_msg}")
             raise click.ClickException(error_msg)
 
     def _parse_languages(languages: Optional[str]) -> set:
@@ -173,7 +174,9 @@ def analyze(
                     + f" Using {max_workers} workers may cause resource exhaustion on some systems"
                 )
 
-    def _show_success_output(summary: RepositoryAnalysisSummary, upload_result: Optional[SarifUploadResult]) -> None:
+    def _show_success_output(
+        summary: RepositoryAnalysisSummary, upload_result: Optional[SarifUploadResult]
+    ) -> None:
         click.echo("\n=== CodeQL Analysis Results ===")
         click.echo(f"Repository: {summary.repository_path}")
         click.echo(f"Projects detected: {len(summary.detected_projects)}")
@@ -185,7 +188,7 @@ def analyze(
         click.echo(f"Total findings: {summary.total_findings}")
 
         sarif_files = _get_sarif_files(summary)
-        click.echo(f"\nSarif Files:")
+        click.echo("\nSarif Files:")
         for file in sarif_files:
             click.echo(f"   {file}")
 
@@ -209,17 +212,15 @@ def analyze(
                 f"{upload_result.total_files}"
             )
             click.echo(f"Success rate: {upload_result.success_rate:.2%}")
-  
+
             if upload_result.errors:
                 click.echo(
-                    "\n"
-                    + click.style("ERROR:", fg="red", bold=True)
-                    + f"Upload Errors:"
+                    "\n" + click.style("ERROR:", fg="red", bold=True) + "Upload Errors:"
                 )
                 for error in upload_result.errors:
                     click.echo(f"   {error}")
-                raise click.ClickException("Failed to upload SARIF files") 
-                
+                raise click.ClickException("Failed to upload SARIF files")
+
     def _show_sarif_files_to_upload(git_info: GitInfo, sarif_files: list) -> None:
         if not sarif_files:
             click.echo(
@@ -239,13 +240,14 @@ def analyze(
     def _get_sarif_files(summary: RepositoryAnalysisSummary) -> list:
         return [
             output_file
-            for result in summary.analysis_results if result.output_files
+            for result in summary.analysis_results
+            if result.output_files
             for output_file in result.output_files
             if output_file.suffix == ".sarif"
         ]
 
     logger = get_logger(__name__)
-    
+
     try:
         verbose = ctx.obj.get("verbose", False)
         logger.info(f"Starting CodeQL analysis for: {repository_path}")
@@ -260,17 +262,17 @@ def analyze(
             git_info = GitInfo(
                 is_git_repository=False,
                 working_dir=Path(repository_path),
-                base_ref=base_ref or "main"
+                base_ref=base_ref or "main",
             )
 
         _show_validations(max_workers)
 
         # Validate upload-sarif parameters if upload is requested
         if upload_sarif:
-            _show_upload_sarif_validation(git_info, github_token)  
+            _show_upload_sarif_validation(git_info, github_token)
 
         if only_changed_files:
-            _show_only_changed_files_validation(git_info)   
+            _show_only_changed_files_validation(git_info)
 
         # Parse target languages if provided
         target_languages = _parse_languages(languages)
@@ -292,13 +294,13 @@ def analyze(
         summary = analysis_use_case.execute(request)
 
         # Get sarif files from the analysis results
-        sarif_files = _get_sarif_files(summary)  
+        sarif_files = _get_sarif_files(summary)
 
         # Upload SARIF files if requested
         upload_result = None
         if upload_sarif:
             _show_sarif_files_to_upload(git_info, sarif_files)
-            if sarif_files:    
+            if sarif_files:
                 # Create upload request
                 assert git_info.repository is not None
                 assert git_info.commit_sha is not None
@@ -309,12 +311,19 @@ def analyze(
                     repository=git_info.repository,
                     commit_sha=git_info.commit_sha,
                     github_token=github_token,
-                    ref=git_info.current_ref if (git_info.current_ref is not None and git_info.current_ref.upper() != "HEAD") else None,
+                    ref=(
+                        git_info.current_ref
+                        if (
+                            git_info.current_ref is not None
+                            and git_info.current_ref.upper() != "HEAD"
+                        )
+                        else None
+                    ),
                 )
 
                 # Execute upload
                 upload_use_case = SarifUploadUseCase(logger)
-                upload_result = upload_use_case.execute(upload_request)                
+                upload_result = upload_use_case.execute(upload_request)
 
         _show_success_output(summary, upload_result)
     except click.ClickException:
