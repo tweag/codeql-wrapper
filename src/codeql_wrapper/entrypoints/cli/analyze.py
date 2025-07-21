@@ -50,18 +50,6 @@ from ...infrastructure.git_utils import GitInfo, GitUtils
     help="Upload SARIF results to GitHub Code Scanning after analysis",
 )
 @click.option(
-    "--repository",
-    help="GitHub repository in format 'owner/name' for SARIF upload",
-)
-@click.option(
-    "--commit-sha",
-    help="Full SHA of the commit being analyzed for SARIF upload",
-)
-@click.option(
-    "--ref",
-    help="Git reference (branch or tag) for SARIF upload (default: 'refs/heads/main')",
-)
-@click.option(
     "--github-token",
     envvar="GITHUB_TOKEN",
     help="GitHub token for SARIF upload (or set GITHUB_TOKEN env var)",
@@ -90,9 +78,6 @@ def analyze(
     monorepo: bool,
     force_install: bool,
     upload_sarif: bool,
-    repository: Optional[str],
-    commit_sha: Optional[str],
-    ref: Optional[str],
     github_token: Optional[str],
     max_workers: Optional[int],
     only_changed_files: bool,
@@ -324,7 +309,7 @@ def analyze(
                     repository=git_info.repository,
                     commit_sha=git_info.commit_sha,
                     github_token=github_token,
-                    ref=git_info.current_ref,
+                    ref=git_info.current_ref if (git_info.current_ref is not None and git_info.current_ref.upper() != "HEAD") else None,
                 )
 
                 # Execute upload
