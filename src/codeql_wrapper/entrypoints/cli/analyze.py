@@ -301,7 +301,6 @@ def analyze(
             _show_sarif_files_to_upload(git_info, sarif_files)
             if sarif_files:
                 # Create upload request
-                assert git_info.repository is not None
                 assert git_info.commit_sha is not None
                 assert github_token is not None
 
@@ -310,14 +309,7 @@ def analyze(
                     repository=git_info.repository,
                     commit_sha=git_info.commit_sha,
                     github_token=github_token,
-                    ref=(
-                        git_info.current_ref
-                        if (
-                            git_info.current_ref is not None
-                            and git_info.current_ref.upper() != "HEAD"
-                        )
-                        else None
-                    ),
+                    ref=git_info.current_ref
                 )
 
                 # Execute upload
