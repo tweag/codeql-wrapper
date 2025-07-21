@@ -8,8 +8,9 @@ import subprocess
 import tarfile
 import tempfile
 from pathlib import Path
-from typing import Optional, Dict, Any
-from urllib.request import urlretrieve, urlopen
+from typing import Optional
+from urllib.request import urlretrieve
+import urllib.error
 
 from .logger import get_logger
 
@@ -55,9 +56,6 @@ class CodeQLInstaller:
             Exception: If unable to fetch the latest version from GitHub API
         """
         try:
-            import urllib.request
-            import urllib.error
-
             # Create request with headers
             request = urllib.request.Request(
                 "https://api.github.com/repos/github/codeql-action/releases/latest"
@@ -66,7 +64,7 @@ class CodeQLInstaller:
             # Use GitHub token for authenticated requests to avoid rate limiting
             github_token = os.getenv("GITHUB_TOKEN")
             if github_token:
-                request.add_header("Authorization", f"token {github_token}")
+                request.add_header("Authorization", f"Bearer {github_token}")
                 self.logger.debug("Using GitHub token for API authentication")
             else:
                 self.logger.warning(
@@ -74,22 +72,17 @@ class CodeQLInstaller:
                 )
 
             with urllib.request.urlopen(request, timeout=10) as response:
-                if response.status == 403:
-                    rate_limit_remaining = response.headers.get(
-                        "X-RateLimit-Remaining", "unknown"
-                    )
-                    rate_limit_reset = response.headers.get(
-                        "X-RateLimit-Reset", "unknown"
-                    )
-                    self.logger.error(
-                        f"GitHub API rate limit exceeded. Remaining: {rate_limit_remaining}, Reset: {rate_limit_reset}"
-                    )
-                    raise Exception("GitHub API rate limit exceeded")
-
                 data = json.loads(response.read().decode())
-                version = data["tag_name"]
+                version = data.get("tag_name")
+
+                # Ensure we have a valid version string
+                if not version or not isinstance(version, str):
+                    raise Exception(
+                        "Invalid or missing tag_name in GitHub API response"
+                    )
+
                 self.logger.info(f"Latest CodeQL version: {version}")
-                return version
+                return str(version)
 
         except urllib.error.HTTPError as e:
             if e.code == 403:
@@ -97,6 +90,7 @@ class CodeQLInstaller:
             else:
                 self.logger.error(f"HTTP error fetching latest CodeQL version: {e}")
             raise Exception(f"Unable to fetch latest CodeQL version: {e}")
+
         except Exception as e:
             self.logger.error(f"Failed to fetch latest CodeQL version: {e}")
             raise Exception(f"Unable to fetch latest CodeQL version: {e}")
