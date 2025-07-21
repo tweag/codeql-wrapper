@@ -59,10 +59,14 @@ class CodeQLInstaller:
         self.logger.info("Fetching latest CodeQL version from GitHub API")
         try:
             with urlopen(api_url) as response:
+                data: Dict[str, Any] = {}
                 if response.status != 200:
-                    raise Exception(f"GitHub API returned status {response.status}")
+                    # Use default version. In a future we will implement a fallback
+                    data = {"tag_name": "codeql-bundle-v2.22.1"}
+                    # raise Exception(f"GitHub API returned status {response.status}")
+                else:
+                    data = json.loads(response.read().decode("utf-8"))
 
-                data: Dict[str, Any] = json.loads(response.read().decode("utf-8"))
                 latest_version = data.get("tag_name")
 
                 if not latest_version or not isinstance(latest_version, str):
@@ -145,7 +149,7 @@ class CodeQLInstaller:
         # On Unix-like systems, check executable permission
         return os.access(self.codeql_binary, os.X_OK)
 
-    def get_version(self) -> Optional[str]:
+    def get_version(self) -> str:
         """
         Get the installed CodeQL version.
 
@@ -153,20 +157,17 @@ class CodeQLInstaller:
             Version string if CodeQL is installed, None otherwise
         """
         if not self.is_installed():
-            return None
+            raise Exception("CodeQL is not installed")
 
-        try:
-            result = subprocess.run(
-                [str(self.codeql_binary), "version", "--format=json"],
-                capture_output=True,
-                text=True,
-                check=True,
-            )
-            version_info = json.loads(result.stdout)
-            version = version_info.get("version")
-            return version if version is not None else "unknown"
-        except (subprocess.CalledProcessError, json.JSONDecodeError, FileNotFoundError):
-            return None
+        result = subprocess.run(
+            [str(self.codeql_binary), "version", "--format=json"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        version_info = json.loads(result.stdout)
+        version = version_info.get("version")
+        return version if version is not None else "unknown"
 
     def download_codeql(self, version: Optional[str] = None) -> Path:
         """

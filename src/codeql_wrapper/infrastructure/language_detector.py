@@ -1,7 +1,7 @@
 """Language detector infrastructure module."""
 
 from pathlib import Path
-from typing import List, Set, Union
+from typing import List, Set
 from enum import Enum
 
 from .logger import get_logger
@@ -103,7 +103,7 @@ class LanguageDetector:
         }
 
     # Public methods first
-    def detect_all_languages(self, target_dir: Union[str, Path]) -> dict:
+    def detect_all_languages(self, target_dir: Path) -> dict:
         """
         Detect both compiled and non-compiled languages in a directory.
 
@@ -121,7 +121,7 @@ class LanguageDetector:
         }
 
     def detect_languages(
-        self, target_dir: Union[str, Path], language_type: LanguageType
+        self, target_dir: Path, language_type: LanguageType
     ) -> List[str]:
         """
         Detect programming languages in a directory.
@@ -137,12 +137,11 @@ class LanguageDetector:
             FileNotFoundError: If target directory doesn't exist
             PermissionError: If target directory is not accessible
         """
-        target_path = Path(target_dir)
 
-        if not target_path.exists():
+        if not target_dir.exists():
             raise FileNotFoundError(f"Target directory does not exist: {target_dir}")
 
-        if not target_path.is_dir():
+        if not target_dir.is_dir():
             raise ValueError(f"Target path is not a directory: {target_dir}")
 
         self.logger.info(
@@ -152,7 +151,7 @@ class LanguageDetector:
         detected_languages: Set[str] = set()
 
         try:
-            for file_path in target_path.rglob("*"):
+            for file_path in target_dir.rglob("*"):
                 if file_path.is_file():
                     language = self._get_language_from_file(file_path, language_type)
                     if language:

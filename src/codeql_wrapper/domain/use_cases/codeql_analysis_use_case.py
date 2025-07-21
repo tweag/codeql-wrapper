@@ -376,41 +376,27 @@ class CodeQLAnalysisUseCase:
         self._logger.debug(f"Detecting projects in: {request.repository_path}")
 
         projects: List[ProjectInfo] = []
+        git_utils = GitUtils(Path(request.repository_path))
+        changed_files = git_utils.get_diff_files(request.git_info)
 
-        # Get changed files if filtering is enabled
-        changed_files = []
-        if request.only_changed_files:
-            if request.git_info.base_ref and request.git_info.current_ref:
-                self._logger.info(
-                    f"Filtering projects based on changed files between "
-                    f"{request.git_info.base_ref} and {request.git_info.current_ref}"
-                )
-                changed_files = GitUtils.get_diff_files(
-                    request.repository_path,
-                    base_ref=request.git_info.base_ref,
-                    target_ref=request.git_info.current_ref,
-                )
-                self._logger.debug(
-                    f"Found {len(changed_files)} changed files: {changed_files}"
-                )
-            else:
-                self._logger.warning(
-                    "Changed files filtering is enabled but no base or current ref provided. "
-                    "All projects will be included."
-                )
+        # Log changed files if any
+        for file in changed_files:
+            self._logger.debug(f"Changed file: {file}")
 
         if isMonorepo:
             if configData:
                 projects_config = configData.get("projects", [])
                 project_index = 0
                 for config_index, project in enumerate(projects_config):
-                    project_path = Path(project.get("path", ""))
+                    project_path = Path(
+                        request.git_info.working_dir, project.get("path", "")
+                    )
 
                     # Skip project if filtering by changed files and no changes in this project
                     if (
                         request.only_changed_files
                         and not self._project_has_changed_files(
-                            project_path, request.repository_path, changed_files
+                            project_path, request.git_info.working_dir, changed_files
                         )
                     ):
                         self._logger.debug(
@@ -562,32 +548,36 @@ class CodeQLAnalysisUseCase:
         return projects
 
     def _project_has_changed_files(
-        self, project_path: Path, repository_path: Path, changed_files: List[str]
+        self, project_path: Path, repository_root_path: Path, changed_files: List[str]
     ) -> bool:
         """Check if a project contains any of the changed files."""
         if not changed_files:
-            return True  # If no changed files filter, include all projects
+            return False
 
-        # Convert project path to relative path from repository root
+        # Resolve both paths to absolute paths to avoid relative path issues
         try:
-            relative_project_path = project_path.relative_to(repository_path)
-        except ValueError:
-            # If project_path is not under repository_path, use absolute comparison
-            relative_project_path = project_path
+            relative_project_path = project_path.relative_to(repository_root_path)
+            project_prefix = str(relative_project_path)
+        except (ValueError, OSError):
+            # If we can't resolve the relative path, fall back to string comparison
+            project_prefix = str(project_path)
+            if project_prefix.startswith(str(repository_root_path)):
+                # Remove repository path prefix to get relative path
+                project_prefix = project_prefix[
+                    len(str(repository_root_path)) :
+                ].lstrip("/")
+            else:
+                # Can't determine relationship, skip this project
+                return False
 
         # Check if any changed file is within this project
         for changed_file in changed_files:
-            changed_file_path = Path(changed_file)
-            try:
-                # Check if the changed file is within the project directory
-                if str(
-                    relative_project_path
-                ) == "." or changed_file_path.is_relative_to(relative_project_path):
-                    return True
-            except (ValueError, AttributeError):
-                # Fallback for older Python versions or path issues
-                if str(changed_file).startswith(str(relative_project_path)):
-                    return True
+            # Root project matches all files
+            if project_prefix == "." or project_prefix == "":
+                return True
+            # Check if file is within project directory
+            if changed_file.startswith(f"{project_prefix}/"):
+                return True
 
         return False
 

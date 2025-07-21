@@ -23,10 +23,11 @@ classifiers = [
 packages = [{include = "codeql_wrapper", from = "src"}]
 
 [tool.poetry.dependencies]
-python = "^3.8.1"
+python = "^3.9"
 click = "^8.0.0"
 colorama = "^0.4.6"
 psutil = "^5.8.0"
+gitpython = "^3.1.44"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.0.0"
@@ -36,9 +37,10 @@ flake8 = "^6.0.0"
 mypy = "^1.0.0"
 types-colorama = "^0.4.15"
 types-psutil = "^5.8.0"
+poethepoet = "^0.36.0"
 
 [tool.poetry.scripts]
-codeql-wrapper = "codeql_wrapper.cli:cli"
+codeql-wrapper = "codeql_wrapper.entrypoints.cli:cli"
 
 [tool.black]
 line-length = 88
@@ -59,3 +61,9 @@ addopts = "--strict-markers --strict-config"
 # Explicitly ignore tests_projects directory
 ignore = ["tests_projects"]
 norecursedirs = ["tests_projects", "*.egg", ".eggs", "dist", "build", "docs", ".tox", ".git", "__pycache__"]
+
+[tool.poe.tasks]
+format = "black src/"
+typecheck = "mypy src/"
+lint = "flake8 src/"
+quality = ["format", "typecheck", "lint"]

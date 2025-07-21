@@ -5,7 +5,6 @@ from enum import Enum
 from pathlib import Path
 from typing import List, Optional, Set
 from datetime import datetime
-
 from codeql_wrapper.infrastructure.git_utils import GitInfo
 
 
@@ -69,6 +68,7 @@ class CodeQLAnalysisRequest:
     """Request for CodeQL analysis."""
 
     repository_path: Path
+    git_info: GitInfo
     force_install: bool = False
     target_languages: Optional[Set[CodeQLLanguage]] = None
     verbose: bool = False
@@ -79,7 +79,6 @@ class CodeQLAnalysisRequest:
     queries: Optional[List[str]] = None
     max_workers: Optional[int] = None
     only_changed_files: bool = False
-    git_info: GitInfo = field(default_factory=GitInfo)
 
     def __post_init__(self) -> None:
         """Validate analysis request."""

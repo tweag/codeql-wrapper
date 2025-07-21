@@ -1,10 +1,11 @@
 """Git utilities for extracting repository information."""
 
-import subprocess
+import os
 from pathlib import Path
+
 from typing import Optional, List
 from dataclasses import dataclass
-from urllib.parse import urlparse
+from git import Repo
 
 from .logger import get_logger
 
@@ -13,247 +14,155 @@ from .logger import get_logger
 class GitInfo:
     """Git repository information."""
 
-    repository: Optional[str] = None  # Format: 'owner/name'
+    current_ref: str  # Format: 'refs/heads/branch-name'
+    base_ref: str  # Format: 'refs/heads/branch-name'
+    repository: str  # Format: 'owner/name'
     commit_sha: Optional[str] = None
-    current_ref: Optional[str] = None  # Format: 'refs/heads/branch-name'
-    base_ref: Optional[str] = None  # Base reference for comparisons
     remote_url: Optional[str] = None
     is_git_repository: Optional[bool] = None
+    working_dir: Path = Path.cwd()
 
 
 class GitUtils:
     """Utility class for Git operations."""
 
-    @staticmethod
+    def __init__(self, repository_path: Path):
+        """Initialize GitUtils."""
+        self.logger = get_logger(__name__)
+        self.repository_path = repository_path
+        self.repo = Repo(self.repository_path, search_parent_directories=True)
+
     def get_git_info(
-        repository_path: Optional[Path] = None,
-        repository: Optional[str] = None,
-        commit_sha: Optional[str] = None,
-        current_ref: Optional[str] = None,
-        base_ref: Optional[str] = None,
+        self, base_ref: Optional[str] = None, current_ref: Optional[str] = None
     ) -> GitInfo:
-        """
-        Extract Git information from a repository.
+        self.logger.debug(f"Getting Git info for repository: {self.repository_path}")
 
-        Args:
-            repository_path: Path to the Git repository
-
-        Returns:
-            GitInfo with extracted information
-        """
-        logger = get_logger(__name__)
-        git_info = GitInfo()
-
-        # Get current commit SHA
-        git_info.commit_sha = (
-            commit_sha or GitUtils._get_commit_sha(repository_path)
-            if repository_path
-            else None
+        git_info = GitInfo(
+            repository=self.repo.remotes.origin.url.split("/")[-2]
+            + "/"
+            + self.repo.remotes.origin.url.split("/")[-1].replace(".git", ""),
+            commit_sha=self.repo.head.commit.hexsha,
+            current_ref=self.get_git_ref(current_ref),
+            base_ref=self.get_base_ref(base_ref),
+            remote_url=self.repo.remotes.origin.url,
+            is_git_repository=True,
+            working_dir=Path(self.repo.working_dir),
         )
 
-        # Get current branch/ref
-        git_info.current_ref = (
-            current_ref or GitUtils._get_current_ref(repository_path)
-            if repository_path
-            else None
-        )
-
-        git_info.base_ref = base_ref
-
-        # Get remote URL and extract repository name
-        remote_url = (
-            GitUtils._get_remote_url(repository_path) if repository_path else None
-        )
-        git_info.remote_url = remote_url
-        if repository:
-            try:
-                repository_owner, repository_name = repository.split("/", 1)
-            except ValueError:
-                logger.warning(
-                    "Invalid repository format. Trying to extract from remote URL."
-                )
-                repository = None
-
-        git_info.repository = repository or GitUtils._extract_repository_from_url(
-            remote_url
-        )
-
-        git_info.is_git_repository = (
-            GitUtils.is_git_repository(repository_path) if repository_path else False
-        )
+        self.logger.debug(f"Git info: {git_info}")
+        self.logger.debug(f"  Is Git repository: {git_info.is_git_repository}")
+        self.logger.debug(f"  Repository: {git_info.repository}")
+        self.logger.debug(f"  Working dir: {self.repo.working_dir}")
+        self.logger.debug(f"  Remote URL: {git_info.remote_url}")
+        self.logger.debug(f"  Commit SHA: {git_info.commit_sha}")
+        self.logger.debug(f"  Current Ref (--ref): {git_info.current_ref}")
+        self.logger.debug(f"  Base ref (--base-ref): {git_info.base_ref}")
 
         return git_info
 
-    @staticmethod
-    def is_git_repository(path: Path) -> bool:
-        """Check if the given path is a Git repository."""
+    def get_diff_files(self, git_info: GitInfo) -> List[str]:
+
         try:
-            result = subprocess.run(
-                ["git", "rev-parse", "--git-dir"],
-                cwd=path,
-                capture_output=True,
-                text=True,
-                check=False,
+            self.fetch_repo()
+
+            # Try to resolve the base ref, fallback to origin/ prefix if needed
+            base_ref_to_use = git_info.base_ref
+            try:
+                base_ref_commit = self.repo.commit(base_ref_to_use)
+            except Exception:
+                base_ref_to_use = f"origin/{git_info.base_ref}"
+                self.logger.debug(
+                    f"Could not resolve '{git_info.base_ref}', trying '{base_ref_to_use}'"
+                )
+                base_ref_commit = self.repo.commit(base_ref_to_use)
+
+            # Use HEAD for current commit in detached HEAD state
+            if git_info.current_ref == "HEAD" or git_info.current_ref.startswith(
+                "refs/pull"
+            ):
+                current_commit = self.repo.head.commit
+            else:
+                current_commit = self.repo.commit(git_info.current_ref)
+
+            # Get the diff from base_ref to current
+            diff = base_ref_commit.diff(current_commit)
+
+            changed_files = [item.a_path for item in diff if item.a_path is not None]
+            self.logger.debug(
+                f"Found {len(changed_files)} changed files between "
+                f"{base_ref_to_use} and {git_info.current_ref}"
             )
-            return result.returncode == 0
-        except Exception:
-            return False
+            return changed_files
 
-    @staticmethod
-    def get_diff_files(
-        repository_path: Path,
-        base_ref: str,
-        target_ref: str,
-        diff_filter: Optional[str] = None,
-    ) -> List[str]:
-        """
-        Get list of files that differ between two Git references.
-
-        Args:
-            repository_path: Path to the Git repository
-            base_ref: Base reference to compare from (default: HEAD~1)
-            target_ref: Target reference to compare to (default: HEAD)
-            diff_filter: Optional filter for diff types (A=added, M=modified, D=deleted, etc.)
-
-        Returns:
-            List of file paths that differ between the references
-        """
-        logger = get_logger(__name__)
-
-        logger.debug(
-            f"Getting diff files between {base_ref} and {target_ref} in {repository_path}"
-        )
-
-        # Build the git diff command
-        cmd = ["git", "diff", "--name-only", f"{base_ref}..{target_ref}"]
-
-        # Add filter if specified
-        if diff_filter:
-            cmd.insert(2, f"--diff-filter={diff_filter}")
-
-        result = subprocess.run(
-            cmd,
-            cwd=repository_path,
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-
-        if result.returncode == 0:
-            # Return list of file paths, filtering out empty lines
-            return [line.strip() for line in result.stdout.split("\n") if line.strip()]
-        else:
-            # Log error but don't raise exception
+        except Exception as e:
+            self.logger.error(f"Failed to get diff files: {e}")
+            self.logger.warning(
+                "Falling back to analyzing all projects due to git diff failure"
+            )
             return []
 
-    # Private methods
-    @staticmethod
-    def _get_commit_sha(repository_path: Path) -> Optional[str]:
-        """Get the current commit SHA."""
-        try:
-            result = subprocess.run(
-                ["git", "rev-parse", "HEAD"],
-                cwd=repository_path,
-                capture_output=True,
-                text=True,
-                check=False,
-            )
-            if result.returncode == 0:
-                return result.stdout.strip()
-        except Exception:
-            pass
-        return None
-
-    @staticmethod
-    def _get_current_ref(repository_path: Path) -> Optional[str]:
-        """Get the current Git reference."""
-        try:
-            # Try to get the symbolic ref (branch name)
-            result = subprocess.run(
-                ["git", "symbolic-ref", "HEAD"],
-                cwd=repository_path,
-                capture_output=True,
-                text=True,
-                check=False,
-            )
-            if result.returncode == 0:
-                return result.stdout.strip()
-
-            # If not on a branch, try to get tag
-            result = subprocess.run(
-                ["git", "describe", "--exact-match", "--tags", "HEAD"],
-                cwd=repository_path,
-                capture_output=True,
-                text=True,
-                check=False,
-            )
-            if result.returncode == 0:
-                tag_name = result.stdout.strip()
-                return f"refs/tags/{tag_name}"
-
-            # If not on a tag either, we're in detached HEAD state
-            # Return None so we use the default
-            return None
-
-        except Exception:
-            pass
-        return None
-
-    @staticmethod
-    def _get_remote_url(repository_path: Path) -> Optional[str]:
-        """Get the remote URL for origin."""
-        try:
-            result = subprocess.run(
-                ["git", "remote", "get-url", "origin"],
-                cwd=repository_path,
-                capture_output=True,
-                text=True,
-                check=False,
-            )
-            if result.returncode == 0:
-                return result.stdout.strip()
-        except Exception:
-            pass
-        return None
-
-    @staticmethod
-    def _extract_repository_from_url(remote_url: Optional[str]) -> Optional[str]:
-        """
-        Extract repository owner/name from Git remote URL.
-
-        Supports both HTTPS and SSH URLs:
-        - https://github.com/owner/repo.git
-        - git@github.com:owner/repo.git
-        """
-        if not remote_url:
-            return None
+    def fetch_repo(self, depth: int = 2) -> None:
+        origin = self.repo.remotes.origin
 
         try:
-            # Remove .git suffix if present
-            url = remote_url.rstrip("/")
-            if url.endswith(".git"):
-                url = url[:-4]
+            self.logger.info(f"Fetching repository with depth={depth}")
+            if os.getenv("GITHUB_TOKEN"):
+                origin.set_url(
+                    (
+                        f"https://x-access-token:{os.getenv('GITHUB_TOKEN')}"
+                        f"@github.com/{origin.url.split('/')[-2]}/"
+                        f"{origin.url.split('/')[-1]}"
+                    )
+                )
 
-            # Handle SSH format: git@github.com:owner/repo
-            if url.startswith("git@"):
-                # Extract the part after the colon
-                if ":" in url:
-                    repo_part = url.split(":", 1)[1]
-                    return repo_part
-            else:
-                # Parse the URL and validate the hostname
-                parsed_url = urlparse(url)
-                if parsed_url.hostname == "github.com":
-                    # Extract the path component (e.g., /owner/repo)
-                    repo_part = parsed_url.path.lstrip("/")
-                    # Remove any query parameters or fragments
-                    if "?" in repo_part:
-                        repo_part = repo_part.split("?")[0]
-                    if "#" in repo_part:
-                        repo_part = repo_part.split("#")[0]
-                    return repo_part
+            origin.fetch(depth=depth)
+        except Exception as e:
+            self.logger.warning(f"Failed to fetch repository: {e}")
 
-        except Exception:
-            pass
+    def get_git_ref(self, current_ref: Optional[str]) -> str:
+        ref = None
+        if current_ref:
+            self.logger.debug("Using provided current_ref")
+            ref = current_ref
+        elif os.getenv("GITHUB_REF"):
+            self.logger.debug("Using GITHUB_REF environment variable")
+            ref = os.getenv("GITHUB_REF")
+        elif os.getenv("CI_COMMIT_REF_NAME"):
+            self.logger.debug("Using CI_COMMIT_REF_NAME environment variable")
+            ref = os.getenv("CI_COMMIT_REF_NAME")
+        elif os.getenv("BITBUCKET_BRANCH"):
+            self.logger.debug("Using BITBUCKET_BRANCH environment variable")
+            ref = os.getenv("BITBUCKET_BRANCH")
+        elif not self.repo.head.is_detached:
+            self.logger.debug("Using repository metadata (Not Detached HEAD state)")
+            ref = self.repo.head.ref.path
 
-        return None
+        if ref is None:
+            raise Exception("No ref provided or found in environment variables")
+
+        return ref
+
+    def get_base_ref(self, base_ref: Optional[str] = None) -> str:
+        ref = None
+
+        if base_ref:
+            self.logger.debug("Using provided base_ref")
+            ref = base_ref
+        elif os.getenv("GITHUB_BASE_REF"):
+            self.logger.debug("Using GITHUB_BASE_REF environment variable")
+            ref = os.getenv("GITHUB_BASE_REF")
+        elif os.getenv("CI_MERGE_REQUEST_TARGET_BRANCH_NAME"):
+            self.logger.debug(
+                "Using CI_MERGE_REQUEST_TARGET_BRANCH_NAME environment variable"
+            )
+            ref = os.getenv("CI_MERGE_REQUEST_TARGET_BRANCH_NAME")
+        elif os.getenv("BITBUCKET_PR_DESTINATION_BRANCH"):
+            self.logger.debug(
+                "Using BITBUCKET_PR_DESTINATION_BRANCH environment variable"
+            )
+            ref = os.getenv("BITBUCKET_PR_DESTINATION_BRANCH")
+
+        if ref is None:
+            raise Exception("No base_ref provided or found in environment variables")
+
+        return ref
