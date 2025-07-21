@@ -54,32 +54,52 @@ class CodeQLInstaller:
         Raises:
             Exception: If unable to fetch the latest version from GitHub API
         """
-        api_url = "https://api.github.com/repos/github/codeql-action/releases/latest"
-
-        self.logger.info("Fetching latest CodeQL version from GitHub API")
         try:
-            with urlopen(api_url) as response:
-                data: Dict[str, Any] = {}
-                if response.status != 200:
-                    # Use default version. In a future we will implement a fallback
-                    data = {"tag_name": "codeql-bundle-v2.22.1"}
-                    # raise Exception(f"GitHub API returned status {response.status}")
-                else:
-                    data = json.loads(response.read().decode("utf-8"))
+            import urllib.request
+            import urllib.error
 
-                latest_version = data.get("tag_name")
+            # Create request with headers
+            request = urllib.request.Request(
+                "https://api.github.com/repos/github/codeql-action/releases/latest"
+            )
 
-                if not latest_version or not isinstance(latest_version, str):
-                    raise Exception("No valid tag_name found in GitHub API response")
+            # Use GitHub token for authenticated requests to avoid rate limiting
+            github_token = os.getenv("GITHUB_TOKEN")
+            if github_token:
+                request.add_header("Authorization", f"token {github_token}")
+                self.logger.debug("Using GitHub token for API authentication")
+            else:
+                self.logger.warning(
+                    "No GitHub token found - using unauthenticated requests"
+                )
 
-                # The GitHub API returns tags like "codeql-bundle-v2.22.1"
-                # from codeql-action
-                # This is already the correct format for bundle releases
-                self.logger.info(f"Latest CodeQL version: {latest_version}")
-                return str(latest_version)  # Explicit cast to satisfy mypy
+            with urllib.request.urlopen(request, timeout=10) as response:
+                if response.status == 403:
+                    rate_limit_remaining = response.headers.get(
+                        "X-RateLimit-Remaining", "unknown"
+                    )
+                    rate_limit_reset = response.headers.get(
+                        "X-RateLimit-Reset", "unknown"
+                    )
+                    self.logger.error(
+                        f"GitHub API rate limit exceeded. Remaining: {rate_limit_remaining}, Reset: {rate_limit_reset}"
+                    )
+                    raise Exception("GitHub API rate limit exceeded")
+
+                data = json.loads(response.read().decode())
+                version = data["tag_name"]
+                self.logger.info(f"Latest CodeQL version: {version}")
+                return version
+
+        except urllib.error.HTTPError as e:
+            if e.code == 403:
+                self.logger.error(f"GitHub API rate limit exceeded: {e}")
+            else:
+                self.logger.error(f"HTTP error fetching latest CodeQL version: {e}")
+            raise Exception(f"Unable to fetch latest CodeQL version: {e}")
         except Exception as e:
             self.logger.error(f"Failed to fetch latest CodeQL version: {e}")
-            raise Exception(f"Unable to fetch latest CodeQL version: {e}") from e
+            raise Exception(f"Unable to fetch latest CodeQL version: {e}")
 
     def get_platform_bundle_name(self) -> str:
         """
