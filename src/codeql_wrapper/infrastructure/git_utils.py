@@ -56,7 +56,7 @@ class GitUtils:
         self.logger.debug(f"  Remote URL: {git_info.remote_url}")
         self.logger.debug(f"  Commit SHA: {git_info.commit_sha}")
         self.logger.debug(f"  Current Ref (--ref): {git_info.current_ref}")
-        self.logger.debug(f"  Base ref (--base-ref): {git_info.base_ref}")        
+        self.logger.debug(f"  Base ref (--base-ref): {git_info.base_ref}")
 
         return git_info
 
