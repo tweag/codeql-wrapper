@@ -309,7 +309,7 @@ def analyze(
                     repository=git_info.repository,
                     commit_sha=git_info.commit_sha,
                     github_token=github_token,
-                    ref=git_info.current_ref
+                    ref=git_info.current_ref,
                 )
 
                 # Execute upload

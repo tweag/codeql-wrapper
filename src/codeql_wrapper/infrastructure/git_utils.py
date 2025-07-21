@@ -124,7 +124,7 @@ class GitUtils:
             ref = os.getenv("BITBUCKET_BRANCH")
         if not self.repo.head.is_detached:
             self.logger.debug("Using repository metadata (Not Detached HEAD state)")
-            ref =  self.repo.head.ref.path   
+            ref = self.repo.head.ref.path
 
         if ref is None:
             raise Exception("No ref provided or found in environment variables")
