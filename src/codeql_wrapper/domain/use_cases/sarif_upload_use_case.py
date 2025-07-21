@@ -144,14 +144,11 @@ class SarifUploadUseCase:
         ref = request.ref or "refs/heads/main"
         cmd.extend(["--ref", ref])
 
-        # Add GitHub authentication - pass token via stdin for security
-        cmd.append("--github-auth-stdin")
-
         self._logger.debug(
             f"Uploading {sarif_file} to {request.repository} (ref: {ref})"
         )
         self._logger.debug(
-            f"Command: {' '.join(cmd[:-1])} --github-auth-stdin"
+            f"Command: {' '.join(cmd)}"
         )  # Don't log the actual token
 
         # Execute command with token passed via stdin

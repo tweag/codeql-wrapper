@@ -40,7 +40,7 @@ types-psutil = "^5.8.0"
 poethepoet = "^0.36.0"
 
 [tool.poetry.scripts]
-codeql-wrapper = "codeql_wrapper.cli:cli"
+codeql-wrapper = "codeql_wrapper.entrypoints.cli:cli"
 
 [tool.black]
 line-length = 88

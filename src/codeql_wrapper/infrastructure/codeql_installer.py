@@ -145,7 +145,7 @@ class CodeQLInstaller:
         # On Unix-like systems, check executable permission
         return os.access(self.codeql_binary, os.X_OK)
 
-    def get_version(self) -> Optional[str]:
+    def get_version(self) -> str:
         """
         Get the installed CodeQL version.
 
@@ -153,20 +153,17 @@ class CodeQLInstaller:
             Version string if CodeQL is installed, None otherwise
         """
         if not self.is_installed():
-            return None
+            raise Exception("CodeQL is not installed")
 
-        try:
-            result = subprocess.run(
-                [str(self.codeql_binary), "version", "--format=json"],
-                capture_output=True,
-                text=True,
-                check=True,
-            )
-            version_info = json.loads(result.stdout)
-            version = version_info.get("version")
-            return version if version is not None else "unknown"
-        except (subprocess.CalledProcessError, json.JSONDecodeError, FileNotFoundError):
-            return None
+        result = subprocess.run(
+            [str(self.codeql_binary), "version", "--format=json"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        version_info = json.loads(result.stdout)
+        version = version_info.get("version")
+        return version if version is not None else "unknown"
 
     def download_codeql(self, version: Optional[str] = None) -> Path:
         """
