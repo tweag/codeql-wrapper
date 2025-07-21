@@ -1,5 +1,6 @@
 """Analyze command for the CodeQL wrapper CLI."""
 
+import os
 from pathlib import Path
 from typing import Optional
 
@@ -51,7 +52,7 @@ from ...infrastructure.git_utils import GitInfo, GitUtils
 @click.option(
     "--github-token",
     envvar="GITHUB_TOKEN",
-    help="GitHub token for SARIF upload (or set GITHUB_TOKEN env var)",
+    help="GitHub token for SARIF upload and fetch (or set GITHUB_TOKEN env var)",
 )
 @click.option(
     "--max-workers",
@@ -132,6 +133,9 @@ def analyze(
                 err=True,
             )
             raise click.ClickException(error_msg)
+        else:
+            if not os.getenv("GITHUB_TOKEN"):
+                os.environ["GITHUB_TOKEN"] = github_token
 
     def _show_only_changed_files_validation(git_info: GitInfo) -> None:
         if not git_info.is_git_repository:

@@ -104,6 +104,15 @@ class GitUtils:
 
         try:
             self.logger.info(f"Fetching repository with depth={depth}")
+            if os.getenv("GITHUB_TOKEN"):
+                origin.set_url(
+                    (
+                        f"https://x-access-token:{os.getenv('GITHUB_TOKEN')}"
+                        f"@github.com/{origin.url.split('/')[-2]}/"
+                        f"{origin.url.split('/')[-1]}"
+                    )
+                )
+
             origin.fetch(depth=depth)
         except Exception as e:
             self.logger.warning(f"Failed to fetch repository: {e}")
