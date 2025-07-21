@@ -377,8 +377,7 @@ class CodeQLAnalysisUseCase:
 
         projects: List[ProjectInfo] = []
         git_utils = GitUtils(Path(request.repository_path))
-        changed_files = git_utils.get_diff_files()
-        git_info = git_utils.get_git_info()
+        changed_files = git_utils.get_diff_files(request.git_info)
 
         # Log changed files if any
         for file in changed_files:
@@ -389,13 +388,15 @@ class CodeQLAnalysisUseCase:
                 projects_config = configData.get("projects", [])
                 project_index = 0
                 for config_index, project in enumerate(projects_config):
-                    project_path = Path(git_info.working_dir, project.get("path", ""))
+                    project_path = Path(
+                        request.git_info.working_dir, project.get("path", "")
+                    )
 
                     # Skip project if filtering by changed files and no changes in this project
                     if (
                         request.only_changed_files
                         and not self._project_has_changed_files(
-                            project_path, git_info.working_dir, changed_files
+                            project_path, request.git_info.working_dir, changed_files
                         )
                     ):
                         self._logger.debug(

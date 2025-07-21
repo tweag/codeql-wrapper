@@ -5,6 +5,7 @@ from enum import Enum
 from pathlib import Path
 from typing import List, Optional, Set
 from datetime import datetime
+from codeql_wrapper.infrastructure.git_utils import GitInfo
 
 
 class CodeQLLanguage(Enum):
@@ -67,6 +68,7 @@ class CodeQLAnalysisRequest:
     """Request for CodeQL analysis."""
 
     repository_path: Path
+    git_info: GitInfo
     force_install: bool = False
     target_languages: Optional[Set[CodeQLLanguage]] = None
     verbose: bool = False

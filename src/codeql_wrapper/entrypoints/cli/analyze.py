@@ -66,7 +66,14 @@ from ...infrastructure.git_utils import GitInfo, GitUtils
 )
 @click.option(
     "--base-ref",
-    help="Base Git reference to compare changes from (default: HEAD~1)",
+    show_default="from env (GITHUB_BASE_REF / CI_MERGE_REQUEST_TARGET_BRANCH_NAME / "
+    "BITBUCKET_PR_DESTINATION_BRANCH / main)",
+    help="Base Git reference to compare changes from",
+)
+@click.option(
+    "--ref",
+    show_default="from env (GITHUB_REF / CI_COMMIT_REF_NAME / BITBUCKET_BRANCH)",
+    help="Current git reference (refs/heads/BRANCH-NAME or refs/pull/NUMBER/head or refs/merge/NUMBER/head)",
 )
 @click.pass_context
 def analyze(
@@ -81,6 +88,7 @@ def analyze(
     max_workers: Optional[int],
     only_changed_files: bool,
     base_ref: str,
+    ref: str,
 ) -> None:
     """
     Run CodeQL analysis on a repository.
@@ -252,18 +260,8 @@ def analyze(
         verbose = ctx.obj.get("verbose", False)
         logger.info(f"Starting CodeQL analysis for: {repository_path}")
 
-        # Try to detect Git information automatically if not provided
-        try:
-            git_utils = GitUtils(Path(repository_path))
-            git_info = git_utils.get_git_info(base_ref=base_ref)
-        except Exception as git_error:
-            # If Git repository access fails, create a minimal GitInfo object
-            logger.debug(f"Failed to get Git info: {git_error}")
-            git_info = GitInfo(
-                is_git_repository=False,
-                working_dir=Path(repository_path),
-                base_ref=base_ref or "main",
-            )
+        git_utils = GitUtils(Path(repository_path))
+        git_info = git_utils.get_git_info(base_ref=base_ref, current_ref=ref)
 
         _show_validations(max_workers)
 
@@ -287,6 +285,7 @@ def analyze(
             monorepo=monorepo,
             max_workers=max_workers,
             only_changed_files=only_changed_files,
+            git_info=git_info,
         )
 
         # Execute analysis

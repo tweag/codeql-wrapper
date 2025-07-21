@@ -1,8 +1,8 @@
 """Git utilities for extracting repository information."""
 
+import os
 from pathlib import Path
 
-# from turtle import st
 from typing import Optional, List
 from dataclasses import dataclass
 from git import Repo
@@ -14,10 +14,10 @@ from .logger import get_logger
 class GitInfo:
     """Git repository information."""
 
-    repository: Optional[str] = None  # Format: 'owner/name'
+    current_ref: str  # Format: 'refs/heads/branch-name'
+    base_ref: str  # Format: 'refs/heads/branch-name'
+    repository: str  # Format: 'owner/name'
     commit_sha: Optional[str] = None
-    current_ref: Optional[str] = None  # Format: 'refs/heads/branch-name'
-    base_ref: str = "main"  # Default base branch
     remote_url: Optional[str] = None
     is_git_repository: Optional[bool] = None
     working_dir: Path = Path.cwd()
@@ -32,7 +32,9 @@ class GitUtils:
         self.repository_path = repository_path
         self.repo = Repo(self.repository_path, search_parent_directories=True)
 
-    def get_git_info(self, base_ref: Optional[str] = None) -> GitInfo:
+    def get_git_info(
+        self, base_ref: Optional[str] = None, current_ref: Optional[str] = None
+    ) -> GitInfo:
         self.logger.debug(f"Getting Git info for repository: {self.repository_path}")
 
         git_info = GitInfo(
@@ -40,12 +42,8 @@ class GitUtils:
             + "/"
             + self.repo.remotes.origin.url.split("/")[-1].replace(".git", ""),
             commit_sha=self.repo.head.commit.hexsha,
-            current_ref=(
-                self.repo.head.ref.name
-                if not self.repo.head.is_detached
-                else self.repo.head.name
-            ),
-            base_ref=base_ref or "main",
+            current_ref=self.get_git_ref(current_ref),
+            base_ref=self.get_base_ref(base_ref),
             remote_url=self.repo.remotes.origin.url,
             is_git_repository=True,
             working_dir=Path(self.repo.working_dir),
@@ -62,23 +60,10 @@ class GitUtils:
 
         return git_info
 
-    def is_pr(self, ref_name: str) -> bool:
-        head_commit = self.repo.head.commit
-
-        # Look for remote PR refs that match HEAD commit
-        for ref in self.repo.remote().refs:
-            self.logger.debug(f"Checking remote ref: {ref.name} -> {ref.commit.hexsha}")
-            if ref.commit == head_commit and ("pull" in ref.name or "pr" in ref.name):
-                self.logger.debug(f"Matched PR ref: {ref.name}")
-                return True
-
-        return False
-
-    def get_diff_files(self) -> List[str]:
-        git_info = self.get_git_info()
+    def get_diff_files(self, git_info: GitInfo) -> List[str]:
 
         try:
-            self.fetch_repo(git_info.base_ref, git_info.current_ref)
+            self.fetch_repo()
 
             # Try to resolve the base ref, fallback to origin/ prefix if needed
             base_ref_to_use = git_info.base_ref
@@ -114,9 +99,7 @@ class GitUtils:
             )
             return []
 
-    def fetch_repo(
-        self, base_ref: str, current_ref: Optional[str] = None, depth: int = 2
-    ) -> None:
+    def fetch_repo(self, depth: int = 2) -> None:
         origin = self.repo.remotes.origin
 
         try:
@@ -124,3 +107,48 @@ class GitUtils:
             origin.fetch(depth=depth)
         except Exception as e:
             self.logger.warning(f"Failed to fetch repository: {e}")
+
+    def get_git_ref(self, current_ref: Optional[str]) -> str:
+        ref = None
+        if current_ref:
+            self.logger.debug("Using provided current_ref")
+            ref = current_ref
+        if os.getenv("GITHUB_REF"):
+            self.logger.debug("Using GITHUB_REF environment variable")
+            ref = os.getenv("GITHUB_REF")
+        if os.getenv("CI_COMMIT_REF_NAME"):
+            self.logger.debug("Using CI_COMMIT_REF_NAME environment variable")
+            ref = os.getenv("CI_COMMIT_REF_NAME")
+        if os.getenv("BITBUCKET_BRANCH"):
+            self.logger.debug("Using BITBUCKET_BRANCH environment variable")
+            ref = os.getenv("BITBUCKET_BRANCH")
+
+        if ref is None:
+            raise Exception("No ref provided or found in environment variables")
+
+        return ref
+
+    def get_base_ref(self, base_ref: Optional[str] = None) -> str:
+        ref = None
+
+        if base_ref:
+            self.logger.debug("Using provided base_ref")
+            ref = base_ref
+        if os.getenv("GITHUB_BASE_REF"):
+            self.logger.debug("Using GITHUB_BASE_REF environment variable")
+            ref = os.getenv("GITHUB_BASE_REF")
+        if os.getenv("CI_MERGE_REQUEST_TARGET_BRANCH_NAME"):
+            self.logger.debug(
+                "Using CI_MERGE_REQUEST_TARGET_BRANCH_NAME environment variable"
+            )
+            ref = os.getenv("CI_MERGE_REQUEST_TARGET_BRANCH_NAME")
+        if os.getenv("BITBUCKET_PR_DESTINATION_BRANCH"):
+            self.logger.debug(
+                "Using BITBUCKET_PR_DESTINATION_BRANCH environment variable"
+            )
+            ref = os.getenv("BITBUCKET_PR_DESTINATION_BRANCH")
+
+        if ref is None:
+            raise Exception("No base_ref provided or found in environment variables")
+
+        return ref
