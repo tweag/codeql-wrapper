@@ -77,7 +77,9 @@ class GitUtils:
                 base_ref_commit = self.repo.commit(base_ref_to_use)
 
             # Use HEAD for current commit in detached HEAD state
-            if git_info.current_ref == "HEAD":
+            if git_info.current_ref == "HEAD" or git_info.current_ref.startswith(
+                "refs/pull"
+            ):
                 current_commit = self.repo.head.commit
             else:
                 current_commit = self.repo.commit(git_info.current_ref)
@@ -122,16 +124,16 @@ class GitUtils:
         if current_ref:
             self.logger.debug("Using provided current_ref")
             ref = current_ref
-        if os.getenv("GITHUB_REF"):
+        elif os.getenv("GITHUB_REF"):
             self.logger.debug("Using GITHUB_REF environment variable")
             ref = os.getenv("GITHUB_REF")
-        if os.getenv("CI_COMMIT_REF_NAME"):
+        elif os.getenv("CI_COMMIT_REF_NAME"):
             self.logger.debug("Using CI_COMMIT_REF_NAME environment variable")
             ref = os.getenv("CI_COMMIT_REF_NAME")
-        if os.getenv("BITBUCKET_BRANCH"):
+        elif os.getenv("BITBUCKET_BRANCH"):
             self.logger.debug("Using BITBUCKET_BRANCH environment variable")
             ref = os.getenv("BITBUCKET_BRANCH")
-        if not self.repo.head.is_detached:
+        elif not self.repo.head.is_detached:
             self.logger.debug("Using repository metadata (Not Detached HEAD state)")
             ref = self.repo.head.ref.path
 
@@ -146,15 +148,15 @@ class GitUtils:
         if base_ref:
             self.logger.debug("Using provided base_ref")
             ref = base_ref
-        if os.getenv("GITHUB_BASE_REF"):
+        elif os.getenv("GITHUB_BASE_REF"):
             self.logger.debug("Using GITHUB_BASE_REF environment variable")
             ref = os.getenv("GITHUB_BASE_REF")
-        if os.getenv("CI_MERGE_REQUEST_TARGET_BRANCH_NAME"):
+        elif os.getenv("CI_MERGE_REQUEST_TARGET_BRANCH_NAME"):
             self.logger.debug(
                 "Using CI_MERGE_REQUEST_TARGET_BRANCH_NAME environment variable"
             )
             ref = os.getenv("CI_MERGE_REQUEST_TARGET_BRANCH_NAME")
-        if os.getenv("BITBUCKET_PR_DESTINATION_BRANCH"):
+        elif os.getenv("BITBUCKET_PR_DESTINATION_BRANCH"):
             self.logger.debug(
                 "Using BITBUCKET_PR_DESTINATION_BRANCH environment variable"
             )
