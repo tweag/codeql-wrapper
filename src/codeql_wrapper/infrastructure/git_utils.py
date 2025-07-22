@@ -37,12 +37,16 @@ class GitUtils:
     ) -> GitInfo:
         self.logger.debug(f"Getting Git info for repository: {self.repository_path}")
 
+        # Get consistent commit SHA using the fetch approach
+        current_ref_resolved = self.get_git_ref(current_ref)
+        commit_sha = self._get_consistent_commit_sha(current_ref_resolved)
+
         git_info = GitInfo(
             repository=self.repo.remotes.origin.url.split("/")[-2]
             + "/"
             + self.repo.remotes.origin.url.split("/")[-1].replace(".git", ""),
-            commit_sha=self.repo.head.commit.hexsha,
-            current_ref=self.get_git_ref(current_ref),
+            commit_sha=commit_sha,
+            current_ref=current_ref_resolved,
             base_ref=self.get_base_ref(base_ref),
             remote_url=self.repo.remotes.origin.url,
             is_git_repository=True,
@@ -59,6 +63,38 @@ class GitUtils:
         self.logger.debug(f"  Base ref (--base-ref): {git_info.base_ref}")
 
         return git_info
+
+    def _get_consistent_commit_sha(self, current_ref: str) -> str:
+        """
+        Get a consistent commit SHA by fetching the ref and using FETCH_HEAD.
+
+        Equivalent to:
+        git fetch origin refs/pull/xx/merge
+        git rev-parse FETCH_HEAD
+        """
+        try:
+            # For PR merge refs, fetch the specific ref and use FETCH_HEAD
+            if current_ref.startswith("refs/pull/"):
+                self.logger.debug(f"Fetching specific ref: {current_ref}")
+
+                # Equivalent to: git fetch origin refs/pull/31/merge
+                origin = self.repo.remotes.origin
+                origin.fetch(current_ref)
+
+                # Equivalent to: git rev-parse FETCH_HEAD
+                fetch_head_commit = self.repo.commit("FETCH_HEAD")
+                commit_sha = fetch_head_commit.hexsha
+
+                self.logger.debug(f"Using FETCH_HEAD commit: {commit_sha}")
+                return commit_sha
+
+        except Exception as e:
+            self.logger.debug(f"Failed to fetch specific ref {current_ref}: {e}")
+
+        # Fallback to HEAD commit for non-PR refs or if fetch fails
+        commit_sha = self.repo.head.commit.hexsha
+        self.logger.debug(f"Using HEAD commit: {commit_sha}")
+        return commit_sha
 
     def get_diff_files(self, git_info: GitInfo) -> List[str]:
 
