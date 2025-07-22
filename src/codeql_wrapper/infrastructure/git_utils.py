@@ -5,7 +5,7 @@ from pathlib import Path
 
 from typing import Optional, List
 from dataclasses import dataclass
-from git import Repo
+from git import Repo, GitCommandError, BadName, InvalidGitRepositoryError
 
 from .logger import get_logger
 
@@ -82,7 +82,7 @@ class GitUtils:
                         f"Using PR head commit for consistency: {head_commit.hexsha}"
                     )
                     return head_commit.hexsha
-                except Exception as e:
+                except (BadName, GitCommandError) as e:
                     self.logger.debug(
                         f"Could not resolve PR head ref '{head_ref}': {e}"
                     )
@@ -91,24 +91,69 @@ class GitUtils:
                 try:
                     merge_commit = self.repo.head.commit
                     if len(merge_commit.parents) >= 2:
-                        pr_commit = merge_commit.parents[
-                            1
-                        ]  # Second parent is usually the PR head
-                        self.logger.debug(
-                            f"Using PR commit from merge parents: {pr_commit.hexsha}"
-                        )
-                        return pr_commit.hexsha
-                except Exception as e:
+                        # Attempt to identify the PR head commit more reliably
+                        pr_commit = None
+
+                        # Method 1: Look for PR-related commit messages
+                        for parent in merge_commit.parents:
+                            if any(
+                                keyword in parent.message.lower()
+                                for keyword in [
+                                    "merge pull request",
+                                    "pull request",
+                                    "pr #",
+                                ]
+                            ):
+                                # This is likely the merge commit message, skip it
+                                continue
+                            # The other parent is likely the PR head
+                            pr_commit = parent
+                            break
+
+                        # Method 2: If method 1 fails, use heuristics based on commit structure
+                        if not pr_commit and len(merge_commit.parents) == 2:
+                            # Compare parents: the one with more recent timestamp is likely the PR head
+                            parent1, parent2 = merge_commit.parents
+                            if parent1.committed_date > parent2.committed_date:
+                                pr_commit = parent1
+                            else:
+                                pr_commit = parent2
+
+                        if pr_commit:
+                            self.logger.debug(
+                                f"Using identified PR commit: {pr_commit.hexsha}"
+                            )
+                            return pr_commit.hexsha
+                        else:
+                            self.logger.debug(
+                                "Could not identify PR commit from merge parents"
+                            )
+                except (GitCommandError, InvalidGitRepositoryError) as e:
                     self.logger.debug(
                         f"Could not get PR commit from merge parents: {e}"
                     )
+
+                # Fallback: try to resolve the commit directly from current_ref
+                try:
+                    fallback_commit = self.repo.commit(current_ref)
+                    self.logger.debug(
+                        f"Using fallback commit resolved from current_ref: {fallback_commit.hexsha}"
+                    )
+                    return fallback_commit.hexsha
+                except (BadName, GitCommandError) as e:
+                    self.logger.debug(
+                        f"Could not resolve commit for current_ref '{current_ref}': {e}"
+                    )
+                    raise ValueError(
+                        f"Failed to resolve commit for current_ref: {current_ref}"
+                    ) from e
 
             # Default: use HEAD commit
             head_sha = self.repo.head.commit.hexsha
             self.logger.debug(f"Using HEAD commit: {head_sha}")
             return head_sha
 
-        except Exception as e:
+        except (GitCommandError, InvalidGitRepositoryError, BadName) as e:
             self.logger.warning(f"Error getting consistent commit SHA: {e}")
             return self.repo.head.commit.hexsha
 
@@ -128,7 +173,7 @@ class GitUtils:
             base_ref_to_use = git_info.base_ref
             try:
                 base_ref_commit = self.repo.commit(base_ref_to_use)
-            except Exception:
+            except (BadName, GitCommandError):
                 base_ref_to_use = f"origin/{git_info.base_ref}"
                 self.logger.debug(
                     f"Could not resolve '{git_info.base_ref}', trying '{base_ref_to_use}'"
@@ -153,7 +198,7 @@ class GitUtils:
             )
             return changed_files
 
-        except Exception as e:
+        except (GitCommandError, InvalidGitRepositoryError, BadName) as e:
             self.logger.error(f"Failed to get diff files: {e}")
             self.logger.warning(
                 "Falling back to analyzing all projects due to git diff failure"
@@ -175,7 +220,7 @@ class GitUtils:
                 )
 
             origin.fetch(depth=depth)
-        except Exception as e:
+        except (GitCommandError, OSError) as e:
             self.logger.warning(f"Failed to fetch repository: {e}")
 
     def get_git_ref(self, current_ref: Optional[str]) -> str:
