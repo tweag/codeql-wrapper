@@ -37,12 +37,16 @@ class GitUtils:
     ) -> GitInfo:
         self.logger.debug(f"Getting Git info for repository: {self.repository_path}")
 
+        # Get consistent commit SHA across CI platforms
+        current_ref_resolved = self.get_git_ref(current_ref)
+        commit_sha = self._get_consistent_commit_sha(current_ref_resolved)
+
         git_info = GitInfo(
             repository=self.repo.remotes.origin.url.split("/")[-2]
             + "/"
             + self.repo.remotes.origin.url.split("/")[-1].replace(".git", ""),
-            commit_sha=self.repo.head.commit.hexsha,
-            current_ref=self.get_git_ref(current_ref),
+            commit_sha=commit_sha,
+            current_ref=current_ref_resolved,
             base_ref=self.get_base_ref(base_ref),
             remote_url=self.repo.remotes.origin.url,
             is_git_repository=True,
@@ -59,6 +63,54 @@ class GitUtils:
         self.logger.debug(f"  Base ref (--base-ref): {git_info.base_ref}")
 
         return git_info
+
+    def _get_consistent_commit_sha(self, current_ref: str) -> str:
+        """
+        Get a consistent commit SHA across different CI platforms.
+
+        For pull request merge refs, try to get the actual PR head commit
+        instead of the platform-specific merge commit.
+        """
+        try:
+            # For pull request merge refs like 'refs/pull/27/merge'
+            if current_ref.startswith("refs/pull/") and current_ref.endswith("/merge"):
+                # Try to get the PR head commit (refs/pull/27/head)
+                head_ref = current_ref.replace("/merge", "/head")
+                try:
+                    head_commit = self.repo.commit(head_ref)
+                    self.logger.debug(
+                        f"Using PR head commit for consistency: {head_commit.hexsha}"
+                    )
+                    return head_commit.hexsha
+                except Exception as e:
+                    self.logger.debug(
+                        f"Could not resolve PR head ref '{head_ref}': {e}"
+                    )
+
+                # Fallback: try to get the second parent of the merge commit (the PR commit)
+                try:
+                    merge_commit = self.repo.head.commit
+                    if len(merge_commit.parents) >= 2:
+                        pr_commit = merge_commit.parents[
+                            1
+                        ]  # Second parent is usually the PR head
+                        self.logger.debug(
+                            f"Using PR commit from merge parents: {pr_commit.hexsha}"
+                        )
+                        return pr_commit.hexsha
+                except Exception as e:
+                    self.logger.debug(
+                        f"Could not get PR commit from merge parents: {e}"
+                    )
+
+            # Default: use HEAD commit
+            head_sha = self.repo.head.commit.hexsha
+            self.logger.debug(f"Using HEAD commit: {head_sha}")
+            return head_sha
+
+        except Exception as e:
+            self.logger.warning(f"Error getting consistent commit SHA: {e}")
+            return self.repo.head.commit.hexsha
 
     def get_diff_files(self, git_info: GitInfo) -> List[str]:
 
