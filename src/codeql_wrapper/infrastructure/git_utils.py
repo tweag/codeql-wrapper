@@ -15,7 +15,7 @@ class GitInfo:
     """Git repository information."""
 
     current_ref: str  # Format: 'refs/heads/branch-name'
-    base_ref: str  # Format: 'refs/heads/branch-name'
+    base_ref: Optional[str]  # Format: 'refs/heads/branch-name' or None if not provided
     repository: str  # Format: 'owner/name'
     commit_sha: Optional[str] = None
     remote_url: Optional[str] = None
@@ -63,6 +63,13 @@ class GitUtils:
     def get_diff_files(self, git_info: GitInfo) -> List[str]:
 
         try:
+            # If no base_ref is provided, return empty list (analyze all files)
+            if not git_info.base_ref:
+                self.logger.debug(
+                    "No base_ref provided - returning empty changed files list (will analyze all)"
+                )
+                return []
+
             self.fetch_repo()
 
             # Try to resolve the base ref, fallback to origin/ prefix if needed
@@ -142,7 +149,7 @@ class GitUtils:
 
         return ref
 
-    def get_base_ref(self, base_ref: Optional[str] = None) -> str:
+    def get_base_ref(self, base_ref: Optional[str] = None) -> Optional[str]:
         ref = None
 
         if base_ref:
@@ -163,6 +170,8 @@ class GitUtils:
             ref = os.getenv("BITBUCKET_PR_DESTINATION_BRANCH")
 
         if ref is None:
-            raise Exception("No base_ref provided or found in environment variables")
+            self.logger.debug(
+                "No base_ref provided or found in environment variables - will analyze all files"
+            )
 
         return ref

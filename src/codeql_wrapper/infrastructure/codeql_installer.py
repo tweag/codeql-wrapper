@@ -8,8 +8,9 @@ import subprocess
 import tarfile
 import tempfile
 from pathlib import Path
-from typing import Optional, Dict, Any
-from urllib.request import urlretrieve, urlopen
+from typing import Optional
+from urllib.request import urlretrieve
+import urllib.error
 
 from .logger import get_logger
 
@@ -54,32 +55,45 @@ class CodeQLInstaller:
         Raises:
             Exception: If unable to fetch the latest version from GitHub API
         """
-        api_url = "https://api.github.com/repos/github/codeql-action/releases/latest"
-
-        self.logger.info("Fetching latest CodeQL version from GitHub API")
         try:
-            with urlopen(api_url) as response:
-                data: Dict[str, Any] = {}
-                if response.status != 200:
-                    # Use default version. In a future we will implement a fallback
-                    data = {"tag_name": "codeql-bundle-v2.22.1"}
-                    # raise Exception(f"GitHub API returned status {response.status}")
-                else:
-                    data = json.loads(response.read().decode("utf-8"))
+            # Create request with headers
+            request = urllib.request.Request(
+                "https://api.github.com/repos/github/codeql-action/releases/latest"
+            )
 
-                latest_version = data.get("tag_name")
+            # Use GitHub token for authenticated requests to avoid rate limiting
+            github_token = os.getenv("GITHUB_TOKEN")
+            if github_token:
+                request.add_header("Authorization", f"Bearer {github_token}")
+                self.logger.debug("Using GitHub token for API authentication")
+            else:
+                self.logger.warning(
+                    "No GitHub token found - using unauthenticated requests"
+                )
 
-                if not latest_version or not isinstance(latest_version, str):
-                    raise Exception("No valid tag_name found in GitHub API response")
+            with urllib.request.urlopen(request, timeout=10) as response:
+                data = json.loads(response.read().decode())
+                version = data.get("tag_name")
 
-                # The GitHub API returns tags like "codeql-bundle-v2.22.1"
-                # from codeql-action
-                # This is already the correct format for bundle releases
-                self.logger.info(f"Latest CodeQL version: {latest_version}")
-                return str(latest_version)  # Explicit cast to satisfy mypy
+                # Ensure we have a valid version string
+                if not version or not isinstance(version, str):
+                    raise Exception(
+                        "Invalid or missing tag_name in GitHub API response"
+                    )
+
+                self.logger.info(f"Latest CodeQL version: {version}")
+                return str(version)
+
+        except urllib.error.HTTPError as e:
+            if e.code == 403:
+                self.logger.error(f"GitHub API rate limit exceeded: {e}")
+            else:
+                self.logger.error(f"HTTP error fetching latest CodeQL version: {e}")
+            raise Exception(f"Unable to fetch latest CodeQL version: {e}")
+
         except Exception as e:
             self.logger.error(f"Failed to fetch latest CodeQL version: {e}")
-            raise Exception(f"Unable to fetch latest CodeQL version: {e}") from e
+            raise Exception(f"Unable to fetch latest CodeQL version: {e}")
 
     def get_platform_bundle_name(self) -> str:
         """
