@@ -77,8 +77,23 @@ class GitUtils:
             if current_ref.startswith("refs/pull/"):
                 self.logger.debug(f"Fetching specific ref: {current_ref}")
 
-                # Equivalent to: git fetch origin refs/pull/31/merge
+                # Get origin remote and set up authentication
                 origin = self.repo.remotes.origin
+
+                # Set up GitHub token authentication if available
+                if os.getenv("GITHUB_TOKEN"):
+                    self.logger.debug(
+                        "Setting up GitHub token authentication for fetch"
+                    )
+                    origin.set_url(
+                        (
+                            f"https://x-access-token:{os.getenv('GITHUB_TOKEN')}"
+                            f"@github.com/{origin.url.split('/')[-2]}/"
+                            f"{origin.url.split('/')[-1]}"
+                        )
+                    )
+
+                # Equivalent to: git fetch origin refs/pull/xx/merge
                 origin.fetch(current_ref)
 
                 # Equivalent to: git rev-parse FETCH_HEAD
