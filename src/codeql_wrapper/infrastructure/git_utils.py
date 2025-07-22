@@ -131,6 +131,9 @@ class GitUtils:
         if current_ref:
             self.logger.debug("Using provided current_ref")
             ref = current_ref
+            if ref.startswith("refs/pull") or ref.startswith("refs/tags") :
+                self.logger.debug("Ref is a pull request or tag, using")
+                ref = self.repo.head.ref.path
         elif os.getenv("GITHUB_REF"):
             self.logger.debug("Using GITHUB_REF environment variable")
             ref = os.getenv("GITHUB_REF")
