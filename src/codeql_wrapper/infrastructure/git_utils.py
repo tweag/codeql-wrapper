@@ -478,7 +478,7 @@ class GitUtils:
             api_url = f"https://api.github.com/repos/{repo_path}/pulls/{pr_number}"
 
             request = urllib.request.Request(api_url)
-            request.add_header("Authorization", f"token {github_token}")
+            request.add_header("Authorization", f"Bearer {github_token}")
             request.add_header("Accept", "application/vnd.github.v3+json")
 
             with urllib.request.urlopen(request, timeout=10) as response:
