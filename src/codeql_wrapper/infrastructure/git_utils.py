@@ -107,7 +107,9 @@ class GitUtils:
         if len(parts) >= 2:
             repo_name = parts[-1].replace(".git", "")
             owner = parts[-2]
-            return owner, repo_name
+            # Validate extracted parts
+            if re.match(r"^[a-zA-Z0-9._-]+$", owner) and re.match(r"^[a-zA-Z0-9._-]+$", repo_name):
+                return owner, repo_name
 
         raise ValueError(f"Unable to parse repository URL: {url}")
 
