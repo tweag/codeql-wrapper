@@ -119,7 +119,7 @@ class GitUtils:
             origin_url = self.repo.remotes.origin.url
             owner, repo_name = self._parse_repository_url(origin_url)
             return f"{owner}/{repo_name}"
-        except Exception as e:
+        except (ValueError, AttributeError) as e:
             self.logger.warning(f"Failed to parse repository URL: {e}")
             # Fallback to original method
             return (
