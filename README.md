@@ -12,16 +12,18 @@ A universal Python CLI wrapper for running CodeQL analysis on any type of projec
 
 Complete documentation is available at: **https://moduscreate-perdigao-ghas-playground.github.io/codeql-wrapper/**
 
+## Support
+
+If you encounter any issues or have questions:
+
+* Check the [documentation](https://moduscreate-perdigao-ghas-playground.github.io/codeql-wrapper/)
+* Open an issue in this repository
+* Contact the maintainers
+
 ## Contributing
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Make your changes
-4. Run tests and quality checks (`poetry run pytest && poetry run black src/ tests/`)
-5. Commit your changes (`git commit -m 'Add amazing feature'`)
-6. Push to the branch (`git push origin feature/amazing-feature`)
-7. Open a Pull Request
+We welcome contributions! Please see the [contributing guidelines](CONTRIBUTING.md) for more information.
 
 ## License
 
-MIT License - see LICENSE file for details.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
