@@ -192,10 +192,10 @@ class GitUtils:
             drone_pr = os.getenv("DRONE_PULL_REQUEST")
             ref = f"refs/pull/{drone_pr}/merge"
             self.logger.debug(f"Constructed Drone PR ref: {ref}")
-        elif os.getenv("Build.SourceBranch"):
+        elif os.getenv("BUILD_SOURCEBRANCH"):
             # AZURE PIPELINES
-            self.logger.debug("Using Build.SourceBranch environment variable")
-            ref = os.getenv("Build.SourceBranch")
+            self.logger.debug("Using BUILD_SOURCEBRANCH environment variable")
+            ref = os.getenv("BUILD_SOURCEBRANCH")
         elif not self.repo.head.is_detached:
             self.logger.debug("Using repository metadata (Not Detached HEAD state)")
             ref = self.repo.head.ref.path
@@ -227,12 +227,12 @@ class GitUtils:
                 get_base_ref = os.getenv("DRONE_TARGET_BRANCH")
                 ref = f"origin/{get_base_ref}"
                 self.logger.debug(f"base_ref: {ref}")
-            elif os.getenv("System.PullRequest.TargetBranch"):
+            elif os.getenv("SYSTEM_PULLREQUEST_TARGETBRANCHNAME"):
                 # AZURE PIPELINES
                 self.logger.debug(
-                    "Using System.PullRequest.TargetBranch environment variable"
+                    "Using SYSTEM_PULLREQUEST_TARGETBRANCHNAME environment variable"
                 )
-                get_base_ref = os.getenv("System.PullRequest.TargetBranch")
+                get_base_ref = os.getenv("SYSTEM_PULLREQUEST_TARGETBRANCHNAME")
                 ref = f"origin/{get_base_ref}"
                 self.logger.debug(f"base_ref: {ref}")
         else:
