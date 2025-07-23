@@ -47,7 +47,7 @@ class GitUtils:
             + self.repo.remotes.origin.url.split("/")[-1].replace(".git", ""),
             commit_sha=commit_sha,
             current_ref=current_ref_resolved,
-            base_ref=self.get_base_ref(base_ref),
+            base_ref=self.get_base_ref(base_ref, current_ref_resolved),
             remote_url=self.repo.remotes.origin.url,
             is_git_repository=True,
             working_dir=Path(self.repo.working_dir),
@@ -183,14 +183,19 @@ class GitUtils:
             self.logger.debug("Using provided current_ref")
             ref = current_ref
         elif os.getenv("GITHUB_REF"):
+            # GITHUB
             self.logger.debug("Using GITHUB_REF environment variable")
             ref = os.getenv("GITHUB_REF")
-        elif os.getenv("CI_COMMIT_REF_NAME"):
-            self.logger.debug("Using CI_COMMIT_REF_NAME environment variable")
-            ref = os.getenv("CI_COMMIT_REF_NAME")
-        elif os.getenv("BITBUCKET_BRANCH"):
-            self.logger.debug("Using BITBUCKET_BRANCH environment variable")
-            ref = os.getenv("BITBUCKET_BRANCH")
+        elif os.getenv("DRONE_PULL_REQUEST"):
+            # HARNESS
+            self.logger.debug("Using DRONE_PULL_REQUEST environment variable")
+            drone_pr = os.getenv("DRONE_PULL_REQUEST")
+            ref = f"refs/pull/{drone_pr}/merge"
+            self.logger.debug(f"Constructed Drone PR ref: {ref}")
+        elif os.getenv("BUILD_SOURCEBRANCH"):
+            # AZURE PIPELINES
+            self.logger.debug("Using BUILD_SOURCEBRANCH environment variable")
+            ref = os.getenv("BUILD_SOURCEBRANCH")
         elif not self.repo.head.is_detached:
             self.logger.debug("Using repository metadata (Not Detached HEAD state)")
             ref = self.repo.head.ref.path
@@ -200,29 +205,39 @@ class GitUtils:
 
         return ref
 
-    def get_base_ref(self, base_ref: Optional[str] = None) -> Optional[str]:
+    def get_base_ref(
+        self, base_ref: Optional[str] = None, current_ref: Optional[str] = None
+    ) -> Optional[str]:
         ref = None
 
         if base_ref:
             self.logger.debug("Using provided base_ref")
             ref = base_ref
-        elif os.getenv("GITHUB_BASE_REF"):
-            self.logger.debug("Using GITHUB_BASE_REF environment variable")
-            ref = os.getenv("GITHUB_BASE_REF")
-        elif os.getenv("CI_MERGE_REQUEST_TARGET_BRANCH_NAME"):
-            self.logger.debug(
-                "Using CI_MERGE_REQUEST_TARGET_BRANCH_NAME environment variable"
-            )
-            ref = os.getenv("CI_MERGE_REQUEST_TARGET_BRANCH_NAME")
-        elif os.getenv("BITBUCKET_PR_DESTINATION_BRANCH"):
-            self.logger.debug(
-                "Using BITBUCKET_PR_DESTINATION_BRANCH environment variable"
-            )
-            ref = os.getenv("BITBUCKET_PR_DESTINATION_BRANCH")
-
-        if ref is None:
-            self.logger.debug(
-                "No base_ref provided or found in environment variables - will analyze all files"
-            )
+        elif current_ref and current_ref.startswith("refs/pull/"):
+            # For pull request events
+            if os.getenv("GITHUB_BASE_REF"):
+                # GITHUB
+                self.logger.debug("Using GITHUB_BASE_REF environment variable")
+                get_base_ref = os.getenv("GITHUB_BASE_REF")
+                ref = f"origin/{get_base_ref}"
+                self.logger.debug(f"base_ref: {ref}")
+            elif os.getenv("DRONE_TARGET_BRANCH"):
+                # HARNESS
+                self.logger.debug("Using DRONE_TARGET_BRANCH environment variable")
+                get_base_ref = os.getenv("DRONE_TARGET_BRANCH")
+                ref = f"origin/{get_base_ref}"
+                self.logger.debug(f"base_ref: {ref}")
+            elif os.getenv("SYSTEM_PULLREQUEST_TARGETBRANCHNAME"):
+                # AZURE PIPELINES
+                self.logger.debug(
+                    "Using SYSTEM_PULLREQUEST_TARGETBRANCHNAME environment variable"
+                )
+                get_base_ref = os.getenv("SYSTEM_PULLREQUEST_TARGETBRANCHNAME")
+                ref = f"origin/{get_base_ref}"
+                self.logger.debug(f"base_ref: {ref}")
+        else:
+            # For push events
+            self.logger.debug("Using HEAD^ as base_ref")
+            ref = "HEAD^"
 
         return ref
