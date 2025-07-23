@@ -224,9 +224,4 @@ class GitUtils:
             self.logger.debug("Using HEAD^ as base_ref")
             ref = "HEAD^"
 
-        if ref is None:
-            self.logger.debug(
-                "No base_ref provided or found in environment variables - will analyze all files"
-            )
-
         return ref
