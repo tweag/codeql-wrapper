@@ -135,12 +135,34 @@ class GitUtils:
                 base_ref_commit = self.repo.commit(base_ref_to_use)
 
             # Use HEAD for current commit in detached HEAD state
-            if git_info.current_ref == "HEAD" or git_info.current_ref.startswith(
-                "refs/pull"
-            ):
+            # Resolve current commit with fallback logic
+            try:
+                if git_info.current_ref == "HEAD" or git_info.current_ref.startswith(
+                    "refs/pull"
+                ):
+                    current_commit = self.repo.head.commit
+                    self.logger.debug("Using HEAD for current commit")
+                else:
+                    # Try to resolve the current_ref directly first
+                    try:
+                        current_commit = self.repo.commit(git_info.current_ref)
+                        self.logger.debug(
+                            f"Successfully resolved current ref: {git_info.current_ref}"
+                        )
+                    except Exception:
+                        # If that fails, try alternative formats
+                        if git_info.current_ref.startswith("refs/heads/"):
+                            # Try as remote branch
+                            remote_ref = git_info.current_ref.replace(
+                                "refs/heads/", "origin/"
+                            )
+                            self.logger.debug(f"Trying remote ref: {remote_ref}")
+                            current_commit = self.repo.commit(remote_ref)
+            except Exception as e:
+                self.logger.warning(
+                    f"Failed to resolve current commit, using HEAD: {e}"
+                )
                 current_commit = self.repo.head.commit
-            else:
-                current_commit = self.repo.commit(git_info.current_ref)
 
             # Get the diff from base_ref to current
             diff = base_ref_commit.diff(current_commit)
