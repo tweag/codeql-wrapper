@@ -515,12 +515,9 @@ class GitUtils:
     def _get_fallback_branch(self) -> str:
         """Get a fallback branch when base ref cannot be determined."""
         for branch in self.DEFAULT_FALLBACK_BRANCHES:
-            try:
-                self.repo.commit(branch)
+            if branch in self.repo.refs:
                 self.logger.debug(f"Using fallback branch: {branch}")
                 return branch
-            except (GitCommandError, BadName):
-                continue
 
         # Ultimate fallback
         self.logger.warning("No fallback branches found, using origin/main")
