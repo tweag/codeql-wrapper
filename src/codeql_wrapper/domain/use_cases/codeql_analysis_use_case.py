@@ -388,6 +388,11 @@ class CodeQLAnalysisUseCase:
                 projects_config = configData.get("projects", [])
                 project_index = 0
                 for config_index, project in enumerate(projects_config):
+                    self._logger.warning(
+                        "CHANGES ON FOLDERS NOT LISTED ON MONOREPO CONFIG FILE "
+                        "(.codeql.json) WILL BE SKIPPED!"
+                    )
+
                     project_path = Path(
                         request.git_info.working_dir, project.get("path", "")
                     )
