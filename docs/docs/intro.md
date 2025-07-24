@@ -56,7 +56,7 @@ codeql-wrapper analyze /path/to/repo --upload-sarif
 
 ## What You'll Need
 
-- **Python 3.8.1 or higher**
+- **Python 3.9 or higher**
 - **Git** (for repository analysis)
 - **GitHub Token** (for SARIF upload functionality)
 
@@ -66,3 +66,5 @@ codeql-wrapper analyze /path/to/repo --upload-sarif
 - [CLI Usage](./cli-usage) - Complete command-line reference
 - [CI/CD Integration](./cicd-integration) - Integration with various CI/CD platforms
 - [API Reference](./api) - Python API documentation
+
+

@@ -8,7 +8,7 @@ This guide covers different ways to install CodeQL Wrapper.
 
 ## Prerequisites
 
-- **Python 3.8.1 or higher**
+- **Python 3.9 or higher**
 - **Poetry** (for development installation)
 - **Git** (for repository analysis)
 
@@ -90,7 +90,7 @@ poetry run black src/ tests/
 poetry run mypy src/
 
 # Linting
-poetry run flake8 src/ tests/
+poetry run flake8 src/
 
 # All checks
 poetry run pytest && poetry run black src/ && poetry run mypy src/ && poetry run flake8 src/ 
@@ -145,7 +145,7 @@ docker run --rm -v /path/to/repo:/workspace codeql-wrapper analyze /workspace
 ### Common Issues
 
 #### Python Version Error
-Make sure you have Python 3.8.1 or higher:
+Make sure you have Python 3.9 or higher:
 
 ```bash
 python --version
@@ -172,3 +172,5 @@ If you encounter issues:
 1. Check the [Issues page](https://github.com/ModusCreate-Perdigao-GHAS-Playground/codeql-wrapper/issues)
 2. Create a new issue with details about your problem
 3. Include your Python version, operating system, and error messages
+
+
