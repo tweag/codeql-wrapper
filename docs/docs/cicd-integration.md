@@ -6,6 +6,9 @@ sidebar_position: 4
 
 CodeQL Wrapper is designed to work seamlessly with various CI/CD platforms. This guide shows how to integrate it into your pipelines.
 
+> **Working Examples Available**: Complete implementation examples for all CI/CD platforms can be found at:  
+> [https://github.com/ModusCreate-fernandomatsuo-GHAS/poc-codeql-wrapper](https://github.com/ModusCreate-fernandomatsuo-GHAS/poc-codeql-wrapper)
+
 ## GitHub Actions
 
 ### Basic Workflow
@@ -47,11 +50,7 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        codeql-wrapper analyze $GITHUB_WORKSPACE \
-          --upload-sarif \
-          --repository ${{ github.repository }} \
-          --commit-sha ${{ github.sha }} \
-          --ref ${{ github.ref }}
+        codeql-wrapper analyze ./project-folder --upload-sarif
 ```
 
 ### Monorepo Workflow
@@ -63,12 +62,9 @@ For monorepos:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        codeql-wrapper analyze $GITHUB_WORKSPACE \
+        codeql-wrapper analyze ./monorepo-folder \
           --monorepo \
           --upload-sarif \
-          --repository ${{ github.repository }} \
-          --commit-sha ${{ github.sha }} \
-          --ref ${{ github.ref }}
 ```
 
 ### Matrix Strategy
@@ -87,92 +83,9 @@ jobs:
     
     - name: Run CodeQL Analysis
       run: |
-        codeql-wrapper analyze $GITHUB_WORKSPACE \
+        codeql-wrapper analyze ./project-folder \
           --languages ${{ matrix.language }} \
           --upload-sarif
-```
-
-## Jenkins
-
-### Declarative Pipeline
-
-```groovy
-pipeline {
-    agent any
-    
-    environment {
-        GITHUB_TOKEN = credentials('github-token')
-    }
-    
-    stages {
-        stage('Checkout') {
-            steps {
-                checkout scm
-            }
-        }
-        
-        stage('Setup Python') {
-            steps {
-                sh '''
-                    python3 -m pip install --upgrade pip
-                    pip3 install codeql-wrapper
-                '''
-            }
-        }
-        
-        stage('CodeQL Analysis') {
-            steps {
-                sh '''
-                    codeql-wrapper analyze ${WORKSPACE} \
-                      --monorepo \
-                      --verbose \
-                      --upload-sarif \
-                      --repository owner/repository \
-                      --commit-sha ${GIT_COMMIT} \
-                      --ref ${GIT_BRANCH}
-                '''
-            }
-        }
-    }
-    
-    post {
-        always {
-            archiveArtifacts artifacts: 'codeql-results/**/*', allowEmptyArchive: true
-        }
-    }
-}
-```
-
-### Scripted Pipeline
-
-```groovy
-node {
-    try {
-        stage('Checkout') {
-            checkout scm
-        }
-        
-        stage('Install Dependencies') {
-            sh 'pip3 install codeql-wrapper'
-        }
-        
-        stage('CodeQL Analysis') {
-            withCredentials([string(credentialsId: 'github-token', variable: 'GITHUB_TOKEN')]) {
-                sh '''
-                    codeql-wrapper analyze . \
-                      --output-dir codeql-results \
-                      --upload-sarif \
-                      --verbose
-                '''
-            }
-        }
-    } catch (Exception e) {
-        currentBuild.result = 'FAILURE'
-        throw e
-    } finally {
-        archiveArtifacts artifacts: 'codeql-results/**/*', allowEmptyArchive: true
-    }
-}
 ```
 
 ## Harness
@@ -181,14 +94,19 @@ node {
 
 ```yaml
 pipeline:
-  name: CodeQL Analysis
+  name: Monorepo CodeQL Analysis
   identifier: codeql_analysis
-  projectIdentifier: your_project
-  orgIdentifier: your_org
-  
+  projectIdentifier: default_project
+  orgIdentifier: default
+  properties:
+    ci:
+      codebase:
+        build: <+input>
+        connectorRef: monorepo
+        repoName: poc-codeql-wrapper
   stages:
     - stage:
-        name: Security Analysis
+        name: CodeQL
         identifier: security_analysis
         type: CI
         spec:
@@ -197,116 +115,118 @@ pipeline:
             steps:
               - step:
                   type: Run
+                  name: Install Python
+                  identifier: install_python
+                  spec:
+                    shell: Bash
+                    command: |
+                      chmod +x ./install_python.sh
+                      ./install_python.sh
+              - step:
+                  type: Run
                   name: Install CodeQL Wrapper
                   identifier: install_codeql_wrapper
                   spec:
-                    shell: Sh
+                    shell: Bash
                     command: |
-                      python3 -m pip install --upgrade pip
-                      pip install codeql-wrapper
-              
+                      # https://test.pypi.org/project/codeql-wrapper/
+                      pip install -i https://test.pypi.org/simple/ codeql-wrapper
+                      codeql-wrapper --version
               - step:
                   type: Run
                   name: Run CodeQL Analysis
                   identifier: run_codeql_analysis
                   spec:
-                    shell: Sh
+                    shell: Bash
                     envVariables:
-                      GITHUB_TOKEN: <+secrets.getValue("github_token")>
+                      GITHUB_TOKEN: <+secrets.getValue("PAT")>
                     command: |
-                      codeql-wrapper analyze /harness \
-                        --languages java,python \
-                        --upload-sarif \
-                        --repository owner/repository \
-                        --commit-sha <+codebase.commitSha> \
-                        --ref <+codebase.branch>
-          
+                      curl -s -H "Authorization: token $GITHUB_TOKEN" https://api.github.com/user
+                      codeql-wrapper --verbose analyze ./monorepo --monorepo --upload-sarif
           platform:
             os: Linux
             arch: Amd64
-          
           runtime:
             type: Cloud
             spec: {}
 ```
-
-## GitLab CI
-
-### `.gitlab-ci.yml`
-
-```yaml
-stages:
-  - security
-
-variables:
-  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
-
-cache:
-  paths:
-    - .cache/pip/
-
-codeql-analysis:
-  stage: security
-  image: python:3.11
-  before_script:
-    - pip install codeql-wrapper
-  script:
-    - |
-      codeql-wrapper analyze $CI_PROJECT_DIR \
-        --output-dir codeql-results \
-        --verbose
-  artifacts:
-    reports:
-      sast: codeql-results/**/*.sarif
-    paths:
-      - codeql-results/
-    expire_in: 1 week
-  only:
-    - main
-    - merge_requests
-```
-
 ## Azure DevOps
 
-### Azure Pipelines YAML
+### CodeQL Analysis (Manual Trigger)
+
+This pipeline is designed for manual execution to perform a full CodeQL analysis on the `monorepo` directory.
 
 ```yaml
+# This pipeline is manually triggered
+trigger: none
+pr: none
+
+pool:
+  vmImage: ubuntu-latest
+
+steps:
+  - script: |
+      chmod +x ./install_python.sh
+      ./install_python.sh
+    displayName: "Install Python"
+
+  - script: |
+      # https://test.pypi.org/project/codeql-wrapper/
+      pip install -i https://test.pypi.org/simple/ codeql-wrapper
+      codeql-wrapper --version
+    displayName: "Install CodeQL Wrapper"
+
+  - script: |
+      curl -s -H "Authorization: token $GITHUB_TOKEN" https://api.github.com/user
+      codeql-wrapper --verbose analyze ./monorepo --monorepo --upload-sarif
+    displayName: "Run CodeQL Analysis"
+    env:
+      GITHUB_TOKEN: $(PAT) # Define this secret in Azure Pipeline variables
+```
+
+### CodeQL Analysis for Pull Requests
+
+This pipeline is triggered on pull requests and performs a CodeQL analysis focusing only on changed files within the `monorepo`.
+
+```yaml
+# This pipeline is manually triggered
 trigger:
   branches:
     include:
-      - main
-      - develop
+      - "*"
+pr:
+  branches:
+    include:
+      - "*"
 
 pool:
-  vmImage: 'ubuntu-latest'
-
-variables:
-  pythonVersion: '3.11'
+  vmImage: ubuntu-latest
 
 steps:
-- task: UsePythonVersion@0
-  inputs:
-    versionSpec: '$(pythonVersion)'
-  displayName: 'Use Python $(pythonVersion)'
+  - checkout: self
+    fetchDepth: 0
 
-- script: |
-    python -m pip install --upgrade pip
-    pip install codeql-wrapper
-  displayName: 'Install CodeQL Wrapper'
+  - script: |
+      chmod +x ./install_python.sh
+      ./install_python.sh
+    displayName: "Install Python"
 
-- script: |
-    codeql-wrapper analyze $(Build.SourcesDirectory) \
-      --output-dir $(Build.ArtifactStagingDirectory)/codeql-results \
-      --verbose
-  displayName: 'Run CodeQL Analysis'
-  env:
-    GITHUB_TOKEN: $(GITHUB_TOKEN)
+  - script: |
+      # https://test.pypi.org/project/codeql-wrapper/
+      pip install -i https://test.pypi.org/simple/ codeql-wrapper
+      codeql-wrapper --version
+    displayName: "Install CodeQL Wrapper"
 
-- task: PublishBuildArtifacts@1
-  inputs:
-    pathToPublish: '$(Build.ArtifactStagingDirectory)/codeql-results'
-    artifactName: 'codeql-results'
-  displayName: 'Publish CodeQL Results'
+  - script: |
+      curl -s -H "Authorization: token $GITHUB_TOKEN" https://api.github.com/user
+      codeql-wrapper --verbose analyze ./monorepo \
+        --monorepo \
+        --upload-sarif \
+        --only-changed-files
+
+    displayName: "Run CodeQL Analysis"
+    env:
+      GITHUB_TOKEN: $(PAT) # Define this secret in Azure Pipeline variables
 ```
 
 ## CircleCI
@@ -319,31 +239,36 @@ version: 2.1
 jobs:
   codeql-analysis:
     docker:
-      - image: python:3.11
+      - image: cimg/python:3.13 # Use a suitable image for your Python & Linux environment
+
     steps:
       - checkout
+
+      - run:
+          name: Install Python (if needed)
+          command: |
+            chmod +x ./install_python.sh
+            ./install_python.sh
+
       - run:
           name: Install CodeQL Wrapper
           command: |
-            pip install codeql-wrapper
+            # https://test.pypi.org/project/codeql-wrapper/
+            pip install -i https://test.pypi.org/simple/ codeql-wrapper
+            codeql-wrapper --version
+
       - run:
           name: Run CodeQL Analysis
           command: |
-            codeql-wrapper analyze . \
-              --output-dir codeql-results \
-              --upload-sarif \
-              --verbose
-          environment:
-            GITHUB_TOKEN: $GITHUB_TOKEN
-      - store_artifacts:
-          path: codeql-results
-          destination: codeql-results
+            export GITHUB_TOKEN=${PAT} # Set PAT as environment variable in CircleCI project settings
+            curl -s -H "Authorization: token $GITHUB_TOKEN" https://api.github.com/user
+            codeql-wrapper --verbose analyze ./monorepo --monorepo --upload-sarif
 
 workflows:
-  security-analysis:
+  version: 2
+  codeql-workflow:
     jobs:
-      - codeql-analysis:
-          context: github-context
+      - codeql-analysis
 ```
 
 ## Best Practices
@@ -384,3 +309,5 @@ Enable verbose logging for troubleshooting:
 ```bash
 codeql-wrapper analyze . --verbose 2>&1 | tee codeql-debug.log
 ```
+
+

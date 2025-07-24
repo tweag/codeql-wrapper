@@ -30,6 +30,11 @@ codeql-wrapper analyze [OPTIONS] REPOSITORY_PATH
 | `--ref` | | Git reference (branch/tag) | Auto-detected |
 | `--github-token` | | GitHub token for SARIF upload | `$GITHUB_TOKEN` |
 | `--verbose` | `-v` | Enable verbose logging | `false` |
+| `--only-changed-files` | | Only analyze projects with changed files (monorepo only) | `false` |
+| `--max-workers` | | Maximum number of parallel workers for analysis | Auto-detected |
+| `--build-mode` | | Build mode for compiled languages (e.g., "autobuild", "none") | `none` |
+| `--build-script` | | Path to a custom build script | None |
+| `--queries` | | Comma-separated list of CodeQL query suite paths or names | Default |
 
 ### Examples
 
@@ -58,6 +63,11 @@ codeql-wrapper analyze /path/to/repo --verbose
 # Analyze all sub-projects in a monorepo
 codeql-wrapper analyze /path/to/monorepo --monorepo
 
+# Analyze only changed files in a monorepo
+codeql-wrapper analyze /path/to/monorepo --monorepo --only-changed-files
+
+# Analyze with a custom build script and specific queries
+codeql-wrapper analyze /path/to/monorepo --monorepo --build-script ./build.sh --queries security-and-quality,my-custom-queries
 ```
 
 #### SARIF Upload
@@ -107,7 +117,7 @@ codeql-wrapper install --force
 Upload SARIF files to GitHub Code Scanning:
 
 ```bash
-codeql-wrapper upload-sarif [OPTIONS] SARIF_FILE
+codeql-wrapper upload-sarif [OPTIONS] SARIF_FILES...
 ```
 
 #### Options
@@ -122,8 +132,11 @@ codeql-wrapper upload-sarif [OPTIONS] SARIF_FILE
 #### Examples
 
 ```bash
-# Upload with auto-detection
+# Upload with auto-detection (single file)
 codeql-wrapper upload-sarif results.sarif
+
+# Upload multiple SARIF files
+codeql-wrapper upload-sarif results-python.sarif results-java.sarif
 
 # Upload with explicit parameters
 codeql-wrapper upload-sarif results.sarif \
@@ -154,6 +167,7 @@ CodeQL Wrapper supports analysis for the following languages:
 - **Go** - `.go`
 - **Ruby** - `.rb`
 - **Swift** - `.swift`
+- **Kotlin** - `.kt`, `.kts`
 - **GitHub Actions** - `.yml`, `.yaml` (in `.github/workflows/`)
 
 ## Environment Variables
@@ -201,3 +215,5 @@ Usage:
 chmod +x analyze-repo.sh
 ./analyze-repo.sh /path/to/repo
 ```
+
+
