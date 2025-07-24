@@ -570,13 +570,23 @@ class CodeQLAnalysisUseCase:
                 # Can't determine relationship, skip this project
                 return False
 
+        # Normalize project prefix (remove trailing slashes)
+        project_prefix = project_prefix.rstrip("/")
+
         # Check if any changed file is within this project
         for changed_file in changed_files:
+            # Normalize changed file path
+            changed_file = changed_file.rstrip("/")
+
             # Root project matches all files
             if project_prefix == "." or project_prefix == "":
                 return True
+
             # Check if file is within project directory
-            if changed_file.startswith(f"{project_prefix}/"):
+            if (
+                changed_file.startswith(f"{project_prefix}/")
+                or changed_file == project_prefix
+            ):
                 return True
 
         return False

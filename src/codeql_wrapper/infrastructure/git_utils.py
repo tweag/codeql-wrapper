@@ -7,7 +7,7 @@ import urllib.request
 from pathlib import Path
 from typing import Optional, List, Tuple
 from dataclasses import dataclass
-from git import Repo, GitCommandError, BadName, InvalidGitRepositoryError
+from git import Repo, GitCommandError, InvalidGitRepositoryError
 
 from .logger import get_logger
 
@@ -108,7 +108,9 @@ class GitUtils:
             repo_name = parts[-1].replace(".git", "")
             owner = parts[-2]
             # Validate extracted parts
-            if re.match(r"^[a-zA-Z0-9._-]+$", owner) and re.match(r"^[a-zA-Z0-9._-]+$", repo_name):
+            if re.match(r"^[a-zA-Z0-9._-]+$", owner) and re.match(
+                r"^[a-zA-Z0-9._-]+$", repo_name
+            ):
                 return owner, repo_name
 
         raise ValueError(f"Unable to parse repository URL: {url}")
