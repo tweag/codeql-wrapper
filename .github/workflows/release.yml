@@ -29,6 +29,8 @@ jobs:
   validate:
     name: Validate Release Input
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     outputs:
       version: ${{ steps.validate.outputs.version }}
       is_prerelease: ${{ steps.validate.outputs.is_prerelease }}
