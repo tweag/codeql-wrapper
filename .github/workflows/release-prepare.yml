@@ -264,7 +264,7 @@ jobs:
         echo "pr_url=$PR_URL" >> $GITHUB_OUTPUT
         echo "Pull request created: $PR_URL"
       env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GH_TOKEN: ${{ secrets.GH_TOKEN }}
 
     - name: Release Instructions
       run: |
