@@ -47,9 +47,9 @@ fi
 if [ -z "$LATEST_RELEASE_VERSION" ]; then
   echo "No PyPI releases found, checking git tags..."
   
-  # Get all tags that look like semantic versions (v1.2.3 or 1.2.3)
+  # Get the latest semantic version tag using efficient sorting
   if command -v git >/dev/null 2>&1; then
-    LATEST_TAG=$(git tag -l | grep -E '^v?[0-9]+\.[0-9]+\.[0-9]+$' | sed 's/^v//' | sort -V | tail -n 1 || echo "")
+    LATEST_TAG=$(git tag -l --sort=-version:refname '[0-9]*.[0-9]*.[0-9]*' 'v[0-9]*.[0-9]*.[0-9]*' | head -n 1 | sed 's/^v//' || echo "")
     if [ -n "$LATEST_TAG" ]; then
       LATEST_RELEASE_VERSION="$LATEST_TAG"
       echo "Found latest version from git tags: $LATEST_RELEASE_VERSION"
