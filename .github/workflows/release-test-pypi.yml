@@ -1,7 +1,7 @@
 # Build and TestPyPI Release workflow for CodeQL Wrapper
 # This workflow creates build versions (e.g., 0.1.12-build.1) and publishes them to TestPyPI
 
-name: Build and TestPyPI Release
+name: Release Feature to TestPyPI
 
 on:
   push:
