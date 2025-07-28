@@ -1,0 +1,286 @@
+# Release Preparation workflow for CodeQL Wrapper
+# This workflow prepares a release by creating a PR with version bump and build validation
+
+name: Prepare Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      increment_type:
+        description: 'Version increment type'
+        required: true
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+        default: patch
+
+env:
+  PYTHON_VERSION: "3.13"
+  POETRY_VERSION: "1.8.3"
+
+jobs:
+  validate:
+    name: Determine Release Version
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.version.outputs.new_version }}
+      current_version: ${{ steps.version.outputs.current_version }}
+      increment_type: ${{ steps.version.outputs.increment_type }}
+      is_initial_release: ${{ steps.version.outputs.is_initial_release }}
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Need full history to get all tags
+        
+    - name: Determine next version
+      id: version
+      run: |
+        INCREMENT_TYPE="${{ github.event.inputs.increment_type }}"
+        echo "Running version detection script with increment type: $INCREMENT_TYPE"
+        ./.github/workflows/scripts/get_next_release_version.sh "$INCREMENT_TYPE"
+
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    needs: validate
+    permissions:
+      contents: read
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+
+    - name: Install Poetry
+      uses: snok/install-poetry@v1
+      with:
+        version: ${{ env.POETRY_VERSION }}
+        virtualenvs-create: true
+        virtualenvs-in-project: true
+
+    - name: Load cached venv
+      id: cached-poetry-dependencies
+      uses: actions/cache@v4
+      with:
+        path: .venv
+        key: venv-${{ runner.os }}-${{ env.PYTHON_VERSION }}-${{ hashFiles('**/poetry.lock') }}
+
+    - name: Install dependencies
+      if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
+      run: poetry install --no-interaction --no-root
+
+    - name: Install project
+      run: poetry install --no-interaction
+
+    - name: Run linting
+      run: |
+        echo "Running code quality checks..."
+        poetry run black --check src/ || (echo "Black formatting failed" && exit 1)
+        poetry run flake8 src/ || (echo "Flake8 linting failed" && exit 1)
+        poetry run mypy src/ || (echo "MyPy type checking failed" && exit 1)
+        echo "All code quality checks passed"
+
+  build-and-release:
+    name: Build and Release
+    needs: [validate, test]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+      pull-requests: write
+      id-token: write  # For trusted publishing to PyPI
+    environment: 
+      name: release
+      url: ${{ steps.create_pr.outputs.pr_url }}
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        fetch-depth: 0
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+
+    - name: Install Poetry
+      uses: snok/install-poetry@v1
+      with:
+        version: ${{ env.POETRY_VERSION }}
+        virtualenvs-create: true
+        virtualenvs-in-project: true
+
+    - name: Load cached venv
+      id: cached-poetry-dependencies
+      uses: actions/cache@v4
+      with:
+        path: .venv
+        key: venv-${{ runner.os }}-${{ env.PYTHON_VERSION }}-${{ hashFiles('**/poetry.lock') }}
+
+    - name: Install dependencies
+      if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
+      run: poetry install --no-interaction --no-root
+
+    - name: Install project
+      run: poetry install --no-interaction
+
+    - name: Configure Git
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+
+    - name: Display version information
+      run: |
+        echo "Release Information:"
+        echo "==================="
+        echo "New version: ${{ needs.validate.outputs.version }}"
+        echo "Current version: ${{ needs.validate.outputs.current_version }}"
+        echo "Increment type: ${{ needs.validate.outputs.increment_type }}"
+        echo "Is initial release: ${{ needs.validate.outputs.is_initial_release }}"
+
+    - name: Bump version in pyproject.toml
+      run: |
+        VERSION="${{ needs.validate.outputs.version }}"
+        echo "Updating version to $VERSION..."
+        poetry version $VERSION
+        
+        # Verify the update
+        NEW_VERSION=$(poetry version --short)
+        if [ "$NEW_VERSION" != "$VERSION" ]; then
+          echo "Version update failed. Expected $VERSION, got $NEW_VERSION"
+          exit 1
+        fi
+        echo "Version updated successfully to $NEW_VERSION"
+
+    - name: Update package version
+      run: |
+        VERSION="${{ needs.validate.outputs.version }}"
+        echo "Reinstalling package with new version..."
+        poetry install --no-interaction
+
+    - name: Verify package version
+      run: |
+        VERSION="${{ needs.validate.outputs.version }}"
+        PACKAGE_VERSION=$(poetry run python -c "from codeql_wrapper import __version__; print(__version__)")
+        echo "Package version: $PACKAGE_VERSION"
+        
+        # For regular releases, versions should match exactly
+        echo "Expected version: $VERSION"
+        
+        if [ "$PACKAGE_VERSION" != "$VERSION" ]; then
+          echo "Package version mismatch. Expected $VERSION, got $PACKAGE_VERSION"
+          exit 1
+        fi
+        echo "Package version verified"
+
+    - name: Build package
+      run: |
+        echo "Building package..."
+        poetry build
+        
+        # Verify build artifacts
+        ls -la dist/
+        echo "Package built successfully"
+
+    - name: Create release branch and commit
+      run: |
+        VERSION="${{ needs.validate.outputs.version }}"
+        
+        echo "Creating release branch for v$VERSION..."
+        
+        # Create release branch from current HEAD (main)
+        git checkout -b release/v$VERSION
+        
+        # Commit version bump
+        git add pyproject.toml
+        git commit -m "Release v$VERSION
+
+        - Bump version to $VERSION
+        - Update package metadata
+        - Increment type: ${{ needs.validate.outputs.increment_type }}
+        
+        Released via GitHub Actions"
+        
+        # Push the release branch
+        git push origin release/v$VERSION
+        
+        echo "Release branch created and pushed"
+
+    - name: Create Pull Request for version bump
+      id: create_pr
+      run: |
+        VERSION="${{ needs.validate.outputs.version }}"
+        INCREMENT_TYPE="${{ needs.validate.outputs.increment_type }}"
+        CURRENT_VERSION="${{ needs.validate.outputs.current_version }}"
+        
+        echo "Creating release pull request..."
+        
+        PR_BODY="## Release v$VERSION
+
+        This is an automated release pull request created by the release workflow.
+
+        ### Version Information
+        - **Current version**: \`$CURRENT_VERSION\`
+        - **New version**: \`$VERSION\`
+        - **Increment type**: \`$INCREMENT_TYPE\`
+
+        ### Changes
+        - Bump version to \`$VERSION\` in \`pyproject.toml\`
+        - Update package metadata
+
+        ### Release Process
+        1. ✅ Version determined automatically
+        2. ✅ Tests passed
+        3. ✅ Package built successfully
+        4. ⏳ Awaiting PR merge
+        5. ⏳ Tag creation (after merge)
+        6. ⏳ Package publishing (after merge)
+        7. ⏳ GitHub release creation (after merge)
+
+        ### Related
+        - Workflow: [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+
+        ---
+        **Note**: This PR needs to be merged manually to proceed with the release.
+        After merging, the 'Publish Release' workflow will complete the release automatically."
+        
+        gh pr create \
+          --title "Release v$VERSION" \
+          --body "$PR_BODY" \
+          --base main \
+          --head release/v$VERSION \
+          --label "release"
+
+        PR_URL=$(gh pr view release/v$VERSION --json url --jq '.url')
+        echo "pr_url=$PR_URL" >> $GITHUB_OUTPUT
+        echo "Pull request created: $PR_URL"
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Release Instructions
+      run: |
+        VERSION="${{ needs.validate.outputs.version }}"
+        PR_URL="${{ steps.create_pr.outputs.pr_url }}"
+        
+        echo "RELEASE PREPARATION COMPLETED!"
+        echo "=================================="
+        echo "Version: v$VERSION"
+        echo "Pull Request: $PR_URL"
+        echo ""
+        echo "Next Steps:"
+        echo "1. Review and merge the pull request: $PR_URL"
+        echo "2. After merge, the release will be automatically completed by the 'Publish Release' workflow"
+        echo ""
+        echo "The 'Publish Release' workflow will:"
+        echo "- Create the release tag"
+        echo "- Publish to PyPI"
+        echo "- Create the GitHub release"

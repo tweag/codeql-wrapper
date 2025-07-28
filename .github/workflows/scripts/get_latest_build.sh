@@ -11,7 +11,7 @@
 # 4. Outputs the new version and build information
 #
 # Outputs (via GitHub Actions output format):
-# - new_version: The new build version to use (e.g., "0.1.12-build.3")
+# - new_version: The new build version to use (e.g., "0.1.12.dev3")
 # - latest_build_number: The build number for the new version
 # - latest_build_filename: The filename of the most recent build (if any)
 # - build_count: Total number of existing builds for this base version
@@ -24,7 +24,7 @@ PACKAGE="codeql-wrapper"
 # Get base version from pyproject.toml
 BASE_VERSION=$(poetry version --short)
 echo "Detected base version from pyproject.toml: $BASE_VERSION"
-echo "Looking for existing builds of $PACKAGE with pattern $BASE_VERSION-build.* on TestPyPI..."
+echo "Looking for existing builds of $PACKAGE with pattern ${BASE_VERSION}.dev* on TestPyPI..."
 
 # Query TestPyPI JSON API for the package with error handling
 JSON_URL="https://test.pypi.org/pypi/${PACKAGE}/json"
@@ -32,7 +32,7 @@ echo "Querying TestPyPI API: $JSON_URL"
 
 if ! RESPONSE=$(curl -s -f "$JSON_URL" 2>/dev/null); then
   echo "Failed to query TestPyPI API or package not found"
-  NEW_VERSION="${BASE_VERSION}-build.1"
+  NEW_VERSION="${BASE_VERSION}.dev1"
   
   # Set outputs for GitHub Actions (if running in GitHub Actions)
   if [ -n "${GITHUB_OUTPUT:-}" ]; then
@@ -55,7 +55,7 @@ ALL_VERSIONS=$(echo "$RESPONSE" | python3 -c "import sys, json; data=json.load(s
 
 if [ -z "$ALL_VERSIONS" ]; then
   echo "No versions found for $PACKAGE on TestPyPI."
-  NEW_VERSION="${BASE_VERSION}-build.1"
+  NEW_VERSION="${BASE_VERSION}.dev1"
   
   # Set outputs for GitHub Actions (if running in GitHub Actions)
   if [ -n "${GITHUB_OUTPUT:-}" ]; then
@@ -76,12 +76,12 @@ fi
 echo "All versions found for $PACKAGE on TestPyPI:"
 echo "$ALL_VERSIONS"
 
-# Filter versions that match our base version with build pattern: {BASE_VERSION}-build.{N}
-BUILD_VERSIONS=$(echo "$ALL_VERSIONS" | grep "^${BASE_VERSION}-build\." | sort -V || echo "")
+# Filter versions that match our base version with build pattern: {BASE_VERSION}.dev{N}
+BUILD_VERSIONS=$(echo "$ALL_VERSIONS" | grep "^${BASE_VERSION}\.dev" | sort -V || echo "")
 
 if [ -z "$BUILD_VERSIONS" ]; then
   echo "No build versions found for base version $BASE_VERSION."
-  NEW_VERSION="${BASE_VERSION}-build.1"
+  NEW_VERSION="${BASE_VERSION}.dev1"
   BUILD_NUMBER=1
   BUILD_COUNT=0
   LATEST_BUILD_FILENAME=""
@@ -90,7 +90,7 @@ else
   echo "$BUILD_VERSIONS"
   
   # Extract build numbers from versions
-  BUILD_NUMBERS=$(echo "$BUILD_VERSIONS" | sed -n "s/^${BASE_VERSION}-build\.\([0-9]\+\)$/\1/p" | sort -n)
+  BUILD_NUMBERS=$(echo "$BUILD_VERSIONS" | sed -n "s/^${BASE_VERSION}\.dev\([0-9]\+\)$/\1/p" | sort -n)
   
   if [ -n "$BUILD_NUMBERS" ]; then
     LATEST_BUILD_NUMBER=$(echo "$BUILD_NUMBERS" | tail -n 1)
@@ -102,7 +102,7 @@ else
     echo "Could not extract build numbers, starting with 1"
   fi
   
-  NEW_VERSION="${BASE_VERSION}-build.${BUILD_NUMBER}"
+  NEW_VERSION="${BASE_VERSION}.dev${BUILD_NUMBER}"
   BUILD_COUNT=$(echo "$BUILD_VERSIONS" | wc -l | xargs)
   
   # Get the latest build version and its filename
