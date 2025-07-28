@@ -1,7 +1,7 @@
 # Test Publishing workflow for CodeQL Wrapper
 # This workflow creates development versions (e.g., 0.1.12.dev1) and publishes them to TestPyPI for testing
 
-name: Test Publish
+name: Publish Feature Branch to TestPyPI
 
 on:
   push:
