@@ -1,0 +1,180 @@
+# Release Publishing workflow for CodeQL Wrapper
+# This workflow automatically publishes releases after version bump PRs are merged to main
+
+name: Publish Release
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'pyproject.toml'
+
+env:
+  PYTHON_VERSION: "3.13"
+  POETRY_VERSION: "1.8.3"
+
+jobs:
+  check-release-commit:
+    name: Check if this is a release commit
+    runs-on: ubuntu-latest
+    outputs:
+      is_release: ${{ steps.check.outputs.is_release }}
+      version: ${{ steps.check.outputs.version }}
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 2  # Need previous commit for comparison
+
+    - name: Check if commit is a release
+      id: check
+      run: |
+        # Check if the commit message indicates a release
+        COMMIT_MSG=$(git log -1 --pretty=%s)
+        echo "Commit message: $COMMIT_MSG"
+        
+        if [[ "$COMMIT_MSG" =~ ^Release\ v[0-9]+\.[0-9]+\.[0-9]+ ]]; then
+          echo "This is a release commit"
+          
+          # Extract version from pyproject.toml
+          VERSION=$(grep '^version = ' pyproject.toml | sed 's/version = "\(.*\)"/\1/')
+          echo "Detected version: $VERSION"
+          
+          # Check if tag already exists
+          if git rev-parse "v$VERSION" >/dev/null 2>&1; then
+            echo "Tag v$VERSION already exists, skipping release"
+            echo "is_release=false" >> $GITHUB_OUTPUT
+          else
+            echo "is_release=true" >> $GITHUB_OUTPUT
+            echo "version=$VERSION" >> $GITHUB_OUTPUT
+          fi
+        else
+          echo "Not a release commit"
+          echo "is_release=false" >> $GITHUB_OUTPUT
+        fi
+
+  publish-release:
+    name: Publish Release to PyPI
+    needs: check-release-commit
+    if: needs.check-release-commit.outputs.is_release == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+      id-token: write  # For trusted publishing to PyPI
+    environment: 
+      name: release
+      url: ${{ steps.release.outputs.html_url }}
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+
+    - name: Install Poetry
+      uses: snok/install-poetry@v1
+      with:
+        version: ${{ env.POETRY_VERSION }}
+        virtualenvs-create: true
+        virtualenvs-in-project: true
+
+    - name: Load cached venv
+      id: cached-poetry-dependencies
+      uses: actions/cache@v4
+      with:
+        path: .venv
+        key: venv-${{ runner.os }}-${{ env.PYTHON_VERSION }}-${{ hashFiles('**/poetry.lock') }}
+
+    - name: Install dependencies
+      if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
+      run: poetry install --no-interaction --no-root
+
+    - name: Install project
+      run: poetry install --no-interaction
+
+    - name: Verify version
+      run: |
+        VERSION="${{ needs.check-release-commit.outputs.version }}"
+        PACKAGE_VERSION=$(poetry run python -c "from codeql_wrapper import __version__; print(__version__)")
+        echo "Package version: $PACKAGE_VERSION"
+        echo "Expected version: $VERSION"
+        
+        if [ "$PACKAGE_VERSION" != "$VERSION" ]; then
+          echo "Package version mismatch. Expected $VERSION, got $PACKAGE_VERSION"
+          exit 1
+        fi
+        echo "Package version verified"
+
+    - name: Build package
+      run: |
+        echo "Building package for release..."
+        poetry build
+        
+        # Verify build artifacts
+        ls -la dist/
+        echo "Package built successfully"
+
+    - name: Configure Git
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+
+    - name: Create and push tag
+      run: |
+        VERSION="${{ needs.check-release-commit.outputs.version }}"
+        
+        echo "Creating release tag v$VERSION..."
+        git tag -a v$VERSION -m "Release v$VERSION"
+        git push origin v$VERSION
+        echo "Tag created and pushed"
+
+    - name: Publish to PyPI (Trusted Publishing)
+      uses: pypa/gh-action-pypi-publish@release/v1
+      with:
+        print-hash: true
+        verbose: true
+
+    - name: Create GitHub Release
+      id: release
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: v${{ needs.check-release-commit.outputs.version }}
+        name: "Release v${{ needs.check-release-commit.outputs.version }}"
+        draft: false
+        prerelease: false
+        files: dist/*
+        generate_release_notes: true
+        body: |
+          ## CodeQL Wrapper v${{ needs.check-release-commit.outputs.version }}
+          
+          Release created automatically by GitHub Actions after merge to main.
+          
+          ### Installation
+          
+          ```bash
+          pip install codeql-wrapper==${{ needs.check-release-commit.outputs.version }}
+          ```
+          
+          ### Links
+          - [PyPI Package](https://pypi.org/project/codeql-wrapper/${{ needs.check-release-commit.outputs.version }}/)
+          - [Documentation](https://github.com/${{ github.repository }})
+          - [Changelog](https://github.com/${{ github.repository }}/releases)
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Success Summary
+      run: |
+        VERSION="${{ needs.check-release-commit.outputs.version }}"
+        
+        echo "RELEASE COMPLETED SUCCESSFULLY!"
+        echo "=================================="
+        echo "Version: v$VERSION"
+        echo "GitHub Release: ${{ steps.release.outputs.html_url }}"
+        echo "PyPI Package: https://pypi.org/project/codeql-wrapper/$VERSION/"
+        echo ""
+        echo "Install command:"
+        echo "pip install codeql-wrapper==$VERSION"
