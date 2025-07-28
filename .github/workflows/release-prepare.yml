@@ -147,6 +147,34 @@ jobs:
         echo "Increment type: ${{ needs.validate.outputs.increment_type }}"
         echo "Is initial release: ${{ needs.validate.outputs.is_initial_release }}"
 
+    - name: Cleanup existing release branch and PR
+      run: |
+        VERSION="${{ needs.validate.outputs.version }}"
+        
+        echo "Checking for existing release branch and PR for v$VERSION..."
+        
+        # Close existing PR if it exists
+        if gh pr list --head release/v$VERSION --json number --jq '.[0].number' | grep -q .; then
+          PR_NUMBER=$(gh pr list --head release/v$VERSION --json number --jq '.[0].number')
+          echo "Closing existing PR #$PR_NUMBER..."
+          gh pr close $PR_NUMBER
+        fi
+        
+        # Delete existing release branch if it exists (locally and remotely)
+        if git show-ref --verify --quiet refs/heads/release/v$VERSION; then
+          echo "Local release branch exists, deleting..."
+          git branch -D release/v$VERSION
+        fi
+        
+        if git ls-remote --exit-code --heads origin release/v$VERSION; then
+          echo "Remote release branch exists, deleting..."
+          git push origin --delete release/v$VERSION
+        fi
+        
+        echo "Release branch and PR cleanup completed"
+      env:
+        GH_TOKEN: ${{ secrets.GH_TOKEN }}
+
     - name: Bump version in pyproject.toml
       run: |
         VERSION="${{ needs.validate.outputs.version }}"
@@ -195,9 +223,9 @@ jobs:
       run: |
         VERSION="${{ needs.validate.outputs.version }}"
         
-        echo "Creating release branch for v$VERSION..."
+        echo "Creating fresh release branch for v$VERSION..."
         
-        # Create release branch from current HEAD (main)
+        # Create fresh release branch from current HEAD (main)
         git checkout -b release/v$VERSION
         
         # Commit version bump

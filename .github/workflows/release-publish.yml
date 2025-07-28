@@ -34,24 +34,47 @@ jobs:
         COMMIT_MSG=$(git log -1 --pretty=%s)
         echo "Commit message: $COMMIT_MSG"
         
-        if [[ "$COMMIT_MSG" =~ ^Release\ v[0-9]+\.[0-9]+\.[0-9]+ ]]; then
-          echo "This is a release commit"
+        # Check if this is a merge commit from a release branch
+        if [[ "$COMMIT_MSG" =~ Merge\ pull\ request.*release/v[0-9]+\.[0-9]+\.[0-9]+ ]]; then
+          echo "This is a merge commit from a release branch"
+          
+          # Extract version from the merge commit message
+          VERSION_FROM_BRANCH=$(echo "$COMMIT_MSG" | grep -o 'release/v[0-9]\+\.[0-9]\+\.[0-9]\+' | sed 's/release\/v//')
+          echo "Version from branch: $VERSION_FROM_BRANCH"
+          
+          # Verify version matches pyproject.toml
+          VERSION_FROM_FILE=$(grep '^version = ' pyproject.toml | sed 's/version = "\(.*\)"/\1/')
+          echo "Version from pyproject.toml: $VERSION_FROM_FILE"
+          
+          if [ "$VERSION_FROM_BRANCH" = "$VERSION_FROM_FILE" ]; then
+            VERSION="$VERSION_FROM_FILE"
+            echo "Detected version: $VERSION"
+          else
+            echo "Version mismatch between branch ($VERSION_FROM_BRANCH) and file ($VERSION_FROM_FILE)"
+            echo "is_release=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+        elif [[ "$COMMIT_MSG" =~ ^Release\ v[0-9]+\.[0-9]+\.[0-9]+ ]]; then
+          echo "This is a direct release commit"
           
           # Extract version from pyproject.toml
           VERSION=$(grep '^version = ' pyproject.toml | sed 's/version = "\(.*\)"/\1/')
           echo "Detected version: $VERSION"
           
-          # Check if tag already exists
-          if git rev-parse "v$VERSION" >/dev/null 2>&1; then
-            echo "Tag v$VERSION already exists, skipping release"
-            echo "is_release=false" >> $GITHUB_OUTPUT
-          else
-            echo "is_release=true" >> $GITHUB_OUTPUT
-            echo "version=$VERSION" >> $GITHUB_OUTPUT
-          fi
         else
-          echo "Not a release commit"
+          echo "Not a release commit or merge"
           echo "is_release=false" >> $GITHUB_OUTPUT
+          exit 0
+        fi
+        
+        # Check if tag already exists
+        if git rev-parse "v$VERSION" >/dev/null 2>&1; then
+          echo "Tag v$VERSION already exists, skipping release"
+          echo "is_release=false" >> $GITHUB_OUTPUT
+        else
+          echo "is_release=true" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
         fi
 
   publish-release:
