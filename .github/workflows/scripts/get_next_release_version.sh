@@ -57,44 +57,78 @@ if [ -z "$LATEST_RELEASE_VERSION" ]; then
   fi
 fi
 
+# Check current version in pyproject.toml
+CURRENT_LOCAL_VERSION=""
+if [ -f "pyproject.toml" ]; then
+  CURRENT_LOCAL_VERSION=$(grep '^version = ' pyproject.toml | sed 's/version = "\(.*\)"/\1/' || echo "")
+  if [ -n "$CURRENT_LOCAL_VERSION" ]; then
+    echo "Found current version in pyproject.toml: $CURRENT_LOCAL_VERSION"
+  fi
+fi
+
 # If still no version found, start with 0.1.0
 if [ -z "$LATEST_RELEASE_VERSION" ]; then
-  echo "No existing versions found, starting with initial release"
-  NEW_VERSION="0.1.0"
-  IS_INITIAL_RELEASE="true"
-  CURRENT_VERSION="none"
+  if [ -n "$CURRENT_LOCAL_VERSION" ]; then
+    echo "No published versions found, but pyproject.toml has version $CURRENT_LOCAL_VERSION"
+    echo "Using current local version for initial release"
+    NEW_VERSION="$CURRENT_LOCAL_VERSION"
+    IS_INITIAL_RELEASE="true"
+    CURRENT_VERSION="none"
+  else
+    echo "No existing versions found, starting with initial release"
+    NEW_VERSION="0.1.0"
+    IS_INITIAL_RELEASE="true"
+    CURRENT_VERSION="none"
+  fi
 else
   echo "Current latest version: $LATEST_RELEASE_VERSION"
   IS_INITIAL_RELEASE="false"
   CURRENT_VERSION="$LATEST_RELEASE_VERSION"
   
-  # Parse the semantic version
-  if [[ "$LATEST_RELEASE_VERSION" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
-    MAJOR="${BASH_REMATCH[1]}"
-    MINOR="${BASH_REMATCH[2]}"
-    PATCH="${BASH_REMATCH[3]}"
+  # Check if local version is already ahead of published version
+  if [ -n "$CURRENT_LOCAL_VERSION" ] && [ "$CURRENT_LOCAL_VERSION" != "$LATEST_RELEASE_VERSION" ]; then
+    echo "Local version ($CURRENT_LOCAL_VERSION) differs from published version ($LATEST_RELEASE_VERSION)"
     
-    echo "Parsed version - Major: $MAJOR, Minor: $MINOR, Patch: $PATCH"
-    
-    # Calculate new version based on increment type
-    case "$INCREMENT_TYPE" in
-      "major")
-        NEW_MAJOR=$((MAJOR + 1))
-        NEW_VERSION="${NEW_MAJOR}.0.0"
-        ;;
-      "minor")
-        NEW_MINOR=$((MINOR + 1))
-        NEW_VERSION="${MAJOR}.${NEW_MINOR}.0"
-        ;;
-      "patch")
-        NEW_PATCH=$((PATCH + 1))
-        NEW_VERSION="${MAJOR}.${MINOR}.${NEW_PATCH}"
-        ;;
-    esac
-  else
-    echo "Invalid semantic version format: $LATEST_RELEASE_VERSION"
-    echo "Expected format: MAJOR.MINOR.PATCH"
-    exit 1
+    # Use version comparison to check if local is ahead
+    if printf '%s\n%s\n' "$LATEST_RELEASE_VERSION" "$CURRENT_LOCAL_VERSION" | sort -V | tail -n1 | grep -q "^$CURRENT_LOCAL_VERSION$"; then
+      echo "Local version is ahead of published version - using local version: $CURRENT_LOCAL_VERSION"
+      NEW_VERSION="$CURRENT_LOCAL_VERSION"
+    else
+      echo "Local version is behind published version - calculating new version"
+      # Continue with normal increment logic below
+    fi
+  fi
+  
+  # Only calculate new version if we haven't already set it from local version
+  if [ -z "${NEW_VERSION:-}" ]; then
+    # Parse the semantic version
+    if [[ "$LATEST_RELEASE_VERSION" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+      MAJOR="${BASH_REMATCH[1]}"
+      MINOR="${BASH_REMATCH[2]}"
+      PATCH="${BASH_REMATCH[3]}"
+      
+      echo "Parsed version - Major: $MAJOR, Minor: $MINOR, Patch: $PATCH"
+      
+      # Calculate new version based on increment type
+      case "$INCREMENT_TYPE" in
+        "major")
+          NEW_MAJOR=$((MAJOR + 1))
+          NEW_VERSION="${NEW_MAJOR}.0.0"
+          ;;
+        "minor")
+          NEW_MINOR=$((MINOR + 1))
+          NEW_VERSION="${MAJOR}.${NEW_MINOR}.0"
+          ;;
+        "patch")
+          NEW_PATCH=$((PATCH + 1))
+          NEW_VERSION="${MAJOR}.${MINOR}.${NEW_PATCH}"
+          ;;
+      esac
+    else
+      echo "Invalid semantic version format: $LATEST_RELEASE_VERSION"
+      echo "Expected format: MAJOR.MINOR.PATCH"
+      exit 1
+    fi
   fi
 fi
 
