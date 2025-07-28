@@ -22,8 +22,18 @@ set -euo pipefail  # Exit on error, undefined vars, pipe failures
 PACKAGE="codeql-wrapper"
 
 # Get base version from pyproject.toml
-BASE_VERSION=$(poetry version --short)
-echo "Detected base version from pyproject.toml: $BASE_VERSION"
+RAW_VERSION=$(poetry version --short)
+echo "Detected raw version from pyproject.toml: $RAW_VERSION"
+
+# Extract base version (remove any existing .dev suffix)
+if [[ "$RAW_VERSION" =~ ^([0-9]+\.[0-9]+\.[0-9]+)(\.dev[0-9]+)?$ ]]; then
+  BASE_VERSION="${BASH_REMATCH[1]}"
+  echo "Extracted base version: $BASE_VERSION"
+else
+  echo "Error: Invalid version format in pyproject.toml: $RAW_VERSION"
+  echo "Expected format: MAJOR.MINOR.PATCH or MAJOR.MINOR.PATCH.devN"
+  exit 1
+fi
 echo "Looking for existing builds of $PACKAGE with pattern ${BASE_VERSION}.dev* on TestPyPI..."
 
 # Query TestPyPI JSON API for the package with error handling
@@ -89,8 +99,14 @@ else
   echo "Build versions found for $BASE_VERSION:"
   echo "$BUILD_VERSIONS"
   
-  # Extract build numbers from versions
-  BUILD_NUMBERS=$(echo "$BUILD_VERSIONS" | sed -n "s/^${BASE_VERSION}\.dev\([0-9]\+\)$/\1/p" | sort -n)
+  # Extract build numbers from versions using a more compatible approach
+  BUILD_NUMBERS=""
+  for version in $BUILD_VERSIONS; do
+    if [[ "$version" =~ ^${BASE_VERSION}\.dev([0-9]+)$ ]]; then
+      BUILD_NUMBERS="$BUILD_NUMBERS ${BASH_REMATCH[1]}"
+    fi
+  done
+  BUILD_NUMBERS=$(echo $BUILD_NUMBERS | tr ' ' '\n' | sort -n)
   
   if [ -n "$BUILD_NUMBERS" ]; then
     LATEST_BUILD_NUMBER=$(echo "$BUILD_NUMBERS" | tail -n 1)
