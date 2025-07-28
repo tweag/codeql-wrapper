@@ -1,0 +1,187 @@
+# Build and TestPyPI Release workflow for CodeQL Wrapper
+# This workflow creates build versions (e.g., 0.1.12-build.1) and publishes them to TestPyPI
+
+name: Build and TestPyPI Release
+
+on:
+  push:
+    branches:
+      - feature/*
+    paths:
+      - 'src/**'
+  workflow_dispatch:
+
+env:
+  PYTHON_VERSION: "3.13"
+  POETRY_VERSION: "1.8.3"
+
+jobs:
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+
+    - name: Install Poetry
+      uses: snok/install-poetry@v1
+      with:
+        version: ${{ env.POETRY_VERSION }}
+        virtualenvs-create: true
+        virtualenvs-in-project: true
+
+    - name: Install project
+      run: poetry install --no-interaction
+
+    - name: Run linting
+      run: |
+        echo "Running code quality checks..."
+        poetry run poe quality
+        echo "All code quality checks passed"
+
+  build-and-release:
+    name: Build and Release
+    needs: [test]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+      pull-requests: write
+      id-token: write
+    environment: 
+      name: development
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        fetch-depth: 0
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+
+    - name: Install Poetry
+      uses: snok/install-poetry@v1
+      with:
+        version: ${{ env.POETRY_VERSION }}
+        virtualenvs-create: true
+        virtualenvs-in-project: true
+
+    - name: Install project
+      run: poetry install --no-interaction
+
+    - name: Configure Git
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+
+    - name: Get latest build from TestPyPI and create new build version
+      id: get_testpypi_build
+      run: |
+        echo "Running build version detection script..."
+        ./.github/workflows/scripts/get_latest_build.sh
+
+    - name: Update package version
+      run: |
+        NEW_VERSION="${{ steps.get_testpypi_build.outputs.new_version }}"
+        echo "Updating version to $NEW_VERSION..."
+        poetry version $NEW_VERSION
+
+        echo "Reinstalling package with new version..."
+        poetry install --no-interaction
+
+    - name: Verify package version
+      run: |
+        NEW_VERSION="${{ steps.get_testpypi_build.outputs.new_version }}"
+        PACKAGE_VERSION=$(poetry run python -c "from codeql_wrapper import __version__; print(__version__)")
+        echo "Package version: $PACKAGE_VERSION"
+        
+        # For build versions, we expect the version to match exactly
+        # since build versions like "0.1.12-build.1" are already in proper format
+        echo "Expected version: $NEW_VERSION"
+        
+        if [ "$PACKAGE_VERSION" != "$NEW_VERSION" ]; then
+          echo "Package version mismatch. Expected $NEW_VERSION, got $PACKAGE_VERSION"
+          exit 1
+        fi
+        echo "Package version verified"
+
+    - name: Build package
+      run: |
+        echo "Building package..."
+        poetry build
+        
+        # Verify build artifacts
+        ls -la dist/
+        echo "Package built successfully"
+
+    - name: Create bump build commit
+      run: |
+        NEW_VERSION="${{ steps.get_testpypi_build.outputs.new_version }}"
+
+        echo "Creating bump build commit on current branch..."
+
+        # Commit version bump to current branch
+        git add pyproject.toml
+        git commit -m "Bump version to $NEW_VERSION
+
+        - Bump version to $NEW_VERSION
+        - Update package metadata
+
+        Version Bumped via GitHub Actions"
+
+        echo "Bump build commit created on current branch"
+
+    - name: Push current branch
+      run: |
+        NEW_VERSION="${{ steps.get_testpypi_build.outputs.new_version }}"
+        CURRENT_BRANCH=$(git branch --show-current)
+
+        echo "Pushing current branch: $CURRENT_BRANCH"
+        
+        # Push with error handling
+        if git push origin $CURRENT_BRANCH; then
+          echo "Current branch pushed successfully"
+        else
+          echo "Warning: Failed to push branch. This might be due to branch protection rules."
+          echo "The package will still be published to TestPyPI."
+        fi
+
+    - name: Publish to PyPI (Trusted Publishing)
+      if: false  # Disabled for build versions - we only publish to TestPyPI
+      uses: pypa/gh-action-pypi-publish@release/v1
+      with:
+        print-hash: true
+        verbose: true
+
+    - name: Publish to TestPyPI (Build Versions)
+      uses: pypa/gh-action-pypi-publish@release/v1
+      with:
+        repository-url: https://test.pypi.org/legacy/
+        print-hash: true
+        verbose: true
+        skip-existing: true
+
+    - name: Success Summary
+      run: |
+        NEW_VERSION="${{ steps.get_testpypi_build.outputs.new_version }}"
+        
+        echo "BUILD VERSION PUBLISHED SUCCESSFULLY!"
+        echo "=================================="
+        echo "Version: v$NEW_VERSION"
+        echo "TestPyPI Package: Published (Build version)"
+        echo "TestPyPI: https://test.pypi.org/project/codeql-wrapper/$NEW_VERSION/"
+        echo ""
+        echo "Install command:"
+        echo "pip install --index-url https://test.pypi.org/simple/ codeql-wrapper==$NEW_VERSION"
+        echo ""
+        echo "This is a build version published to TestPyPI for testing purposes."
