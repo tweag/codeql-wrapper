@@ -176,18 +176,29 @@ jobs:
         GH_TOKEN: ${{ secrets.GH_TOKEN }}
 
     - name: Bump version in pyproject.toml
+      id: version_bump
       run: |
         VERSION="${{ needs.validate.outputs.version }}"
-        echo "Updating version to $VERSION..."
-        poetry version $VERSION
+        CURRENT_VERSION=$(poetry version --short)
+        echo "Current version in pyproject.toml: $CURRENT_VERSION"
+        echo "Target version: $VERSION"
         
-        # Verify the update
-        NEW_VERSION=$(poetry version --short)
-        if [ "$NEW_VERSION" != "$VERSION" ]; then
-          echo "Version update failed. Expected $VERSION, got $NEW_VERSION"
-          exit 1
+        if [ "$CURRENT_VERSION" = "$VERSION" ]; then
+          echo "Version is already at target version ($VERSION) - no bump needed"
+          echo "version_changed=false" >> $GITHUB_OUTPUT
+        else
+          echo "Updating version from $CURRENT_VERSION to $VERSION..."
+          poetry version $VERSION
+          
+          # Verify the update
+          NEW_VERSION=$(poetry version --short)
+          if [ "$NEW_VERSION" != "$VERSION" ]; then
+            echo "Version update failed. Expected $VERSION, got $NEW_VERSION"
+            exit 1
+          fi
+          echo "Version updated successfully to $NEW_VERSION"
+          echo "version_changed=true" >> $GITHUB_OUTPUT
         fi
-        echo "Version updated successfully to $NEW_VERSION"
 
     - name: Update package version
       run: |
@@ -222,21 +233,36 @@ jobs:
     - name: Create release branch and commit
       run: |
         VERSION="${{ needs.validate.outputs.version }}"
+        VERSION_CHANGED="${{ steps.version_bump.outputs.version_changed }}"
         
         echo "Creating fresh release branch for v$VERSION..."
         
         # Create fresh release branch from current HEAD (main)
         git checkout -b release/v$VERSION
         
-        # Commit version bump
-        git add pyproject.toml
-        git commit -m "Release v$VERSION
+        # Only commit if version actually changed
+        if [ "$VERSION_CHANGED" = "true" ]; then
+          echo "Version was changed - creating commit"
+          # Commit version bump
+          git add pyproject.toml
+          git commit -m "Release v$VERSION
 
         - Bump version to $VERSION
         - Update package metadata
         - Increment type: ${{ needs.validate.outputs.increment_type }}
         
         Released via GitHub Actions"
+        else
+          echo "Version was already at target - creating release commit without version change"
+          # Create an empty commit to mark the release
+          git commit --allow-empty -m "Release v$VERSION
+
+        - Version already at $VERSION
+        - Prepare for release
+        - Increment type: ${{ needs.validate.outputs.increment_type }}
+        
+        Released via GitHub Actions"
+        fi
         
         # Push the release branch
         git push origin release/v$VERSION
