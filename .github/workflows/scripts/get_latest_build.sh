@@ -36,10 +36,10 @@ if ! RESPONSE=$(curl -s -f "$JSON_URL" 2>/dev/null); then
   
   # Set outputs for GitHub Actions (if running in GitHub Actions)
   if [ -n "${GITHUB_OUTPUT:-}" ]; then
-    echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
-    echo "latest_build_number=1" >> $GITHUB_OUTPUT
-    echo "latest_build_filename=" >> $GITHUB_OUTPUT
-    echo "build_count=0" >> $GITHUB_OUTPUT
+    echo "new_version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
+    echo "latest_build_number=1" >> "$GITHUB_OUTPUT"
+    echo "latest_build_filename=" >> "$GITHUB_OUTPUT"
+    echo "build_count=0" >> "$GITHUB_OUTPUT"
   else
     echo "Not running in GitHub Actions - outputs:"
     echo "  new_version=$NEW_VERSION"
@@ -59,10 +59,10 @@ if [ -z "$ALL_VERSIONS" ]; then
   
   # Set outputs for GitHub Actions (if running in GitHub Actions)
   if [ -n "${GITHUB_OUTPUT:-}" ]; then
-    echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
-    echo "latest_build_number=1" >> $GITHUB_OUTPUT
-    echo "latest_build_filename=" >> $GITHUB_OUTPUT
-    echo "build_count=0" >> $GITHUB_OUTPUT
+    echo "new_version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
+    echo "latest_build_number=1" >> "$GITHUB_OUTPUT"
+    echo "latest_build_filename=" >> "$GITHUB_OUTPUT"
+    echo "build_count=0" >> "$GITHUB_OUTPUT"
   else
     echo "Not running in GitHub Actions - outputs:"
     echo "  new_version=$NEW_VERSION"
@@ -107,7 +107,7 @@ else
   
   # Get the latest build version and its filename
   LATEST_BUILD_VERSION=$(echo "$BUILD_VERSIONS" | tail -n 1)
-  LATEST_BUILD_FILES=$(echo "$RESPONSE" | python3 -c "import sys, json; data=json.load(sys.stdin); [print(f['filename']) for f in data.get('releases', {}).get('$LATEST_BUILD_VERSION', [])]" 2>/dev/null || echo "")
+  LATEST_BUILD_FILES=$(echo "$RESPONSE" | python3 -c "import sys, json; data=json.load(sys.stdin); [print(f['filename']) for f in data.get('releases', {}).get(\"$LATEST_BUILD_VERSION\", [])]" 2>/dev/null || echo "")
   LATEST_BUILD_FILENAME=$(echo "$LATEST_BUILD_FILES" | tail -n 1)
 fi
 
@@ -117,10 +117,10 @@ echo "Latest build filename: $LATEST_BUILD_FILENAME"
 
 # Set outputs for GitHub Actions (if running in GitHub Actions)
 if [ -n "${GITHUB_OUTPUT:-}" ]; then
-  echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
-  echo "latest_build_number=$BUILD_NUMBER" >> $GITHUB_OUTPUT
-  echo "latest_build_filename=$LATEST_BUILD_FILENAME" >> $GITHUB_OUTPUT
-  echo "build_count=$BUILD_COUNT" >> $GITHUB_OUTPUT
+  echo "new_version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
+  echo "latest_build_number=$BUILD_NUMBER" >> "$GITHUB_OUTPUT"
+  echo "latest_build_filename=$LATEST_BUILD_FILENAME" >> "$GITHUB_OUTPUT"
+  echo "build_count=$BUILD_COUNT" >> "$GITHUB_OUTPUT"
   echo "GitHub Actions outputs set."
 else
   echo "Not running in GitHub Actions - outputs:"
