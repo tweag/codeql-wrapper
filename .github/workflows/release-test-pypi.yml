@@ -1,5 +1,5 @@
 # Build and TestPyPI Release workflow for CodeQL Wrapper
-# This workflow creates build versions (e.g., 0.1.12-build.1) and publishes them to TestPyPI
+# This workflow creates build versions (e.g., 0.1.12.dev1) and publishes them to TestPyPI
 
 name: Release Feature Branch to TestPyPI
 
@@ -106,7 +106,7 @@ jobs:
         echo "Package version: $PACKAGE_VERSION"
         
         # For build versions, we expect the version to match exactly
-        # since build versions like "0.1.12-build.1" are already in proper format
+        # since build versions like "0.1.12.dev1" are already in proper format
         echo "Expected version: $NEW_VERSION"
         
         if [ "$PACKAGE_VERSION" != "$NEW_VERSION" ]; then
