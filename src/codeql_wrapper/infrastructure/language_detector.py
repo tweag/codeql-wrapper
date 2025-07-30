@@ -54,10 +54,6 @@ class LanguageDetector:
             "rb": "ruby",
             "erb": "ruby",
             "gemspec": "ruby",
-            # Rust (editions 2021 and 2024)
-            # Note: Requires rustup and cargo to be installed
-            # Note: Features from nightly toolchains are not supported
-            "rs": "rust",
         }
 
         # Compiled languages (traced languages in CodeQL Action)
@@ -100,6 +96,10 @@ class LanguageDetector:
             # Swift (5.4-6.1)
             # Note: Support for the analysis of Swift requires macOS
             "swift": "swift",
+            # Rust (editions 2021 and 2024)
+            # Note: Requires rustup and cargo to be installed
+            # Note: Features from nightly toolchains are not supported
+            "rs": "rust",
         }
 
     # Public methods first

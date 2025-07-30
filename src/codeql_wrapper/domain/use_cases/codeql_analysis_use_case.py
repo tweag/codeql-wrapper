@@ -608,6 +608,7 @@ class CodeQLAnalysisUseCase:
 
         # Map detected languages to CodeQL languages
         language_mapping = {
+            "rust": CodeQLLanguage.RUST,
             "javascript": CodeQLLanguage.JAVASCRIPT,
             "typescript": CodeQLLanguage.TYPESCRIPT,
             "python": CodeQLLanguage.PYTHON,
