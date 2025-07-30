@@ -4,7 +4,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
 name = "codeql-wrapper"
-version = "0.1.13"
+version = "0.4.0.dev2"
 description = "A universal Python CLI wrapper for running CodeQL analysis on any type of project (monorepo or single repository) across different CI/CD platforms including Jenkins, GitHub Actions, Harness, and any environment where Python scripts can be executed."
 authors = ["Mateus Perdigão Domiciano <mateus.domiciano@moduscreate.com>", "Fernando Matsuo Santos <fernando.matsuo@moduscreate.com>"]
 license = "MIT"

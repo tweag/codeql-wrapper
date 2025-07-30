@@ -157,6 +157,7 @@ def analyze(
         target_languages = set()
         if languages:
             language_mapping = {
+                "rust": CodeQLLanguage.RUST,
                 "javascript": CodeQLLanguage.JAVASCRIPT,
                 "typescript": CodeQLLanguage.TYPESCRIPT,
                 "python": CodeQLLanguage.PYTHON,
