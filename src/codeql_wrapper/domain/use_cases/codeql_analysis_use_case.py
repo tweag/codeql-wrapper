@@ -622,7 +622,7 @@ class CodeQLAnalysisUseCase:
         }
 
         # Define which languages are compiled vs non-compiled
-        compiled_languages = {"java", "csharp", "cpp", "swift"}
+        compiled_languages = {"java", "csharp", "cpp", "swift", "rust"}
         non_compiled_languages = {
             "javascript",
             "typescript",
