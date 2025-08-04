@@ -3,9 +3,9 @@
 import logging
 from typing import Optional
 
+from .....domain.entities.install_codeql_request import InstallCodeQLRequest
 from .....domain.interfaces.codeql_service import CodeQLService, CodeQLInstallationInfo
 from .....domain.exceptions.codeql_exceptions import CodeQLError, CodeQLInstallationError
-from ..commands.install_codeql_command import InstallCodeQLCommand
 
 
 class InstallCodeQLUseCase:
@@ -16,26 +16,26 @@ class InstallCodeQLUseCase:
         self._codeql_service = codeql_service
         self._logger = logger or logging.getLogger(__name__)
     
-    async def execute(self, command: InstallCodeQLCommand) -> CodeQLInstallationInfo:
+    async def execute(self, request: InstallCodeQLRequest) -> CodeQLInstallationInfo:
         """Execute the CodeQL installation process."""
         try:
             self._logger.info("Starting CodeQL installation process")
             
             # Check current installation status if not forcing reinstall
-            if not command.force_reinstall:
+            if not request.force_reinstall:
                 try:
                     current_info = await self._codeql_service.validate_installation()
                     
                     if current_info.is_installed:
-                        if command.version:
+                        if request.version:
                             # Check if specific version is already installed
-                            if current_info.version == command.version:
-                                self._logger.info(f"CodeQL version {command.version} is already installed")
+                            if current_info.version == request.version:
+                                self._logger.info(f"CodeQL version {request.version} is already installed")
                                 return current_info
                             else:
                                 self._logger.info(
                                     f"Different version installed ({current_info.version}), "
-                                    f"installing requested version {command.version}"
+                                    f"installing requested version {request.version}"
                                 )
                         else:
                             # Check if latest version is installed
@@ -50,12 +50,12 @@ class InstallCodeQLUseCase:
                     self._logger.info("CodeQL not found, proceeding with installation")
             
             # Perform installation
-            self._logger.info(f"Installing CodeQL{f' version {command.version}' if command.version else ' (latest)'}")
+            self._logger.info(f"Installing CodeQL{f' version {request.version}' if request.version else ' (latest)'}")
             
             result = await self._codeql_service.install(
-                version=command.version or "",
-                force_reinstall=command.force_reinstall,
-                persistent_path=command.persistent_path
+                version=request.version or "",
+                force_reinstall=request.force_reinstall,
+                persistent_path=request.persistent_path
             )
             
             self._logger.info(f"CodeQL installation completed successfully: {result.version}")
@@ -71,5 +71,5 @@ class InstallCodeQLUseCase:
             self._logger.error(f"Unexpected error during CodeQL installation: {str(e)}")
             raise CodeQLInstallationError(
                 message=f"Installation failed due to unexpected error: {str(e)}",
-                installation_path=command.installation_directory or "unknown"
+                installation_path=request.installation_directory or "unknown"
             )

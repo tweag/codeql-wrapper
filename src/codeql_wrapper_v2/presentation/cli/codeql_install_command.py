@@ -8,9 +8,10 @@ from typing import Optional
 
 import click
 
+from .detect_projects_command import detect_projects
 from ...infrastructure.services.codeql_service import create_codeql_service
-from ...application.features.install_codeql.commands.install_codeql_command import InstallCodeQLCommand
 from ...application.features.install_codeql.use_cases.install_codeql_use_case import InstallCodeQLUseCase
+from ...domain.entities.install_codeql_request import InstallCodeQLRequest
 from ...domain.constants.codeql_constants import CodeQLConstants
 from ...domain.exceptions.codeql_exceptions import (
     CodeQLError,
@@ -143,15 +144,13 @@ async def _run_install(command: InstallCommand, renderer: OutputRenderer) -> Non
         # Create use case
         use_case = InstallCodeQLUseCase(service, logger)
         
-        # Convert CLI command to application command
-        app_command = InstallCodeQLCommand(
+        # Convert CLI command to domain request
+        request = InstallCodeQLRequest(
             version=command.version,
             force_reinstall=command.force_reinstall,
             installation_directory=command.installation_directory,
             github_token=command.github_token,
-            persistent_path=command.persistent_path,
-            quiet=command.quiet,
-            verbose=command.verbose
+            persistent_path=command.persistent_path
         )
         
         if not command.quiet:
@@ -169,7 +168,7 @@ async def _run_install(command: InstallCommand, renderer: OutputRenderer) -> Non
             ))
         
         # Execute installation using the use case
-        result = await use_case.execute(app_command)
+        result = await use_case.execute(request)
         
         # Create success output
         output = InstallationOutput(
@@ -210,6 +209,10 @@ async def _run_install(command: InstallCommand, renderer: OutputRenderer) -> Non
         )
         renderer.render(output)
         sys.exit(1)
+
+
+# Add detect-projects command to the group
+codeql.add_command(detect_projects)
 
 
 if __name__ == "__main__":

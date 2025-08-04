@@ -5,7 +5,7 @@ import sys
 from typing import Dict, Any
 from abc import ABC, abstractmethod
 
-from ..dto.cli_output import CLIOutput, OutputStatus
+from ..dto.cli_output import CLIOutput, InstallationOutput, OutputStatus, DetectionOutput
 
 
 class OutputFormatter(ABC):
@@ -33,6 +33,19 @@ class HumanReadableFormatter(OutputFormatter):
     
     def format(self, output: CLIOutput) -> str:
         """Format output for human consumption."""
+        # Special handling for DetectionOutput
+        if isinstance(output, DetectionOutput) and output.status == OutputStatus.SUCCESS:
+            return self._format_detection_results(output)
+
+        # Special handling for InstallationOutput
+        if isinstance(output, InstallationOutput) and output.status == OutputStatus.SUCCESS:
+            return self._format_installation_results(output)
+
+        # Default formatting for other outputs
+        return self._format_default(output)
+    
+    def _format_default(self, output: CLIOutput) -> str:
+        """Default formatting for CLI output."""
         # Status indicators
         status_symbols = {
             OutputStatus.SUCCESS: "✅",
@@ -65,6 +78,66 @@ class HumanReadableFormatter(OutputFormatter):
             
         return formatted
     
+    def _format_detection_results(self, output: DetectionOutput) -> str:
+        """Format project detection results in a detailed, user-friendly way."""
+        lines = []
+        
+        # Header
+        lines.append("")
+        lines.append("=" * 60)
+        lines.append("🔍 PROJECT DETECTION RESULTS")
+        lines.append("=" * 60)
+        lines.append("")
+        
+        # Repository info
+        lines.append(f"📁 Repository: {output.repository_name}")
+        lines.append(f"📍 Path: {output.repository_path}")
+        repo_type = "Monorepo" if output.is_monorepo else "Single Project"
+        lines.append(f"🗂️  Type: {repo_type}")
+        
+        if output.config_file_used:
+            lines.append(f"⚙️  Config: {output.config_file_used}")
+        
+        lines.append(f"📊 Projects Found: {output.project_count}")
+        
+        # Projects details
+        if output.projects and len(output.projects) > 0:
+            lines.append("")
+            lines.append("-" * 60)
+            lines.append("PROJECT DETAILS")
+            lines.append("-" * 60)
+            
+            for i, project in enumerate(output.projects, 1):
+                lines.append(f"\n{i}. {project['name']}")
+                lines.append(f"   📍 Path: {project['path']}")
+                
+                # Languages
+                if project.get('languages'):
+                    lang_str = ', '.join(project['languages'])
+                    lines.append(f"   🔤 Languages: {lang_str}")
+                
+                # Build info
+                if project.get('build_mode', 'none') != 'none':
+                    lines.append(f"   🔨 Build Mode: {project['build_mode']}")
+                
+                if project.get('build_script_path'):
+                    lines.append(f"   📜 Build Script: {project['build_script_path']}")
+                
+                if project.get('queries'):
+                    queries_str = ', '.join(project['queries'])
+                    lines.append(f"   🔍 Queries: {queries_str}")
+        else:
+            lines.append("\n❌ No projects detected")
+        
+        # Footer
+        lines.append("\n" + "=" * 60)
+        if self.use_colors:
+            lines.append("\033[92m✅ Detection completed successfully!\033[0m")
+        else:
+            lines.append("✅ Detection completed successfully!")
+        
+        return "\n".join(lines)
+    
     def _format_details(self, details: Dict[str, Any], indent: int = 0) -> str:
         """Format details dictionary for human reading."""
         lines = []
@@ -81,6 +154,25 @@ class HumanReadableFormatter(OutputFormatter):
                 
         return "\n".join(lines)
 
+    def _format_installation_results(self, output: InstallationOutput) -> str:
+        """Format installation results in a detailed, user-friendly way."""
+        lines = []
+        lines.append("")
+        lines.append("=" * 60)
+        lines.append("📦 CODEQL INSTALLATION RESULTS")
+        lines.append("=" * 60)
+        lines.append("")
+        lines.append(f"✅ Status: Success")
+        lines.append(f"🔢 Version: {output.version}")
+        lines.append(f"📍 Installation Path: {output.installation_path}")
+        lines.append(f"🆕 Is Latest Version: {'Yes' if output.is_latest else 'No'}")
+       
+        lines.append("")
+        if self.use_colors:
+            lines.append("\033[92m✅ CodeQL installed successfully!\033[0m")
+        else:
+            lines.append("✅ CodeQL installed successfully!")
+        return "\n".join(lines)
 
 class OutputRenderer:
     """Main output renderer that handles formatting and display."""

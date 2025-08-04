@@ -59,3 +59,38 @@ class InstallationOutput(CLIOutput):
             result["installation"] = installation_details
             
         return result
+
+
+@dataclass(frozen=True)
+class DetectionOutput(CLIOutput):
+    """Output for project detection operations."""
+    
+    repository_name: Optional[str] = None
+    repository_path: Optional[str] = None
+    is_monorepo: Optional[bool] = None
+    project_count: Optional[int] = None
+    config_file_used: Optional[str] = None
+    projects: Optional[list] = None
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary with detection-specific details."""
+        result = super().to_dict()
+        
+        detection_details = {}
+        if self.repository_name:
+            detection_details["repository_name"] = self.repository_name
+        if self.repository_path:
+            detection_details["repository_path"] = self.repository_path
+        if self.is_monorepo is not None:
+            detection_details["is_monorepo"] = self.is_monorepo
+        if self.project_count is not None:
+            detection_details["project_count"] = self.project_count
+        if self.config_file_used:
+            detection_details["config_file_used"] = self.config_file_used
+        if self.projects:
+            detection_details["projects"] = self.projects
+            
+        if detection_details:
+            result["detection"] = detection_details
+            
+        return result

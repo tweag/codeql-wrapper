@@ -16,6 +16,7 @@ class InstallCodeQLRequest:
     force_reinstall: bool = False
     installation_directory: Optional[str] = None
     github_token: Optional[str] = None
+    persistent_path: bool = True
     
     def __post_init__(self) -> None:
         """Validate the installation request."""
