@@ -9,8 +9,7 @@ from codeql_wrapper_v2.domain.entities.detect_projects_result import DetectProje
 from codeql_wrapper_v2.domain.entities.repository import Repository
 from codeql_wrapper_v2.domain.interfaces.project_detector import ProjectDetector, LanguageDetector
 from codeql_wrapper_v2.domain.interfaces.configuration_reader import ConfigurationReader, FileSystemAnalyzer
-
-from codeql_wrapper_v2.application.features.detect_projects.use_cases.detect_projects_use_case import ProjectDetectionService
+from codeql_wrapper_v2.domain.services.project_detection_service import ProjectDetectionDomainService
 
 
 class ProjectDetectorImpl(ProjectDetector):
@@ -25,7 +24,7 @@ class ProjectDetectorImpl(ProjectDetector):
     ) -> None:
         """Initialize the project detector with its dependencies."""
         self._logger = logger or logging.getLogger(__name__)
-        self._detection_service = ProjectDetectionService(
+        self._detection_service = ProjectDetectionDomainService(
             language_detector=language_detector,
             config_reader=config_reader,
             file_system_analyzer=file_system_analyzer,

@@ -29,6 +29,8 @@ def codeql():
 @click.option('--monorepo', is_flag=True, help='Treat as monorepo and detect multiple projects')
 @click.option('--languages', help='Comma-separated list of target languages (e.g., python,javascript)')
 @click.option('--changed-files-only', is_flag=True, help='Only detect projects with changed files')
+@click.option('--base-ref', help='Base Git reference for change detection (e.g., main, HEAD~1, commit-hash)')
+@click.option('--ref', help='Target Git reference for change detection (e.g., HEAD, branch-name, commit-hash)')
 @click.option('--config', type=click.Path(exists=True, dir_okay=False), help='Path to configuration file')
 @click.option('--format', 'output_format', type=click.Choice(['json', 'human']), default='human', help='Output format for the results.')
 @click.option('--no-colors', is_flag=True, help='Disable colored output in human-readable format.')
@@ -39,6 +41,8 @@ def detect_projects(
     monorepo: bool,
     languages: Optional[str],
     changed_files_only: bool,
+    base_ref: Optional[str],
+    ref: Optional[str],
     config: Optional[str],
     output_format: str,
     no_colors: bool,
@@ -93,8 +97,9 @@ def detect_projects(
                 is_monorepo=monorepo,
                 target_languages=parsed_languages,
                 include_changed_files_only=changed_files_only,
-                changed_files=None,  # Will be auto-detected if needed
-                config_file_path=Path(config) if config else None
+                config_file_path=Path(config) if config else None,
+                base_ref=base_ref,
+                ref=ref
             )
             
             # Create dependencies

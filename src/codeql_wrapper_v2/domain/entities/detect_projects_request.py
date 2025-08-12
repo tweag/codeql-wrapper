@@ -15,8 +15,9 @@ class DetectProjectsRequest:
     is_monorepo: bool = False
     target_languages: Optional[List[Language]] = None
     include_changed_files_only: bool = False
-    changed_files: Optional[List[str]] = None
     config_file_path: Optional[Path] = None
+    base_ref: Optional[str] = None
+    ref: Optional[str] = None
     
     def __post_init__(self) -> None:
         """Validate request parameters."""
@@ -26,7 +27,12 @@ class DetectProjectsRequest:
         if not self.repository_path.is_dir():
             raise ValueError(f"Repository path is not a directory: {self.repository_path}")
         
-        # Note: changed_files will be auto-detected when include_changed_files_only is True
+        # Validate Git reference parameters
+        if self.base_ref and not isinstance(self.base_ref, str):
+            raise ValueError("base_ref must be a string")
+        
+        if self.ref and not isinstance(self.ref, str):
+            raise ValueError("ref must be a string")
         
         if self.config_file_path and not self.config_file_path.exists():
             raise ValueError(f"Config file does not exist: {self.config_file_path}")
@@ -38,6 +44,25 @@ class DetectProjectsRequest:
     def should_filter_by_changes(self) -> bool:
         """Check if detection should be filtered by changed files."""
         return self.include_changed_files_only
+    
+    def has_git_references(self) -> bool:
+        """Check if Git references are provided for change detection."""
+        return self.base_ref is not None or self.ref is not None
+    
+    def get_git_diff_command_args(self) -> List[str]:
+        """Get the Git diff command arguments based on provided references."""
+        if self.base_ref and self.ref:
+            # Compare between two specific refs
+            return [self.base_ref, self.ref]
+        elif self.base_ref:
+            # Compare base_ref with current HEAD
+            return [self.base_ref, "HEAD"]
+        elif self.ref:
+            # Compare ref with its first parent (useful for merge commits)
+            return [f"{self.ref}^", self.ref]
+        else:
+            # Default: compare with HEAD (uncommitted changes)
+            return ["HEAD"]
     
     def has_config_file(self) -> bool:
         """Check if a configuration file is provided."""

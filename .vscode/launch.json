@@ -1,0 +1,131 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug: Detect Projects - Current Repo",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "codeql_wrapper_v2.presentation.cli.detect_projects_command",
+            "args": [
+                "${workspaceFolder}",
+                "--verbose",
+                "--monorepo"
+            ],
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/src"
+            },
+            "justMyCode": false,
+            "stopOnEntry": false
+        },
+        {
+            "name": "Debug: Detect Projects - Custom Path",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "codeql_wrapper_v2.presentation.cli.detect_projects_command",
+            "args": [
+                "${input:repositoryPath}",
+                "--verbose"
+            ],
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/src"
+            },
+            "justMyCode": false,
+            "stopOnEntry": false
+        },
+        {
+            "name": "Debug: Detect Projects - With Languages",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "codeql_wrapper_v2.presentation.cli.detect_projects_command",
+            "args": [
+                "${input:repositoryPath}",
+                "--languages",
+                "python",
+                "--verbose"
+            ],
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/src"
+            },
+            "justMyCode": false,
+            "stopOnEntry": false
+        },
+        {
+            "name": "Debug: Detect Projects - Only Changed Files",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "codeql_wrapper_v2.presentation.cli.detect_projects_command",
+            "args": [
+                "${input:repositoryPath}",
+                "--changed-files-only",
+                "--base-ref",
+                "main",
+                "--verbose"
+            ],
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/src"
+            },
+            "justMyCode": false,
+            "stopOnEntry": false
+        },
+        {
+            "name": "Debug: CLI Entry Point",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/codeql_wrapper_v2/presentation/cli/detect_projects_command.py",
+            "args": [
+                "detect-projects",
+                "${workspaceFolder}",
+                "--verbose"
+            ],
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/src"
+            },
+            "justMyCode": false,
+            "stopOnEntry": false
+        },
+        {
+            "name": "Debug: Direct Function Call",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/debug_direct_call.py",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/src"
+            },
+            "justMyCode": false,
+            "stopOnEntry": false
+        },
+        {
+            "name": "Debug: Use Case Test",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/debug_use_case.py",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/src"
+            },
+            "justMyCode": false,
+            "stopOnEntry": false
+        }
+    ],
+    "inputs": [
+        {
+            "id": "repositoryPath",
+            "description": "Enter the path to the repository to analyze",
+            "default": "${workspaceFolder}",
+            "type": "promptString"
+        }
+    ]
+}
