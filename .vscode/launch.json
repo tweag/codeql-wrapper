@@ -76,6 +76,43 @@
             "stopOnEntry": false
         },
         {
+            "name": "Debug: Install - Force",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "codeql_wrapper_v2.presentation.cli.codeql_install_command",
+            "args": [
+                "install",
+                "--force",
+                "--verbose"
+            ],
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/src"
+            },
+            "justMyCode": false,
+            "stopOnEntry": false
+        },
+        {
+            "name": "Debug: Install - Version",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "codeql_wrapper_v2.presentation.cli.codeql_install_command",
+            "args": [
+                "install",
+                "--version",
+                "2.22.1",
+                "--verbose"
+            ],
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/src"
+            },
+            "justMyCode": false,
+            "stopOnEntry": false
+        },
+        {
             "name": "Debug: CLI Entry Point",
             "type": "debugpy",
             "request": "launch",

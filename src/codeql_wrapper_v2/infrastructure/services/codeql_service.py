@@ -82,8 +82,8 @@ class CodeQLServiceImpl(CodeQLService):
         self._logger.info("Validating CodeQL installation")
         
         try:
-            # Try to execute 'codeql --version' to check installation
-            result = await self.execute_command(["--version"])
+            # Try to execute 'codeql version --format=json' to check installation
+            result = await self.execute_command(["version", "--format=json"])
             
             if not result.success:
                 self._logger.warning("CodeQL CLI not found or not accessible")
@@ -95,47 +95,33 @@ class CodeQLServiceImpl(CodeQLService):
                     available_latest_version=None
                 )
             
-            # Parse version and installation path from output
-            current_version = self._parse_version_string(result.stdout)
-            installation_path = self._parse_installation_path(result.stdout)
-            
-            if not current_version:
-                self._logger.error("Could not parse CodeQL version from output")
-                return CodeQLInstallationInfo(
-                    is_installed=True,
-                    version=None,
-                    installation_path=installation_path,
-                    is_latest_version=False,
-                    available_latest_version=None
-                )
-            
-            self._logger.info(f"Found CodeQL version: {current_version}")
-            
-            # Try to get latest version for comparison
+            version_data = json.loads(result.stdout)
+            current_version = version_data.get("version", "")
+            installation_path = version_data.get("unpackedLocation", "")
+
+            # Check if this version is the latest by comparing with the expected version
+            # Since we just installed the expected_version, and if no specific version was requested
+            # it means we installed the latest, so it should be marked as latest
             try:
                 latest_version = await self.get_latest_version()
-                is_latest = self._compare_versions(current_version, latest_version) >= 0
-                
-                self._logger.info(f"Latest CodeQL version: {latest_version}")
-                self._logger.info(f"Installation is up to date: {is_latest}")
+                is_latest = current_version == latest_version 
                 
                 return CodeQLInstallationInfo(
                     is_installed=True,
                     version=current_version,
-                    installation_path=installation_path,
+                    installation_path=str(installation_path),
                     is_latest_version=is_latest,
                     available_latest_version=latest_version
                 )
-                
             except Exception as e:
-                self._logger.warning(f"Could not check latest version: {e}")
-                # Return info without latest version comparison
+                self._logger.warning(f"Could not check latest version during verification: {e}")
+                # If we can't check latest version, assume it's latest since we just installed
                 return CodeQLInstallationInfo(
                     is_installed=True,
                     version=current_version,
-                    installation_path=installation_path,
-                    is_latest_version=True,  # Assume latest if we can't check
-                    available_latest_version=None
+                    installation_path=str(installation_path),
+                    is_latest_version=True,
+                    available_latest_version=current_version
                 )
                 
         except Exception as e:
@@ -753,13 +739,32 @@ class CodeQLServiceImpl(CodeQLService):
             
             # Parse version output
             version_data = json.loads(result.stdout)
-            installed_version = version_data.get("productVersion", "unknown")
+            installed_version = version_data.get("version", "unknown")
             
-            return CodeQLInstallationInfo(
-                is_installed=True,
-                version=installed_version,
-                installation_path=str(codeql_executable)
-            )
+            # Check if this version is the latest by comparing with the expected version
+            # Since we just installed the expected_version, and if no specific version was requested
+            # it means we installed the latest, so it should be marked as latest
+            try:
+                latest_version = await self.get_latest_version()
+                is_latest = installed_version == latest_version
+                
+                return CodeQLInstallationInfo(
+                    is_installed=True,
+                    version=installed_version,
+                    installation_path=str(codeql_executable),
+                    is_latest_version=is_latest,
+                    available_latest_version=latest_version
+                )
+            except Exception as e:
+                self._logger.warning(f"Could not check latest version during verification: {e}")
+                # If we can't check latest version, assume it's latest since we just installed
+                return CodeQLInstallationInfo(
+                    is_installed=True,
+                    version=installed_version,
+                    installation_path=str(codeql_executable),
+                    is_latest_version=True,
+                    available_latest_version=installed_version
+                )
             
         except Exception as e:
             self._logger.error(f"Error verifying installation at {install_dir}: {e}")
