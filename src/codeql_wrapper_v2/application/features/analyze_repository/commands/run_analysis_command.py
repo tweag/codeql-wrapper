@@ -1,7 +1,7 @@
 """Command for running CodeQL analysis."""
 
 from dataclasses import dataclass
-from typing import Optional, Set, List
+from typing import Optional, Set
 from pathlib import Path
 
 

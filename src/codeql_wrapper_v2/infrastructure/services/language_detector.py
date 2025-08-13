@@ -2,7 +2,7 @@
 
 import logging
 from pathlib import Path
-from typing import Dict, List, Optional, Set
+from typing import Dict, Optional, Set
 
 from codeql_wrapper_v2.domain.enumerators.language import Language
 from codeql_wrapper_v2.domain.interfaces.project_detector import LanguageDetector

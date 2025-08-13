@@ -89,28 +89,7 @@ class ProjectDetectorImpl(ProjectDetector):
         except Exception as e:
             self._logger.error(f"Monorepo detection failed for {repository_path}: {e}")
             return False
-    
-    async def validate_project_structure(self, project_path: Path) -> bool:
-        """
-        Validate that a path contains a valid project structure.
-        
-        Args:
-            project_path: Path to potential project
-            
-        Returns:
-            True if path contains a valid project
-        """
-        try:
-            if not project_path.exists() or not project_path.is_dir():
-                return False
-            
-            # Check for project indicators
-            return await self._has_project_indicators(project_path)
-            
-        except Exception as e:
-            self._logger.error(f"Project validation failed for {project_path}: {e}")
-            return False
-    
+
     async def _has_project_indicators(self, directory_path: Path) -> bool:
         """Check if a directory has indicators of being a project."""
         try:

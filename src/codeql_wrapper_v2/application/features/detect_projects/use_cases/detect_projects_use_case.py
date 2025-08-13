@@ -1,15 +1,13 @@
 """Use case for detecting projects within a repository."""
 
-import json
 import logging
 from pathlib import Path
-from typing import Dict, List, Optional, Set, Any
+from typing import List, Optional
 
 from codeql_wrapper_v2.domain.entities.detect_projects_request import DetectProjectsRequest
 from codeql_wrapper_v2.domain.entities.detect_projects_result import DetectProjectsResult
 from codeql_wrapper_v2.domain.entities.project import Project
 from codeql_wrapper_v2.domain.entities.repository import Repository
-from codeql_wrapper_v2.domain.enumerators.language import Language
 from codeql_wrapper_v2.domain.interfaces.project_detector import ProjectDetector, LanguageDetector
 from codeql_wrapper_v2.domain.interfaces.configuration_reader import ConfigurationReader, FileSystemAnalyzer
 from codeql_wrapper_v2.domain.services.project_detection_service import ProjectDetectionDomainService

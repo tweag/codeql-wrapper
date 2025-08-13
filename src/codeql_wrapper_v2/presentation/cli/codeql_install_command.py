@@ -2,7 +2,6 @@
 
 import asyncio
 import logging
-import os
 import sys
 from typing import Optional
 
@@ -12,7 +11,6 @@ from .detect_projects_command import detect_projects
 from ...infrastructure.services.codeql_service import create_codeql_service
 from ...application.features.install_codeql.use_cases.install_codeql_use_case import InstallCodeQLUseCase
 from ...domain.entities.install_codeql_request import InstallCodeQLRequest
-from ...domain.constants.codeql_constants import CodeQLConstants
 from ...domain.exceptions.codeql_exceptions import (
     CodeQLError,
     CodeQLInstallationError

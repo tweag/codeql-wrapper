@@ -13,7 +13,7 @@ import tempfile
 import tarfile
 import zipfile
 from pathlib import Path
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict
 import aiohttp
 
 from ...domain.interfaces.codeql_service import (

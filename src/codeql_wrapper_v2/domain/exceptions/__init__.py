@@ -14,12 +14,6 @@ from .validation_exceptions import (
     LanguageValidationError,
     PathValidationError
 )
-from .ci_exceptions import (
-    CIDetectionError,
-    UnsupportedCIPlatformError,
-    InvalidCIEnvironmentError,
-    MissingEnvironmentVariablesError
-)
 from .codeql_exceptions import (
     CodeQLError,
     CodeQLNotInstalledError,
@@ -45,12 +39,6 @@ __all__ = [
     "ProjectValidationError",
     "LanguageValidationError",
     "PathValidationError",
-    
-    # CI exceptions
-    "CIDetectionError",
-    "UnsupportedCIPlatformError",
-    "InvalidCIEnvironmentError",
-    "MissingEnvironmentVariablesError",
     
     # CodeQL exceptions
     "CodeQLError",

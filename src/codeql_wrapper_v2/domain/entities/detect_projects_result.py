@@ -29,17 +29,6 @@ class DetectProjectsResult:
         """Get the number of detected projects."""
         return len(self.detected_projects)
     
-    def get_projects_by_language(self, language_identifier: str) -> List[Project]:
-        """Get projects that contain a specific language."""
-        return [
-            project for project in self.detected_projects
-            if language_identifier in project.get_codeql_languages()
-        ]
-    
-    def get_project_names(self) -> List[str]:
-        """Get a list of all project names."""
-        return [project.name for project in self.detected_projects]
-    
     def get_summary(self) -> str:
         """Get a human-readable summary of the detection results."""
         if not self.is_successful():

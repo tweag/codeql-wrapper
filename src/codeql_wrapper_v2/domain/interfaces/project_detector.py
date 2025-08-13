@@ -39,19 +39,6 @@ class ProjectDetector(ABC):
             True if repository contains multiple projects
         """
         pass
-    
-    @abstractmethod
-    async def validate_project_structure(self, project_path: Path) -> bool:
-        """
-        Validate that a path contains a valid project structure.
-        
-        Args:
-            project_path: Path to potential project
-            
-        Returns:
-            True if path contains a valid project
-        """
-        pass
 
 
 class LanguageDetector(ABC):
