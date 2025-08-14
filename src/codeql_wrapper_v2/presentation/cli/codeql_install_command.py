@@ -20,7 +20,7 @@ from ..dto.cli_output import (
     InstallationOutput,
     OutputStatus
 )
-from ..formatters.output_formatter import OutputRenderer
+from ..formatters.output_renderer import OutputRenderer
 
 @click.command(name="install")
 @click.option(

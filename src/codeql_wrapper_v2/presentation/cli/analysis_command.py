@@ -19,7 +19,7 @@ from codeql_wrapper_v2.infrastructure.services.codeql_service import create_code
 from codeql_wrapper_v2.infrastructure.services.language_detector import LanguageDetectorImpl
 from codeql_wrapper_v2.infrastructure.services.project_detector import ProjectDetectorImpl
 from codeql_wrapper_v2.presentation.dto.cli_output import AnalyzeOutput, OutputStatus
-from codeql_wrapper_v2.presentation.formatters.output_formatter import OutputRenderer
+from codeql_wrapper_v2.presentation.formatters.output_renderer import OutputRenderer
 
 from ...application.features.analyze_repository.use_cases.run_codeql_analysis_use_case import AnalyzeRepositoryUseCase
 from ...domain.entities.analysis_result import RepositoryAnalysisResult

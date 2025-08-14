@@ -15,7 +15,7 @@ from codeql_wrapper_v2.infrastructure.file_system.configuration_reader import Js
 from codeql_wrapper_v2.infrastructure.services.language_detector import LanguageDetectorImpl
 from codeql_wrapper_v2.infrastructure.services.project_detector import ProjectDetectorImpl
 from codeql_wrapper_v2.presentation.dto.cli_output import DetectionOutput, OutputStatus
-from codeql_wrapper_v2.presentation.formatters.output_formatter import OutputRenderer
+from codeql_wrapper_v2.presentation.formatters.output_renderer import OutputRenderer
 
 @click.command(name="detect-projects")
 @click.argument('repository_path', type=click.Path(exists=True, file_okay=False, dir_okay=True))
