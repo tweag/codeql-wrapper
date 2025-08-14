@@ -17,14 +17,7 @@ from codeql_wrapper_v2.infrastructure.services.project_detector import ProjectDe
 from codeql_wrapper_v2.presentation.dto.cli_output import DetectionOutput, OutputStatus
 from codeql_wrapper_v2.presentation.formatters.output_formatter import OutputRenderer
 
-
-@click.group()
-def codeql():
-    """CodeQL CLI management commands for detecting projects in repositories."""
-    pass
-
-
-@codeql.command()
+@click.command(name="detect-projects")
 @click.argument('repository_path', type=click.Path(exists=True, file_okay=False, dir_okay=True))
 @click.option('--monorepo', is_flag=True, help='Treat as monorepo and detect multiple projects')
 @click.option('--languages', help='Comma-separated list of target languages (e.g., python,javascript)')

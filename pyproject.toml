@@ -45,7 +45,7 @@ pytest-xdist = "^3.8.0"
 
 [tool.poetry.scripts]
 codeql-wrapper = "codeql_wrapper.entrypoints.cli:cli"
-codeql-wrapper-v2 = "codeql_wrapper_v2.presentation.cli.codeql_install_command:codeql"
+codeql-wrapper-v2 = "codeql_wrapper_v2.presentation.cli.main:cli"
 
 [tool.black]
 line-length = 88

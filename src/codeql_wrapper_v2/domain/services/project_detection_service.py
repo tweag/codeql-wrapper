@@ -152,7 +152,7 @@ class ProjectDetectionDomainService:
             target_language=target_language,
             build_mode=config.get("build-mode", "none"),
             build_script_path=build_script_path,
-            queries=config.get("queries", [])
+            query_pack=config.get("query-pack", None)
         )
     
     async def _create_project_from_directory(
@@ -215,7 +215,7 @@ class ProjectDetectionDomainService:
                         target_language=project.target_language if project.target_language in matching_languages else None,
                         build_mode=project.build_mode,
                         build_script_path=project.build_script_path,
-                        queries=project.queries
+                        query_pack=project.query_pack
                     )
                     filtered_projects.append(filtered_project)
         

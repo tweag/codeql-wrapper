@@ -24,7 +24,6 @@ src/codeql_wrapper_v2/
 ├── application/              # Use cases and business workflows
 │   └── features/             # Feature-based organization
 │       ├── install_codeql/   # CodeQL installation feature
-│       │   ├── commands/     # Command DTOs
 │       │   └── use_cases/    # Business logic orchestration
 │       ├── analyze_repository/ # Repository analysis feature
 │       └── detect_projects/  # Project detection feature

@@ -5,7 +5,7 @@ import sys
 from typing import Dict, Any
 from abc import ABC, abstractmethod
 
-from ..dto.cli_output import CLIOutput, InstallationOutput, OutputStatus, DetectionOutput
+from ..dto.cli_output import AnalyzeOutput, CLIOutput, InstallationOutput, OutputStatus, DetectionOutput
 
 
 class OutputFormatter(ABC):
@@ -40,6 +40,9 @@ class HumanReadableFormatter(OutputFormatter):
         # Special handling for InstallationOutput
         if isinstance(output, InstallationOutput) and output.status == OutputStatus.SUCCESS:
             return self._format_installation_results(output)
+        
+        if isinstance(output, AnalyzeOutput) and output.status == OutputStatus.SUCCESS:
+            return self._format_analyze_results(output)
 
         # Default formatting for other outputs
         return self._format_default(output)
@@ -172,6 +175,95 @@ class HumanReadableFormatter(OutputFormatter):
             lines.append("\033[92m✅ CodeQL installed successfully!\033[0m")
         else:
             lines.append("✅ CodeQL installed successfully!")
+        return "\n".join(lines)
+
+    def _format_analyze_results(self, output: AnalyzeOutput) -> str:
+        """Format analyze results in a detailed, user-friendly way."""
+        lines = []
+        
+        # Header
+        lines.append("")
+        lines.append("=" * 60)
+        lines.append("🔍 PROJECT ANALYSIS RESULTS")
+        lines.append("=" * 60)
+        lines.append("")
+        
+        # Repository info
+        lines.append(f"📁 Repository: {output.repository_name}")
+        lines.append(f"📍 Path: {output.repository_path}")
+        repo_type = "Monorepo" if output.is_monorepo else "Single Project"
+        lines.append(f"🗂️  Type: {repo_type}")
+        
+        if output.config_file_used:
+            lines.append(f"⚙️  Config: {output.config_file_used}")
+        
+        lines.append(f"📊 Projects Found: {output.project_count}")
+        
+        # Projects details
+        if output.successful_projects and len(output.successful_projects) > 0:
+            lines.append("")
+            lines.append("-" * 60)
+            lines.append("SUCCESSFUL PROJECT DETAILS")
+            lines.append("-" * 60)
+
+            for i, project in enumerate(output.successful_projects, 1):
+                lines.append(f"\n{i}. {project['name']}")
+                lines.append(f"   📍 Path: {project['path']}")
+                
+                # Languages
+                if project.get('languages'):
+                    lang_str = ', '.join(project['languages'])
+                    lines.append(f"   🔤 Languages: {lang_str}")
+                
+                # Build info
+                if project.get('build_mode', 'none') != 'none':
+                    lines.append(f"   🔨 Build Mode: {project['build_mode']}")
+                
+                if project.get('build_script_path'):
+                    lines.append(f"   📜 Build Script: {project['build_script_path']}")
+                
+                if project.get('query_pack'):
+                    lines.append(f"   🔍 Query Pack: {project['query_pack']}")
+
+                if project.get('sarif_files'):
+                    sarif_files = ', '.join(project['sarif_files'])
+                    lines.append(f"   📄 SARIF Files: {sarif_files}")
+
+        if output.failed_projects and len(output.failed_projects) > 0:
+            lines.append("")
+            lines.append("-" * 60)
+            lines.append("FAILED PROJECT DETAILS")
+            lines.append("-" * 60)
+
+            for i, project in enumerate(output.failed_projects, 1):
+                lines.append(f"\n{i}. {project['name']}")
+                lines.append(f"   📍 Path: {project['path']}")
+                
+                # Languages
+                if project.get('languages'):
+                    lang_str = ', '.join(project['languages'])
+                    lines.append(f"   🔤 Languages: {lang_str}")
+                
+                # Build info
+                if project.get('build_mode', 'none') != 'none':
+                    lines.append(f"   🔨 Build Mode: {project['build_mode']}")
+                
+                if project.get('build_script_path'):
+                    lines.append(f"   📜 Build Script: {project['build_script_path']}")
+                
+                if project.get('queries'):
+                    queries_str = ', '.join(project['queries'])
+                    lines.append(f"   🔍 Queries: {queries_str}")
+
+      
+        
+        # Footer
+        lines.append("\n" + "=" * 60)
+        if self.use_colors:
+            lines.append("\033[92m✅ Analysis completed successfully!\033[0m")
+        else:
+            lines.append("✅ Analysis completed successfully!")
+
         return "\n".join(lines)
 
 class OutputRenderer:

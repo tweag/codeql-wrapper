@@ -1,91 +1,83 @@
-"""Use case for running CodeQL analysis."""
+"""Use case for running CodeQL analysis following v2 architecture patterns."""
 
-from typing import Set
+import logging
+from datetime import datetime
 from pathlib import Path
+from typing import Optional, Set, List
 
-from ....domain.entities.codeql_analysis import (
-    CodeQLAnalysisRequest,
-    RepositoryAnalysisSummary,
-    CodeQLLanguage
-)
-from ....domain.use_cases.codeql_analysis_use_case import CodeQLAnalysisUseCase
-from ....infrastructure.git_utils import GitUtils
-from ....infrastructure.logger import get_logger
-from ..commands.run_analysis_command import RunAnalysisCommand
+from codeql_wrapper_v2.domain.entities.project import Project
+from codeql_wrapper_v2.domain.enumerators.analysis_status import AnalysisStatus
+
+from .....domain.entities.analyze_repository_request import AnalyzeRepositoryRequest
+from .....domain.entities.analysis_result import ProjectAnalysisResult, RepositoryAnalysisResult
+from .....domain.interfaces.analysis_service import AnalysisService
+from .....domain.interfaces.codeql_service import CodeQLService
+from .....domain.interfaces.project_detector import ProjectDetector
+from .....domain.enumerators.language import Language
+from .....domain.exceptions.analysis_exceptions import AnalysisError
 
 
-class RunCodeQLAnalysisUseCase:
-    """Use case for executing end-to-end CodeQL analysis."""
+class AnalyzeRepositoryUseCase:
+    """Use case for analyzing repositories with CodeQL following v2 architecture."""
     
-    def __init__(self) -> None:
-        """Initialize the use case."""
-        self._logger = get_logger(__name__)
+    def __init__(
+        self,
+        analysis_service: AnalysisService,
+        logger: Optional[logging.Logger] = None
+    ) -> None:
+        """Initialize the use case with dependencies."""
+        self._analysis_service = analysis_service
+        self._logger = logger or logging.getLogger(__name__)
     
-    async def execute(self, command: RunAnalysisCommand) -> RepositoryAnalysisSummary:
-        """Execute the complete analysis workflow."""
-        try:
-            # Convert command to analysis request
-            repository_path = Path(command.repository_path)
+    async def execute(
+        self,
+        request: AnalyzeRepositoryRequest
+    ) -> RepositoryAnalysisResult:
+        """
+        Execute codeql analysis on a list of projects.
+                
+        Args:
+            request: AnalyzeRepositoryRequest containing analysis parameters
             
-            # Get git information
-            git_utils = GitUtils(repository_path)
-            git_info = git_utils.get_git_info(
-                base_ref=command.base_ref,
-                current_ref=command.current_ref
+        Returns:
+            RepositoryAnalysisResult with analysis summary
+            
+        Raises:
+            AnalysisError: If analysis fails
+        """
+        try:    
+            failed_projects: list[ProjectAnalysisResult] = []
+            successful_projects: list[ProjectAnalysisResult] = []
+
+            for project in request.projects:
+                try:
+
+                    self._logger.info(f"Analyzing project: {project.name} at {project.project_path}")
+
+                    result = await self._analysis_service.analyze_project(project, request)
+                    successful_projects.append(result)
+                except Exception as e:
+                    self._logger.error(f"Analysis failed for project {project.name}: {str(e)}")
+                    failed_projects.append(ProjectAnalysisResult(
+                        project=project,
+                        error_message=str(e),
+                        status=AnalysisStatus.FAILED
+                    ))
+                    continue
+
+       
+            usecase_result = RepositoryAnalysisResult(
+                successful_projects=successful_projects,
+                failed_projects=failed_projects
             )
-            
-            # Convert language strings to CodeQL language enums
-            target_languages = None
-            if command.languages:
-                target_languages = self._parse_languages(command.languages)
-            
-            # Create analysis request
-            request = CodeQLAnalysisRequest(
-                repository_path=repository_path,
-                git_info=git_info,
-                target_languages=target_languages,
-                output_directory=Path(command.output_directory) if command.output_directory else None,
-                verbose=command.verbose,
-                force_install=command.force_install,
-                monorepo=command.monorepo,
-                max_workers=command.max_workers,
-                only_changed_files=command.only_changed_files
-            )
-            
-            # Execute analysis using the domain use case
-            analysis_use_case = CodeQLAnalysisUseCase(self._logger)
-            result = analysis_use_case.execute(request)
-            
-            return result
+
+            return usecase_result
             
         except Exception as e:
-            self._logger.error(f"CodeQL analysis failed: {e}")
-            raise
+            self._logger.error(f"Repository analysis failed: {str(e)}")
+            return RepositoryAnalysisResult(
+                failed_projects = [],
+                successful_projects = [],
+                error_message=str(e)
+            )
     
-    def _parse_languages(self, languages: Set[str]) -> Set[CodeQLLanguage]:
-        """Parse language strings to CodeQL language enums."""
-        target_languages = set()
-        
-        # Language mapping
-        language_mapping = {
-            "javascript": CodeQLLanguage.JAVASCRIPT,
-            "typescript": CodeQLLanguage.TYPESCRIPT,
-            "python": CodeQLLanguage.PYTHON,
-            "java": CodeQLLanguage.JAVA,
-            "csharp": CodeQLLanguage.CSHARP,
-            "cpp": CodeQLLanguage.CPP,
-            "go": CodeQLLanguage.GO,
-            "ruby": CodeQLLanguage.RUBY,
-            "swift": CodeQLLanguage.SWIFT,
-            "kotlin": CodeQLLanguage.KOTLIN,
-            "actions": CodeQLLanguage.ACTIONS,
-        }
-        
-        for lang in languages:
-            lang = lang.strip().lower()
-            if lang in language_mapping:
-                target_languages.add(language_mapping[lang])
-            else:
-                self._logger.warning(f"Unsupported language: {lang}")
-        
-        return target_languages

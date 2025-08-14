@@ -113,6 +113,44 @@
             "stopOnEntry": false
         },
         {
+            "name": "Debug: Analyze Monorepo Only Changed Files - CodeQL Wrapper Test Repo",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "codeql_wrapper_v2.presentation.cli.analysis_command",
+            "args": [
+                "/Volumes/Mateus/Github/GHAS-Training/poc-codeql-wrapper",
+                "--changed-files-only",
+                "--base-ref",
+                "main",
+                "--monorepo",
+                "--verbose"
+            ],
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/src"
+            },
+            "justMyCode": false,
+            "stopOnEntry": false
+        },
+        {
+            "name": "Debug: Analyze Monorepo - CodeQL Wrapper Test Repo",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "codeql_wrapper_v2.presentation.cli.analysis_command",
+            "args": [
+                "/Volumes/Mateus/Github/GHAS-Training/poc-codeql-wrapper",
+                "--monorepo"
+            ],
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/src"
+            },
+            "justMyCode": false,
+            "stopOnEntry": false
+        },
+        {
             "name": "Debug: CLI Entry Point",
             "type": "debugpy",
             "request": "launch",

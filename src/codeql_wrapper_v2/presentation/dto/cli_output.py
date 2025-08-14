@@ -94,3 +94,40 @@ class DetectionOutput(CLIOutput):
             result["detection"] = detection_details
             
         return result
+    
+@dataclass(frozen=True)
+class AnalyzeOutput(CLIOutput):
+    """Output for project analysis operations."""
+
+    repository_name: Optional[str] = None
+    repository_path: Optional[str] = None
+    is_monorepo: Optional[bool] = None
+    project_count: Optional[int] = None
+    config_file_used: Optional[str] = None
+    successful_projects: Optional[list] = None
+    failed_projects: Optional[list] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary with analysis-specific details."""
+        result = super().to_dict()
+
+        analysis_details = {}
+        if self.repository_name:
+            analysis_details["repository_name"] = self.repository_name
+        if self.repository_path:
+            analysis_details["repository_path"] = self.repository_path
+        if self.is_monorepo is not None:
+            analysis_details["is_monorepo"] = self.is_monorepo
+        if self.project_count is not None:
+            analysis_details["project_count"] = self.project_count
+        if self.config_file_used:
+            analysis_details["config_file_used"] = self.config_file_used
+        if self.successful_projects:
+            analysis_details["successful_projects"] = self.successful_projects
+        if self.failed_projects:
+            analysis_details["failed_projects"] = self.failed_projects
+
+        if analysis_details:
+            result["analysis"] = analysis_details
+
+        return result

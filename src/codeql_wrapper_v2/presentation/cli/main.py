@@ -2,7 +2,9 @@
 
 import click
 
-from .codeql_install_command import codeql
+from .codeql_install_command import install
+from .detect_projects_command import detect_projects
+from .analysis_command import analyze
 
 
 @click.group()
@@ -15,23 +17,21 @@ def cli():
     
     Examples:
         # Install CodeQL
-        codeql-wrapper codeql install
+        codeql-wrapper-v2 codeql install
         
-        # Analyze a project
-        codeql-wrapper analyze --project-path ./my-project
-        
+        # Analyze a repository
+        codeql-wrapper-v2 analyze --repository-path ./my-project --languages python
+
         # Detect projects in repository
-        codeql-wrapper project detect --repository-path ./
+        codeql-wrapper-v2 detect-projects --repository-path ./
     """
     pass
 
 
 # Add command groups
-cli.add_command(codeql)
-# TODO: Uncomment when these commands are implemented
-# cli.add_command(analysis)  
-# cli.add_command(project)
-
+cli.add_command(install)
+cli.add_command(detect_projects)
+cli.add_command(analyze)
 
 if __name__ == "__main__":
     cli()

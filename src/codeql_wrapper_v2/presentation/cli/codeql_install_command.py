@@ -22,14 +22,7 @@ from ..dto.cli_output import (
 )
 from ..formatters.output_formatter import OutputRenderer
 
-
-@click.group()
-def codeql():
-    """CodeQL CLI management commands."""
-    pass
-
-
-@codeql.command()
+@click.command(name="install")
 @click.option(
     "--version", 
     "-v",
@@ -208,10 +201,5 @@ async def _run_install(command: InstallCommand, renderer: OutputRenderer) -> Non
         renderer.render(output)
         sys.exit(1)
 
-
-# Add detect-projects command to the group
-codeql.add_command(detect_projects)
-
-
 if __name__ == "__main__":
-    codeql()
+    install()

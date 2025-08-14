@@ -97,7 +97,7 @@ class CodeQLServiceImpl(CodeQLService):
             
             version_data = json.loads(result.stdout)
             current_version = version_data.get("version", "")
-            installation_path = version_data.get("unpackedLocation", "")
+            installation_path = Path(version_data.get("unpackedLocation", ""),"codeql")
 
             # Check if this version is the latest by comparing with the expected version
             # Since we just installed the expected_version, and if no specific version was requested
