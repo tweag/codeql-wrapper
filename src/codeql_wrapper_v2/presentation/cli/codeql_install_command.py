@@ -15,7 +15,7 @@ from ...domain.exceptions.codeql_exceptions import (
     CodeQLError,
     CodeQLInstallationError
 )
-from ..dto.cli_input_dto import InstallCommand
+from ..dto.cli_input import InstallCommand
 from ..dto.cli_output import (
     InstallationOutput,
     OutputStatus
