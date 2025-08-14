@@ -143,7 +143,7 @@ class ProjectDetectionDomainService:
         build_script_path = None
         if config.get("build-script"):
             build_script_path = request.repository_path / config["build-script"]
-        
+
         return Project(
             name=project_path.name,
             project_path=project_path,

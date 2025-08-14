@@ -64,7 +64,7 @@ class JsonConfigurationReader(ConfigurationReader):
                     
                     # Validate optional fields
                     valid_fields = {
-                        "path", "build-mode", "build-script", "query_pack", "language", "languages"
+                        "path", "build-mode", "build-script", "queries", "language", "languages"
                     }
                     for field in project.keys():
                         if field not in valid_fields:

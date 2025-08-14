@@ -55,7 +55,10 @@ class AnalyzeRepositoryUseCase:
                     self._logger.info(f"Analyzing project: {project.name} at {project.project_path}")
 
                     result = await self._analysis_service.analyze_project(project, request)
-                    successful_projects.append(result)
+                    if result.status == AnalysisStatus.FAILED:
+                        failed_projects.append(result)
+                    else:
+                        successful_projects.append(result)
                 except Exception as e:
                     self._logger.error(f"Analysis failed for project {project.name}: {str(e)}")
                     failed_projects.append(ProjectAnalysisResult(

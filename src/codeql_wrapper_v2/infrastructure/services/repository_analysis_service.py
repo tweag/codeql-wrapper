@@ -58,12 +58,18 @@ class ProjectAnalysisServiceImpl(AnalysisService):
                 codeql_path = "codeql"
 
             # Analyze each language
-            for language in project.detected_languages:
+            if project.target_language is not None:
                 lang_output_files = await self._analyze_language(
-                    project, language, codeql_path, project_output_dir
+                    project, project.target_language, codeql_path, project_output_dir
                 )
                 output_files.extend(lang_output_files)
-            
+            else:
+                for language in project.detected_languages:
+                    lang_output_files = await self._analyze_language(
+                        project, language, codeql_path, project_output_dir
+                    )
+                    output_files.extend(lang_output_files)
+
             return ProjectAnalysisResult(
                 project=project,
                 status=AnalysisStatus.COMPLETED,
@@ -101,8 +107,7 @@ class ProjectAnalysisServiceImpl(AnalysisService):
             return  [sarif_file]
             
         except Exception as e:
-            self._logger.warning(f"    Failed to analyze {language.get_codeql_identifier()} from {project.name}: {str(e)}")
-            return []
+            raise AnalysisError(f"Failed to analyze {language.get_codeql_identifier()} from {project.name}: {str(e)}")
 
     async def _create_database(self, codeql_path: str, project: Project, language: Language, db_path: Path) -> None:
         """Create CodeQL database for a project."""

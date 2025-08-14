@@ -41,7 +41,7 @@ class HumanReadableFormatter(OutputFormatter):
         if isinstance(output, InstallationOutput) and output.status == OutputStatus.SUCCESS:
             return self._format_installation_results(output)
         
-        if isinstance(output, AnalyzeOutput) and output.status == OutputStatus.SUCCESS:
+        if isinstance(output, AnalyzeOutput):
             return self._format_analyze_results(output)
 
         # Default formatting for other outputs
@@ -254,8 +254,9 @@ class HumanReadableFormatter(OutputFormatter):
                 if project.get('queries'):
                     lines.append(f"   🔍 Queries: {', '.join(project['queries'])}")
 
-      
-        
+                if project.get('error_message'):
+                    lines.append(f"   ❌ Error: {project['error_message']}")
+
         # Footer
         lines.append("\n" + "=" * 60)
         if self.use_colors:
