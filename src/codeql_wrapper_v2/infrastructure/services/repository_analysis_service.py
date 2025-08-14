@@ -96,7 +96,7 @@ class ProjectAnalysisServiceImpl(AnalysisService):
             await self._create_database(codeql_path, project, language, db_path)
             
             # Step 2: Analyze database
-            await self._analyze_database(codeql_path, db_path, sarif_file, language, project.query_pack)
+            await self._analyze_database(codeql_path, db_path, sarif_file, language, project.queries)
             
             return  [sarif_file]
             
@@ -141,21 +141,25 @@ class ProjectAnalysisServiceImpl(AnalysisService):
             self._logger.error(error_msg)
             raise AnalysisError(error_msg)
 
-    async def _analyze_database(self, codeql_path: str, db_path: Path, sarif_file: Path, language: Language, query_pack: Optional[str]) -> None:
+    async def _analyze_database(self, codeql_path: str, db_path: Path, sarif_file: Path, language: Language, queries: List[str] = []) -> None:
         """Run CodeQL analysis on a database."""
         lang_id = language.get_codeql_identifier()
 
-        if not query_pack:
-            query_pack = f"{lang_id}-code-scanning"
+        if not queries:
+            queries = [f"{lang_id}-code-scanning"]
+
 
         cmd = [
             codeql_path, "database", "analyze",
             str(db_path),
-            query_pack,
-            f"--format=sarif-latest",
-            f"--output={sarif_file}"
         ]
+
+        for query in queries:
+            cmd.append(query)
         
+        cmd.append("--format=sarif-latest")
+        cmd.append(f"--output={sarif_file}")
+
         self._logger.debug(f"Analyzing database: {' '.join(cmd)}")
         
         process = await asyncio.create_subprocess_exec(

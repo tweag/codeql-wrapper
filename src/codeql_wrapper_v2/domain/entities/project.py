@@ -25,7 +25,7 @@ class Project:
     build_script_path: Optional[Path] = None
     
     # Analysis configuration
-    query_pack: Optional[str] = None
+    queries: List[str] = field(default_factory=list)
     
     # Project metadata
     framework: Optional[str] = None

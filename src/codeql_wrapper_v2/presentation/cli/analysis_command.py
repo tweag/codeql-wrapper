@@ -223,8 +223,8 @@ def analyze(
                     }
                     if analysis.project.build_script_path:
                         project_data["build_script_path"] = str(analysis.project.build_script_path)
-                    if analysis.project.query_pack:
-                        project_data["query_pack"] = analysis.project.query_pack
+                    if analysis.project.queries:
+                        project_data["queries"] = analysis.project.queries
                     successful_projects.append(project_data)
 
                 for analysis in result.failed_projects:
@@ -236,8 +236,8 @@ def analyze(
                     }
                     if analysis.project.build_script_path:
                         project_data["build_script_path"] = str(analysis.project.build_script_path)
-                    if analysis.project.query_pack:
-                        project_data["query_pack"] = analysis.project.query_pack
+                    if analysis.project.queries:
+                        project_data["queries"] = analysis.project.queries
                     failed_projects.append(project_data)
 
                 output = AnalyzeOutput(

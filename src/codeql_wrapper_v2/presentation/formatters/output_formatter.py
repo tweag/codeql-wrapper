@@ -222,8 +222,8 @@ class HumanReadableFormatter(OutputFormatter):
                 if project.get('build_script_path'):
                     lines.append(f"   📜 Build Script: {project['build_script_path']}")
                 
-                if project.get('query_pack'):
-                    lines.append(f"   🔍 Query Pack: {project['query_pack']}")
+                if project.get('queries'):
+                    lines.append(f"   🔍 Queries: {', '.join(project['queries'])}")
 
                 if project.get('sarif_files'):
                     sarif_files = ', '.join(project['sarif_files'])
@@ -252,8 +252,7 @@ class HumanReadableFormatter(OutputFormatter):
                     lines.append(f"   📜 Build Script: {project['build_script_path']}")
                 
                 if project.get('queries'):
-                    queries_str = ', '.join(project['queries'])
-                    lines.append(f"   🔍 Queries: {queries_str}")
+                    lines.append(f"   🔍 Queries: {', '.join(project['queries'])}")
 
       
         
