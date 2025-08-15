@@ -8,8 +8,8 @@ from typing import Optional
 import click
 
 from .detect_projects_command import detect_projects
-from ...infrastructure.services.codeql_service import create_codeql_service
-from ...application.features.install_codeql.use_cases.install_codeql_use_case import InstallCodeQLUseCase
+from ...infrastructure.dependency_injection import get_service_registry
+from ...application.use_cases.install_codeql_use_case import InstallCodeQLUseCase
 from ...domain.entities.install_codeql_request import InstallCodeQLRequest
 from ...domain.exceptions.codeql_exceptions import (
     CodeQLError,
@@ -123,17 +123,16 @@ def install(
 async def _run_install(command: InstallCommand, renderer: OutputRenderer) -> None:
     """Execute the installation command."""
     try:
-        # Create service with configuration
-        service = create_codeql_service(
+        # Get service registry and configure services
+        registry = get_service_registry()
+        registry.configure(
             installation_directory=command.installation_directory,
             github_token=command.github_token
         )
         
-        # Create logger
-        logger = logging.getLogger(__name__)
-        
-        # Create use case
-        use_case = InstallCodeQLUseCase(service, logger)
+        # Get the DI container and resolve the use case
+        container = registry.get_container()
+        use_case = container.get(InstallCodeQLUseCase)
         
         # Convert CLI command to domain request
         request = InstallCodeQLRequest(

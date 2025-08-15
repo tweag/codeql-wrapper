@@ -3,9 +3,9 @@
 import logging
 from typing import Optional
 
-from .....domain.entities.install_codeql_request import InstallCodeQLRequest
-from .....domain.interfaces.codeql_service import CodeQLService, CodeQLInstallationInfo
-from .....domain.exceptions.codeql_exceptions import CodeQLError, CodeQLInstallationError
+from ...domain.entities.install_codeql_request import InstallCodeQLRequest
+from ...domain.interfaces.codeql_service import CodeQLService, CodeQLInstallationInfo
+from ...domain.exceptions.codeql_exceptions import CodeQLError, CodeQLInstallationError
 
 
 class InstallCodeQLUseCase:

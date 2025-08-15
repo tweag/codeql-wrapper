@@ -236,7 +236,7 @@ class HumanReadableFormatter(BaseFormatter):
 
         if sarif_files:
             sarif_files_str = ', '.join(sarif_files)
-            lines.append(f"  - Queries: {sarif_files_str}")
+            lines.append(f"  - Sarif files: {sarif_files_str}")
 
         return lines
     

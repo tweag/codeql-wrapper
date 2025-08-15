@@ -8,14 +8,11 @@ from typing import List, Optional
 
 import click
 
-from codeql_wrapper_v2.application.features.detect_projects.use_cases.detect_projects_use_case import DetectProjectsUseCase
+from codeql_wrapper_v2.infrastructure.dependency_injection import get_service_registry
+from codeql_wrapper_v2.application.use_cases.detect_projects_use_case import DetectProjectsUseCase
 from codeql_wrapper_v2.domain.entities.detect_projects_request import DetectProjectsRequest
 from codeql_wrapper_v2.domain.enumerators.language import Language
 from codeql_wrapper_v2.domain.exceptions.validation_exceptions import ValidationError
-from codeql_wrapper_v2.infrastructure.file_system.file_system_analyzer import FileSystemAnalyzerImpl
-from codeql_wrapper_v2.infrastructure.file_system.configuration_reader import JsonConfigurationReader
-from codeql_wrapper_v2.infrastructure.services.language_detector import LanguageDetectorImpl
-from codeql_wrapper_v2.infrastructure.services.project_detector import ProjectDetectorImpl
 from ..dto.cli_input import DetectProjectsCommand
 from codeql_wrapper_v2.presentation.dto.cli_output import DetectionOutput, OutputStatus
 from codeql_wrapper_v2.presentation.formatters.output_renderer import OutputRenderer
@@ -96,6 +93,10 @@ async def _run_detection(command: DetectProjectsCommand, renderer: OutputRendere
         
         logger = logging.getLogger(__name__)
         
+        # Get service registry and configure services
+        registry = get_service_registry()
+        registry.configure()
+        
         # Show initial message if not quiet
         if not command.quiet:
             renderer.render(DetectionOutput(
@@ -129,25 +130,9 @@ async def _run_detection(command: DetectProjectsCommand, renderer: OutputRendere
             ref=command.ref
         )
         
-        # Create dependencies
-        file_system_analyzer = FileSystemAnalyzerImpl(logger)
-        config_reader = JsonConfigurationReader(logger)
-        language_detector = LanguageDetectorImpl(logger)
-        project_detector = ProjectDetectorImpl(
-            language_detector=language_detector,
-            config_reader=config_reader,
-            file_system_analyzer=file_system_analyzer,
-            logger=logger
-        )
-        
-        # Create use case
-        use_case = DetectProjectsUseCase(
-            project_detector=project_detector,
-            language_detector=language_detector,
-            config_reader=config_reader,
-            file_system_analyzer=file_system_analyzer,
-            logger=logger
-        )
+        # Get use case from DI container
+        container = registry.get_container()
+        use_case = container.get(DetectProjectsUseCase)
         
         # Execute detection
         result = await use_case.execute(request)

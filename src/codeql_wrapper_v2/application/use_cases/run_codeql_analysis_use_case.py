@@ -8,13 +8,13 @@ from typing import Optional, Set, List
 from codeql_wrapper_v2.domain.entities.project import Project
 from codeql_wrapper_v2.domain.enumerators.analysis_status import AnalysisStatus
 
-from .....domain.entities.analyze_repository_request import AnalyzeRepositoryRequest
-from .....domain.entities.analysis_result import ProjectAnalysisResult, RepositoryAnalysisResult
-from .....domain.interfaces.analysis_service import AnalysisService
-from .....domain.interfaces.codeql_service import CodeQLService
-from .....domain.interfaces.project_detector import ProjectDetector
-from .....domain.enumerators.language import Language
-from .....domain.exceptions.analysis_exceptions import AnalysisError
+from ...domain.entities.analyze_repository_request import AnalyzeRepositoryRequest
+from ...domain.entities.analysis_result import ProjectAnalysisResult, RepositoryAnalysisResult
+from ...domain.interfaces.analysis_service import AnalysisService
+from ...domain.interfaces.codeql_service import CodeQLService
+from ...domain.interfaces.project_detector import ProjectDetector
+from ...domain.enumerators.language import Language
+from ...domain.exceptions.analysis_exceptions import AnalysisError
 
 
 class AnalyzeRepositoryUseCase:

@@ -7,24 +7,19 @@ import sys
 from pathlib import Path
 from typing import List, Optional
 
-from codeql_wrapper_v2.application.features.detect_projects.use_cases.detect_projects_use_case import DetectProjectsUseCase
-from codeql_wrapper_v2.application.features.install_codeql.use_cases.install_codeql_use_case import InstallCodeQLUseCase
+from codeql_wrapper_v2.infrastructure.dependency_injection import get_service_registry
+from codeql_wrapper_v2.application.use_cases.detect_projects_use_case import DetectProjectsUseCase
+from codeql_wrapper_v2.application.use_cases.install_codeql_use_case import InstallCodeQLUseCase
+from codeql_wrapper_v2.application.use_cases.run_codeql_analysis_use_case import AnalyzeRepositoryUseCase
 from codeql_wrapper_v2.domain.entities.analyze_repository_request import AnalyzeRepositoryRequest
 from codeql_wrapper_v2.domain.entities.detect_projects_request import DetectProjectsRequest
 from codeql_wrapper_v2.domain.entities.install_codeql_request import InstallCodeQLRequest
 from codeql_wrapper_v2.domain.enumerators.language import Language
 from codeql_wrapper_v2.domain.exceptions.validation_exceptions import ValidationError
-from codeql_wrapper_v2.infrastructure.file_system.configuration_reader import JsonConfigurationReader
-from codeql_wrapper_v2.infrastructure.file_system.file_system_analyzer import FileSystemAnalyzerImpl
-from codeql_wrapper_v2.infrastructure.services.repository_analysis_service import ProjectAnalysisServiceImpl
-from codeql_wrapper_v2.infrastructure.services.codeql_service import create_codeql_service
-from codeql_wrapper_v2.infrastructure.services.language_detector import LanguageDetectorImpl
-from codeql_wrapper_v2.infrastructure.services.project_detector import ProjectDetectorImpl
 from ..dto.cli_input import AnalyzeCommand
 from codeql_wrapper_v2.presentation.dto.cli_output import AnalyzeOutput, OutputStatus
 from codeql_wrapper_v2.presentation.formatters.output_renderer import OutputRenderer
 
-from ...application.features.analyze_repository.use_cases.run_codeql_analysis_use_case import AnalyzeRepositoryUseCase
 from ...domain.entities.analysis_result import RepositoryAnalysisResult
 
 
@@ -123,6 +118,9 @@ def analyze(
     # Set up output renderer
     renderer = OutputRenderer(output_format, use_colors=not no_colors)
     
+    # Run installation
+    asyncio.run(_run_analysis(command, renderer))
+
 async def _run_analysis(command: AnalyzeCommand, renderer: OutputRenderer) -> None:
     """Execute the analysis command."""
     try:
@@ -138,6 +136,13 @@ async def _run_analysis(command: AnalyzeCommand, renderer: OutputRenderer) -> No
         output_directory = Path(command.output_directory) if command.output_directory else Path.cwd()
 
         logger = logging.getLogger(__name__)
+        
+        # Get service registry and configure services
+        registry = get_service_registry()
+        registry.configure()
+        
+        # Get the DI container
+        container = registry.get_container()
         
         # Show initial message if not quiet
         if not command.quiet:
@@ -160,27 +165,10 @@ async def _run_analysis(command: AnalyzeCommand, renderer: OutputRenderer) -> No
                     
             # Remove duplicates
             parsed_languages = list(set(parsed_languages)) if parsed_languages else None
-        
-        # Create dependencies
-        file_system_analyzer = FileSystemAnalyzerImpl(logger)
-        config_reader = JsonConfigurationReader(logger)
-        language_detector = LanguageDetectorImpl(logger)
-        project_detector = ProjectDetectorImpl(
-            language_detector=language_detector,
-            config_reader=config_reader,
-            file_system_analyzer=file_system_analyzer,
-            logger=logger
-        )
-        codeql = create_codeql_service()
-        analysis_service = ProjectAnalysisServiceImpl(
-            codeql_service=codeql,
-            project_detector=project_detector,
-            logger=logger
-        )            
 
         # Execute CodeQL installation if needed
         request = InstallCodeQLRequest()
-        install_use_case = InstallCodeQLUseCase(codeql, logger)
+        install_use_case = container.get(InstallCodeQLUseCase)
         result = await install_use_case.execute(request)
 
         # Execute project detection
@@ -194,14 +182,7 @@ async def _run_analysis(command: AnalyzeCommand, renderer: OutputRenderer) -> No
             ref=command.ref
         )
 
-        detect_project_use_case = DetectProjectsUseCase(
-            project_detector=project_detector,
-            language_detector=language_detector,
-            config_reader=config_reader,
-            file_system_analyzer=file_system_analyzer,
-            logger=logger
-        )
-
+        detect_project_use_case = container.get(DetectProjectsUseCase)
         detected_projects = await detect_project_use_case.execute(detect_request)
 
         # Execute analysis
@@ -213,11 +194,7 @@ async def _run_analysis(command: AnalyzeCommand, renderer: OutputRenderer) -> No
             output_directory=output_directory
         )
 
-        analyze_use_case = AnalyzeRepositoryUseCase(
-            logger=logger,
-            analysis_service=analysis_service,
-        )
-
+        analyze_use_case = container.get(AnalyzeRepositoryUseCase)
         result = await analyze_use_case.execute(analyze_request)
 
         # Convert projects to dictionary format for JSON output
