@@ -3,6 +3,7 @@
 import asyncio
 import click
 import logging
+import sys
 from pathlib import Path
 from typing import List, Optional
 
@@ -12,12 +13,14 @@ from codeql_wrapper_v2.domain.entities.analyze_repository_request import Analyze
 from codeql_wrapper_v2.domain.entities.detect_projects_request import DetectProjectsRequest
 from codeql_wrapper_v2.domain.entities.install_codeql_request import InstallCodeQLRequest
 from codeql_wrapper_v2.domain.enumerators.language import Language
+from codeql_wrapper_v2.domain.exceptions.validation_exceptions import ValidationError
 from codeql_wrapper_v2.infrastructure.file_system.configuration_reader import JsonConfigurationReader
 from codeql_wrapper_v2.infrastructure.file_system.file_system_analyzer import FileSystemAnalyzerImpl
 from codeql_wrapper_v2.infrastructure.services.repository_analysis_service import ProjectAnalysisServiceImpl
 from codeql_wrapper_v2.infrastructure.services.codeql_service import create_codeql_service
 from codeql_wrapper_v2.infrastructure.services.language_detector import LanguageDetectorImpl
 from codeql_wrapper_v2.infrastructure.services.project_detector import ProjectDetectorImpl
+from ..dto.cli_input import AnalyzeCommand
 from codeql_wrapper_v2.presentation.dto.cli_output import AnalyzeOutput, OutputStatus
 from codeql_wrapper_v2.presentation.formatters.output_renderer import OutputRenderer
 
@@ -102,185 +105,208 @@ def analyze(
         # Analyze only changed files since main branch
         codeql-wrapper-v2 analyze -r . --changed-files-only --base-ref main --languages python
     """
+    
+    # Create command object
+    command = AnalyzeCommand(
+        repository_path=str(repository_path),
+        languages=languages,
+        monorepo=monorepo,
+        changed_files_only=changed_files_only,
+        base_ref=base_ref,
+        ref=ref,
+        config=str(config) if config else None,
+        output_directory=str(output_directory) if output_directory else None,
+        verbose=verbose,
+        quiet=quiet
+    )
+    
+    # Set up output renderer
+    renderer = OutputRenderer(output_format, use_colors=not no_colors)
+    
+async def _run_analysis(command: AnalyzeCommand, renderer: OutputRenderer) -> None:
+    """Execute the analysis command."""
+    try:
+        # Configure logging - only if not quiet
+        if not command.quiet:
+            log_level = logging.DEBUG if command.verbose else logging.INFO
+            logging.basicConfig(
+                level=log_level,
+                format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+            )
 
-    # Configure logging - only if not quiet
-    if not quiet:
-        log_level = logging.DEBUG if verbose else logging.INFO
-        logging.basicConfig(
-            level=log_level,
-            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        # Set default output directory
+        output_directory = Path(command.output_directory) if command.output_directory else Path.cwd()
+
+        logger = logging.getLogger(__name__)
+        
+        # Show initial message if not quiet
+        if not command.quiet:
+            renderer.render(AnalyzeOutput(
+                status=OutputStatus.INFO,
+                message=f"Starting repository analysis in: {command.repository_path}"
+            ))
+
+        # Parse target languages
+        parsed_languages: Optional[List[Language]] = None
+        if command.languages:
+            lang_strings = [lang.strip() for lang in command.languages.split(",")]
+            parsed_languages = []
+            for lang_str in lang_strings:
+                try:
+                    lang_enums = Language.from_codeql_identifier(lang_str)
+                    parsed_languages.extend(lang_enums)
+                except ValueError:
+                    logger.warning(f"Unknown language: {lang_str}")
+                    
+            # Remove duplicates
+            parsed_languages = list(set(parsed_languages)) if parsed_languages else None
+        
+        # Create dependencies
+        file_system_analyzer = FileSystemAnalyzerImpl(logger)
+        config_reader = JsonConfigurationReader(logger)
+        language_detector = LanguageDetectorImpl(logger)
+        project_detector = ProjectDetectorImpl(
+            language_detector=language_detector,
+            config_reader=config_reader,
+            file_system_analyzer=file_system_analyzer,
+            logger=logger
+        )
+        codeql = create_codeql_service()
+        analysis_service = ProjectAnalysisServiceImpl(
+            codeql_service=codeql,
+            project_detector=project_detector,
+            logger=logger
+        )            
+
+        # Execute CodeQL installation if needed
+        request = InstallCodeQLRequest()
+        install_use_case = InstallCodeQLUseCase(codeql, logger)
+        result = await install_use_case.execute(request)
+
+        # Execute project detection
+        detect_request = DetectProjectsRequest(
+            repository_path=Path(command.repository_path),
+            is_monorepo=command.monorepo,
+            target_languages=parsed_languages,
+            include_changed_files_only=command.changed_files_only,
+            config_file_path=Path(command.config) if command.config else None,
+            base_ref=command.base_ref,
+            ref=command.ref
         )
 
-    if not output_directory:
-        output_directory = Path.cwd()
+        detect_project_use_case = DetectProjectsUseCase(
+            project_detector=project_detector,
+            language_detector=language_detector,
+            config_reader=config_reader,
+            file_system_analyzer=file_system_analyzer,
+            logger=logger
+        )
 
-    logger = logging.getLogger(__name__)
-    
-    # Create renderer
-    renderer = OutputRenderer(
-        format_type=output_format,
-        use_colors=not no_colors
-    )
+        detected_projects = await detect_project_use_case.execute(detect_request)
 
-    async def run_analysis() -> None:
-        try:
-            # Show initial message if not quiet
-            if not quiet:
-                renderer.render(AnalyzeOutput(
-                    status=OutputStatus.INFO,
-                    message=f"Starting repository analysis in: {repository_path}"
-                ))
-
-            # Parse target languages
-            parsed_languages: Optional[List[Language]] = None
-            if languages:
-                lang_strings = [lang.strip() for lang in languages.split(",")]
-                parsed_languages = []
-                for lang_str in lang_strings:
-                    try:
-                        lang_enums = Language.from_codeql_identifier(lang_str)
-                        parsed_languages.extend(lang_enums)
-                    except ValueError:
-                        logger.warning(f"Unknown language: {lang_str}")
-                        
-                # Remove duplicates
-                parsed_languages = list(set(parsed_languages)) if parsed_languages else None
-            
-            # Create dependencies
-            file_system_analyzer = FileSystemAnalyzerImpl(logger)
-            config_reader = JsonConfigurationReader(logger)
-            language_detector = LanguageDetectorImpl(logger)
-            project_detector = ProjectDetectorImpl(
-                language_detector=language_detector,
-                config_reader=config_reader,
-                file_system_analyzer=file_system_analyzer,
-                logger=logger
-            )
-            codeql = create_codeql_service()
-            analysis_service = ProjectAnalysisServiceImpl(
-                codeql_service=codeql,
-                project_detector=project_detector,
-                logger=logger
-            )            
-
-            # Execute CodeQL installation if needed
-            request = InstallCodeQLRequest( )
-
-            install_use_case = InstallCodeQLUseCase(codeql, logger)
-
-            result = await install_use_case.execute(request)
-
-            # Execute project detection
-            detect_request = DetectProjectsRequest(
-                repository_path=Path(repository_path),
-                is_monorepo=monorepo,
-                target_languages=parsed_languages,
-                include_changed_files_only=changed_files_only,
-                config_file_path=Path(config) if config else None,
-                base_ref=base_ref,
-                ref=ref
-            )
-
-            detect_project_use_case = DetectProjectsUseCase(
-                project_detector=project_detector,
-                language_detector=language_detector,
-                config_reader=config_reader,
-                file_system_analyzer=file_system_analyzer,
-                logger=logger
-            )
-
-            detected_projects = await detect_project_use_case.execute(detect_request)
-
-            # Execute analysis
-            if not detected_projects.has_projects():
-                raise ValueError("No projects detected for analysis")
-            
-            analyze_request = AnalyzeRepositoryRequest(
-                projects=detected_projects.detected_projects,
-                output_directory=output_directory
-            )
-
-            analyze_use_case = AnalyzeRepositoryUseCase(
-                logger=logger,
-                analysis_service=analysis_service,
-            )
-
-            result = await analyze_use_case.execute(analyze_request)
-
-
-            # Convert projects to dictionary format for JSON output
-            successful_projects = []
-            failed_projects = []
-
-            for analysis in result.successful_projects:
-                project_data = {
-                    "name": analysis.project.get_display_name(),
-                    "path": str(analysis.project.get_relative_path()),
-                    "languages": [lang.get_codeql_identifier() for lang in analysis.project.detected_languages],
-                    "build_mode": analysis.project.build_mode,
-                    "sarif_files": [str(file) for file in analysis.output_files],
-                }
-                if analysis.project.build_script_path:
-                    project_data["build_script_path"] = str(analysis.project.build_script_path)
-                if analysis.project.queries:
-                    project_data["queries"] = analysis.project.queries
-                else:
-                    if analysis.project.target_language:
-                        project_data["queries"] = [f"{analysis.project.target_language.get_codeql_identifier()}-code-scanning"]
-                    else: 
-                        project_data["queries"] = []
-                        for lang in analysis.project.detected_languages:
-                            project_data["queries"].append(f"{lang.get_codeql_identifier()}-code-scanning")
-                successful_projects.append(project_data)
-
-            for analysis in result.failed_projects:
-                project_data = {
-                    "name": analysis.project.get_display_name(),
-                    "path": str(analysis.project.get_relative_path()),
-                    "languages": [lang.get_codeql_identifier() for lang in analysis.project.detected_languages],
-                    "build_mode": analysis.project.build_mode,
-                    "error_message": analysis.error_message,
-                }
-                if analysis.project.build_script_path:
-                    project_data["build_script_path"] = str(analysis.project.build_script_path)
-                if analysis.project.queries:
-                    project_data["queries"] = analysis.project.queries
-                else:
-                    if analysis.project.target_language:
-                        project_data["queries"] = [f"{analysis.project.target_language.get_codeql_identifier()}-code-scanning"]
-                    else: 
-                        project_data["queries"] = []
-                        for lang in analysis.project.detected_languages:
-                            project_data["queries"].append(f"{lang.get_codeql_identifier()}-code-scanning")
-                failed_projects.append(project_data)
-
-            message = "Analysis completed successfully!" if result.is_successful() else "Analysis completed with errors."
-
-            output = AnalyzeOutput(
-                status=OutputStatus.SUCCESS if result.is_successful() else OutputStatus.ERROR,
-                message="Project detection completed successfully!",
-                repository_name=detected_projects.repository.get_display_name(),
-                repository_path=str(detected_projects.repository.path),
-                is_monorepo=detected_projects.is_monorepo,
-                project_count=detected_projects.get_project_count(),
-                config_file_used=detected_projects.config_file_used,
-                successful_projects=successful_projects,
-                failed_projects=failed_projects
-            )
+        # Execute analysis
+        if not detected_projects.has_projects():
+            raise ValueError("No projects detected for analysis")
         
-            # Render the output
-            renderer.render(output)
+        analyze_request = AnalyzeRepositoryRequest(
+            projects=detected_projects.detected_projects,
+            output_directory=output_directory
+        )
 
-        except Exception as e:
-            logger.error(f"Analysis failed: {e}")
-            error_output = AnalyzeOutput(
-                status=OutputStatus.ERROR,
-                message=f"Analysis failed: {e}"
-            )
-            renderer.render(error_output)
+        analyze_use_case = AnalyzeRepositoryUseCase(
+            logger=logger,
+            analysis_service=analysis_service,
+        )
+
+        result = await analyze_use_case.execute(analyze_request)
+
+        # Convert projects to dictionary format for JSON output
+        successful_projects = []
+        failed_projects = []
+
+        for analysis in result.successful_projects:
+            project_data = {
+                "name": analysis.project.get_display_name(),
+                "path": str(analysis.project.get_relative_path()),
+                "languages": [lang.get_codeql_identifier() for lang in analysis.project.detected_languages],
+                "build_mode": analysis.project.build_mode,
+                "sarif_files": [str(file) for file in analysis.output_files],
+            }
+            if analysis.project.build_script_path:
+                project_data["build_script_path"] = str(analysis.project.build_script_path)
+            if analysis.project.queries:
+                project_data["queries"] = analysis.project.queries
+            else:
+                if analysis.project.target_language:
+                    project_data["queries"] = [f"{analysis.project.target_language.get_codeql_identifier()}-code-scanning"]
+                else: 
+                    project_data["queries"] = []
+                    for lang in analysis.project.detected_languages:
+                        project_data["queries"].append(f"{lang.get_codeql_identifier()}-code-scanning")
+            successful_projects.append(project_data)
+
+        for analysis in result.failed_projects:
+            project_data = {
+                "name": analysis.project.get_display_name(),
+                "path": str(analysis.project.get_relative_path()),
+                "languages": [lang.get_codeql_identifier() for lang in analysis.project.detected_languages],
+                "build_mode": analysis.project.build_mode,
+                "error_message": analysis.error_message,
+            }
+            if analysis.project.build_script_path:
+                project_data["build_script_path"] = str(analysis.project.build_script_path)
+            if analysis.project.queries:
+                project_data["queries"] = analysis.project.queries
+            else:
+                if analysis.project.target_language:
+                    project_data["queries"] = [f"{analysis.project.target_language.get_codeql_identifier()}-code-scanning"]
+                else: 
+                    project_data["queries"] = []
+                    for lang in analysis.project.detected_languages:
+                        project_data["queries"].append(f"{lang.get_codeql_identifier()}-code-scanning")
+            failed_projects.append(project_data)
+
+        message = "Analysis completed successfully!" if result.is_successful() else "Analysis completed with errors."
+
+        output = AnalyzeOutput(
+            status=OutputStatus.SUCCESS if result.is_successful() else OutputStatus.ERROR,
+            message=message,
+            repository_name=detected_projects.repository.get_display_name(),
+            repository_path=str(detected_projects.repository.path),
+            is_monorepo=detected_projects.is_monorepo,
+            project_count=detected_projects.get_project_count(),
+            config_file_used=detected_projects.config_file_used,
+            successful_projects=successful_projects,
+            failed_projects=failed_projects
+        )
     
-    # Run the async operation
-    asyncio.run(run_analysis())
+        # Render the output
+        renderer.render(output)
+        
+        # Exit with success or error code based on results
+        if result.is_successful():
+            sys.exit(0)
+        else:
+            sys.exit(1)
+
+    except ValidationError as e:
+        output = AnalyzeOutput(
+            status=OutputStatus.ERROR,
+            message=f"Validation error: {str(e)}"
+        )
+        renderer.render(output)
+        sys.exit(1)
+        
+    except Exception as e:
+        logger = logging.getLogger(__name__)
+        logger.error(f"Analysis failed: {e}")
+        error_output = AnalyzeOutput(
+            status=OutputStatus.ERROR,
+            message=f"Analysis failed: {str(e)}"
+        )
+        renderer.render(error_output)
+        sys.exit(1)
+
 
 if __name__ == "__main__":
     analyze()

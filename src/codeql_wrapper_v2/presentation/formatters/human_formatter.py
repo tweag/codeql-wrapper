@@ -12,8 +12,8 @@ class HumanReadableFormatter(BaseFormatter):
     def format(self, output: CLIOutput) -> str:
         """Format output for human consumption."""
         # Special handling for DetectionOutput
-        #if isinstance(output, DetectionOutput) and output.status == OutputStatus.SUCCESS:
-        #    return self._format_detection_results(output)
+        if isinstance(output, DetectionOutput) and output.status == OutputStatus.SUCCESS:
+            return self._format_detection_results(output)
 
         # Special handling for InstallationOutput
         if isinstance(output, InstallationOutput) and output.status == OutputStatus.SUCCESS:
