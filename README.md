@@ -2,11 +2,11 @@
 
 <div align="center">
 
-[![Lint](https://github.com/ModusCreate-Perdigao-GHAS-Playground/codeql-wrapper/actions/workflows/lint.yml/badge.svg)](https://github.com/ModusCreate-Perdigao-GHAS-Playground/codeql-wrapper/actions/workflows/lint.yml)
-[![Build](https://github.com/ModusCreate-Perdigao-GHAS-Playground/codeql-wrapper/actions/workflows/build.yml/badge.svg)](https://github.com/ModusCreate-Perdigao-GHAS-Playground/codeql-wrapper/actions/workflows/build.yml)
+[![Lint](https://github.com/tweag/codeql-wrapper/actions/workflows/lint.yml/badge.svg)](https://github.com/tweag/codeql-wrapper/actions/workflows/lint.yml)
+[![Build](https://github.com/tweag/codeql-wrapper/actions/workflows/build.yml/badge.svg)](https://github.com/tweag/codeql-wrapper/actions/workflows/build.yml)
 [![PyPI version](https://badge.fury.io/py/codeql-wrapper.svg)](https://badge.fury.io/py/codeql-wrapper)
 [![Python versions](https://img.shields.io/pypi/pyversions/codeql-wrapper.svg)](https://pypi.org/project/codeql-wrapper/)
-[![Documentation](https://img.shields.io/badge/docs-available-brightgreen.svg)](https://moduscreate-perdigao-ghas-playground.github.io/codeql-wrapper/)
+[![Documentation](https://img.shields.io/badge/docs-available-brightgreen.svg)](https://tweag.github.io/codeql-wrapper/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 </div>
@@ -160,14 +160,14 @@ For complex monorepo setups, create a `.codeql.json` configuration file in your 
 | **Jenkins** | ✅ Supported |
 
 **Examples and implementation guides available at:**\
-<https://github.com/ModusCreate-fernandomatsuo-GHAS/poc-codeql-wrapper>
+<https://github.com/tweag/codeql-wrapper-pipelines>
 
 ***
 
 ## Documentation
 
 **Complete documentation is available at:**\
-<https://moduscreate-perdigao-ghas-playground.github.io/codeql-wrapper>
+<https://tweag.github.io/codeql-wrapper>
 
 ***
 
