@@ -19,7 +19,7 @@ const config = {
   },
 
   // Set the production url of your site here
-  url: 'https://moduscreate-perdigao-ghas-playground.github.io',
+  url: 'https://tweag.github.io',
   // Set the /<baseUrl>/ pathname under which your site is served
   // For GitHub pages deployment, it is often '/<projectName>/'
   // Use '/' for local development, '/' for GitHub Pages
@@ -27,7 +27,7 @@ const config = {
 
   // GitHub pages deployment config.
   // If you aren't using GitHub pages, you don't need these.
-  organizationName: 'ModusCreate-Perdigao-GHAS-Playground', // Usually your GitHub org/user name.
+  organizationName: 'tweag', // Usually your GitHub org/user name.
   projectName: 'codeql-wrapper', // Usually your repo name.
 
   onBrokenLinks: 'throw',
@@ -51,7 +51,7 @@ const config = {
           // Please change this to your repo.
           // Remove this to remove the "edit this page" links.
           editUrl:
-            'https://github.com/ModusCreate-Perdigao-GHAS-Playground/codeql-wrapper/tree/main/docs/',
+            'https://github.com/tweag/codeql-wrapper/tree/main/docs/',
         },
         blog: false, // Disable blog functionality
         theme: {
@@ -77,7 +77,7 @@ const config = {
           },
           //{ to: '/blog', label: 'Blog', position: 'left' },
           {
-            href: 'https://github.com/ModusCreate-Perdigao-GHAS-Playground/codeql-wrapper',
+            href: 'https://github.com/tweag/codeql-wrapper',
             label: 'GitHub',
             position: 'right',
           },
@@ -104,11 +104,11 @@ const config = {
             items: [
               {
                 label: 'Issues',
-                href: 'https://github.com/ModusCreate-Perdigao-GHAS-Playground/codeql-wrapper/issues',
+                href: 'https://github.com/tweag/codeql-wrapper/issues',
               },
               {
                 label: 'Discussions',
-                href: 'https://github.com/ModusCreate-Perdigao-GHAS-Playground/codeql-wrapper/discussions',
+                href: 'https://github.com/tweag/codeql-wrapper/discussions',
               },
             ],
           },
@@ -117,7 +117,7 @@ const config = {
             items: [
               {
                 label: 'GitHub',
-                href: 'https://github.com/ModusCreate-Perdigao-GHAS-Playground/codeql-wrapper',
+                href: 'https://github.com/tweag/codeql-wrapper',
               },
             ],
           },

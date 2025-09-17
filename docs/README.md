@@ -138,7 +138,7 @@ npm run serve
 ### GitHub Pages Setup
 
 The site is configured to deploy to:
-- URL: `https://moduscreate-perdigao-ghas-playground.github.io/codeql-wrapper/`
+- URL: `https://tweag.github.io/codeql-wrapper/`
 - Base URL: `/codeql-wrapper/`
 
 ## 📚 Resources
@@ -151,7 +151,7 @@ The site is configured to deploy to:
 
 If you find issues with the documentation:
 
-1. Check existing [issues](https://github.com/ModusCreate-Perdigao-GHAS-Playground/codeql-wrapper/issues)
+1. Check existing [issues](https://github.com/tweag/codeql-wrapper/issues)
 2. Create a new issue with the `documentation` label
 3. Or submit a pull request with fixes
 

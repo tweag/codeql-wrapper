@@ -35,7 +35,7 @@ For development or to get the latest features:
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/ModusCreate-Perdigao-GHAS-Playground/codeql-wrapper.git
+git clone https://github.com/tweag/codeql-wrapper.git
 cd codeql-wrapper
 ```
 
@@ -169,7 +169,7 @@ pip3 install codeql-wrapper
 
 If you encounter issues:
 
-1. Check the [Issues page](https://github.com/ModusCreate-Perdigao-GHAS-Playground/codeql-wrapper/issues)
+1. Check the [Issues page](https://github.com/tweag/codeql-wrapper/issues)
 2. Create a new issue with details about your problem
 3. Include your Python version, operating system, and error messages
 
