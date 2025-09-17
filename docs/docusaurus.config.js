@@ -23,7 +23,7 @@ const config = {
   // Set the /<baseUrl>/ pathname under which your site is served
   // For GitHub pages deployment, it is often '/<projectName>/'
   // Use '/' for local development, '/' for GitHub Pages
-  baseUrl: process.env.NODE_ENV === 'development' ? '/' : '/',
+  baseUrl: process.env.NODE_ENV === 'development' ? '/' : '/codeql-wrapper',
 
   // GitHub pages deployment config.
   // If you aren't using GitHub pages, you don't need these.
