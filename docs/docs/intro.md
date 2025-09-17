@@ -29,7 +29,7 @@ pip install codeql-wrapper
 Or install from source:
 
 ```bash
-git clone https://github.com/ModusCreate-Perdigao-GHAS-Playground/codeql-wrapper.git
+git clone https://github.com/tweag/codeql-wrapper.git
 cd codeql-wrapper
 poetry install
 ```
