@@ -11,6 +11,7 @@ from codeql_wrapper.infrastructure.git_utils import GitInfo
 class CodeQLLanguage(Enum):
     """Supported CodeQL languages."""
 
+    RUST = "rust"
     JAVASCRIPT = "javascript"
     TYPESCRIPT = "typescript"
     PYTHON = "python"

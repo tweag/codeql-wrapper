@@ -1,6 +1,6 @@
----
-sidebar_position: 5
----
+***
+
+## sidebar\_position: 5
 
 # API Reference
 
@@ -76,18 +76,18 @@ class CodeQLAnalysisRequest:
 
 #### Properties
 
-- `repository_path: Path` - Path to the repository to analyze.
-- `git_info: GitInfo` - Git information for the repository (e.g., branch, commit SHA).
-- `force_install: bool` - If `True`, forces reinstallation of CodeQL CLI even if already present. Defaults to `False`.
-- `target_languages: Optional[Set[CodeQLLanguage]]` - A set of specific languages to analyze. If `None`, all detected languages will be analyzed.
-- `verbose: bool` - If `True`, enables verbose logging for more detailed output. Defaults to `False`.
-- `output_directory: Optional[Path]` - The directory where analysis results (SARIF files, databases) will be stored. If `None`, results are stored in a default location within the project directory.
-- `monorepo: bool` - If `True`, treats the repository as a monorepo and attempts to detect multiple projects within it. Defaults to `False`.
-- `build_mode: Optional[str]` - Specifies the build mode for compiled languages (e.g., "autobuild", "none").
-- `build_script: Optional[Path]` - Path to a custom build script to be executed before analysis for compiled languages.
-- `queries: Optional[List[str]]` - A list of CodeQL query suite paths or names to run. If `None`, default queries are used.
-- `max_workers: Optional[int]` - The maximum number of parallel workers to use for analysis. If `None`, an optimal number is calculated based on system resources.
-- `only_changed_files: bool` - If `True`, only analyzes projects that have changed files based on Git history. Defaults to `False`.
+* `repository_path: Path` - Path to the repository to analyze.
+* `git_info: GitInfo` - Git information for the repository (e.g., branch, commit SHA).
+* `force_install: bool` - If `True`, forces reinstallation of CodeQL CLI even if already present. Defaults to `False`.
+* `target_languages: Optional[Set[CodeQLLanguage]]` - A set of specific languages to analyze. If `None`, all detected languages will be analyzed.
+* `verbose: bool` - If `True`, enables verbose logging for more detailed output. Defaults to `False`.
+* `output_directory: Optional[Path]` - The directory where analysis results (SARIF files, databases) will be stored. If `None`, results are stored in a default location within the project directory.
+* `monorepo: bool` - If `True`, treats the repository as a monorepo and attempts to detect multiple projects within it. Defaults to `False`.
+* `build_mode: Optional[str]` - Specifies the build mode for compiled languages (e.g., "autobuild", "none").
+* `build_script: Optional[Path]` - Path to a custom build script to be executed before analysis for compiled languages.
+* `queries: Optional[List[str]]` - A list of CodeQL query suite paths or names to run. If `None`, default queries are used.
+* `max_workers: Optional[int]` - The maximum number of parallel workers to use for analysis. If `None`, an optimal number is calculated based on system resources.
+* `only_changed_files: bool` - If `True`, only analyzes projects that have changed files based on Git history. Defaults to `False`.
 
 ### RepositoryAnalysisSummary
 
@@ -107,14 +107,14 @@ class RepositoryAnalysisSummary:
 
 #### Properties
 
-- `repository_path: Path` - The path to the repository that was analyzed.
-- `detected_projects: List[ProjectInfo]` - A list of `ProjectInfo` objects representing all projects detected within the repository.
-- `analysis_results: List[CodeQLAnalysisResult]` - A list of `CodeQLAnalysisResult` objects, each containing the results for a single project's analysis.
-- `total_findings: int` - The total number of security findings across all successful analyses.
-- `successful_analyses: int` - The count of analyses that completed successfully.
-- `failed_analyses: int` - The count of analyses that failed.
-- `error: Optional[str]` - An aggregated error message if any top-level error occurred during the analysis process.
-- `success_rate: float` - The success rate of analyses (calculated as `successful_analyses / total_analyses`).
+* `repository_path: Path` - The path to the repository that was analyzed.
+* `detected_projects: List[ProjectInfo]` - A list of `ProjectInfo` objects representing all projects detected within the repository.
+* `analysis_results: List[CodeQLAnalysisResult]` - A list of `CodeQLAnalysisResult` objects, each containing the results for a single project's analysis.
+* `total_findings: int` - The total number of security findings across all successful analyses.
+* `successful_analyses: int` - The count of analyses that completed successfully.
+* `failed_analyses: int` - The count of analyses that failed.
+* `error: Optional[str]` - An aggregated error message if any top-level error occurred during the analysis process.
+* `success_rate: float` - The success rate of analyses (calculated as `successful_analyses / total_analyses`).
 
 ### CodeQLAnalysisResult
 
@@ -134,14 +134,14 @@ class CodeQLAnalysisResult:
 
 #### Properties
 
-- `project_info: ProjectInfo` - Information about the specific project that was analyzed.
-- `status: AnalysisStatus` - The current status of the analysis (e.g., `PENDING`, `RUNNING`, `COMPLETED`, `FAILED`).
-- `start_time: datetime` - The timestamp when the analysis started.
-- `end_time: Optional[datetime]` - The timestamp when the analysis ended. `None` if still running or failed early.
-- `output_files: Optional[List[Path]]` - A list of paths to the output files generated by the analysis (e.g., SARIF files).
-- `error_message: Optional[str]` - A detailed error message if the analysis failed for this specific project.
-- `findings_count: int` - The number of security findings identified in this project's analysis.
-- `duration: float` - The duration of the analysis in seconds (calculated from `start_time` and `end_time`).
+* `project_info: ProjectInfo` - Information about the specific project that was analyzed.
+* `status: AnalysisStatus` - The current status of the analysis (e.g., `PENDING`, `RUNNING`, `COMPLETED`, `FAILED`).
+* `start_time: datetime` - The timestamp when the analysis started.
+* `end_time: Optional[datetime]` - The timestamp when the analysis ended. `None` if still running or failed early.
+* `output_files: Optional[List[Path]]` - A list of paths to the output files generated by the analysis (e.g., SARIF files).
+* `error_message: Optional[str]` - A detailed error message if the analysis failed for this specific project.
+* `findings_count: int` - The number of security findings identified in this project's analysis.
+* `duration: float` - The duration of the analysis in seconds (calculated from `start_time` and `end_time`).
 
 ### ProjectInfo
 
@@ -166,18 +166,18 @@ class ProjectInfo:
 
 #### Properties
 
-- `repository_path: Path` - The root path of the Git repository containing the project.
-- `project_path: Path` - The absolute path to the project directory.
-- `name: str` - A human-readable name for the project.
-- `framework: Optional[str]` - Detected framework of the project (e.g., "React", "Spring").
-- `build_files: Optional[List[str]]` - List of detected build-related files (e.g., `pom.xml`, `package.json`).
-- `build_script: Optional[Path]` - Path to a detected build script for the project.
-- `queries: Optional[List[str]]` - Specific CodeQL queries or query suites configured for this project.
-- `non_compiled_languages: Set[CodeQLLanguage]` - Set of non-compiled languages detected in the project (e.g., Python, JavaScript).
-- `compiled_languages: Set[CodeQLLanguage]` - Set of compiled languages detected in the project (e.g., Java, C#).
-- `target_language: Optional[CodeQLLanguage]` - The primary language targeted for analysis if specified.
-- `build_mode: Optional[str]` - The build mode used for the project (e.g., "autobuild", "none").
-- `log_color: Optional[str]` - ANSI escape code for logging output color, used for distinguishing project logs.
+* `repository_path: Path` - The root path of the Git repository containing the project.
+* `project_path: Path` - The absolute path to the project directory.
+* `name: str` - A human-readable name for the project.
+* `framework: Optional[str]` - Detected framework of the project (e.g., "React", "Spring").
+* `build_files: Optional[List[str]]` - List of detected build-related files (e.g., `pom.xml`, `package.json`).
+* `build_script: Optional[Path]` - Path to a detected build script for the project.
+* `queries: Optional[List[str]]` - Specific CodeQL queries or query suites configured for this project.
+* `non_compiled_languages: Set[CodeQLLanguage]` - Set of non-compiled languages detected in the project (e.g., Python, JavaScript).
+* `compiled_languages: Set[CodeQLLanguage]` - Set of compiled languages detected in the project (e.g., Java, C#).
+* `target_language: Optional[CodeQLLanguage]` - The primary language targeted for analysis if specified.
+* `build_mode: Optional[str]` - The build mode used for the project (e.g., "autobuild", "none").
+* `log_color: Optional[str]` - ANSI escape code for logging output color, used for distinguishing project logs.
 
 ### GitInfo
 
@@ -196,12 +196,12 @@ class GitInfo:
 
 #### Properties
 
-- `working_dir: Path` - The working directory of the Git repository.
-- `branch: str` - The current branch name.
-- `commit_sha: str` - The full SHA of the current commit.
-- `remote_url: Optional[str]` - The URL of the remote Git repository.
-- `base_branch: Optional[str]` - The base branch for pull request analysis.
-- `base_commit_sha: Optional[str]` - The base commit SHA for pull request analysis.
+* `working_dir: Path` - The working directory of the Git repository.
+* `branch: str` - The current branch name.
+* `commit_sha: str` - The full SHA of the current commit.
+* `remote_url: Optional[str]` - The URL of the remote Git repository.
+* `base_branch: Optional[str]` - The base branch for pull request analysis.
+* `base_commit_sha: Optional[str]` - The base commit SHA for pull request analysis.
 
 ## Enumerations
 
@@ -211,6 +211,7 @@ Supported CodeQL languages:
 
 ```python
 class CodeQLLanguage(Enum):
+    RUST = "rust"
     JAVASCRIPT = "javascript"
     TYPESCRIPT = "typescript"
     PYTHON = "python"
@@ -349,12 +350,12 @@ class SarifUploadResult:
 
 #### Properties
 
-- `success: bool` - `True` if all SARIF files were uploaded successfully, `False` otherwise.
-- `successful_uploads: int` - The number of SARIF files successfully uploaded.
-- `failed_uploads: int` - The number of SARIF files that failed to upload.
-- `total_files: int` - The total number of SARIF files attempted to upload.
-- `errors: Optional[List[str]]` - A list of error messages for failed uploads.
-- `success_rate: float` - The success rate of the upload operation (calculated as `successful_uploads / total_files`).
+* `success: bool` - `True` if all SARIF files were uploaded successfully, `False` otherwise.
+* `successful_uploads: int` - The number of SARIF files successfully uploaded.
+* `failed_uploads: int` - The number of SARIF files that failed to upload.
+* `total_files: int` - The total number of SARIF files attempted to upload.
+* `errors: Optional[List[str]]` - A list of error messages for failed uploads.
+* `success_rate: float` - The success rate of the upload operation (calculated as `successful_uploads / total_files`).
 
 ## Error Handling
 
@@ -498,5 +499,3 @@ if __name__ == "__main__":
     
     analyze_repository(sys.argv[1], sys.argv[2])
 ```
-
-

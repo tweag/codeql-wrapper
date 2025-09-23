@@ -608,6 +608,7 @@ class CodeQLAnalysisUseCase:
 
         # Map detected languages to CodeQL languages
         language_mapping = {
+            "rust": CodeQLLanguage.RUST,
             "javascript": CodeQLLanguage.JAVASCRIPT,
             "typescript": CodeQLLanguage.TYPESCRIPT,
             "python": CodeQLLanguage.PYTHON,
@@ -621,7 +622,7 @@ class CodeQLAnalysisUseCase:
         }
 
         # Define which languages are compiled vs non-compiled
-        compiled_languages = {"java", "csharp", "cpp", "swift"}
+        compiled_languages = {"java", "csharp", "cpp", "swift", "rust"}
         non_compiled_languages = {
             "javascript",
             "typescript",
